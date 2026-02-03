@@ -19,6 +19,7 @@ import { Analytics } from '../../src/types';
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user, setUser, logout } = useAuthStore();
   const [showQR, setShowQR] = useState(false);
   const [qrData, setQRData] = useState<any>(null);
@@ -74,7 +75,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Profile</Text>
@@ -231,7 +232,7 @@ export default function ProfileScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
