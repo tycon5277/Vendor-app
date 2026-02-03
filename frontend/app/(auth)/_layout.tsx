@@ -1,12 +1,12 @@
 import React from 'react';
 import { Stack } from 'expo-router';
+import { useTheme } from '@react-navigation/native';
 
 export default function AuthLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: '#F9FAFB' },
         animation: 'slide_from_right',
       }}
     >
