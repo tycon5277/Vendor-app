@@ -226,7 +226,41 @@ backend:
           comment: "✅ Seed vendor data working perfectly. Creates sample products (8 items), sample orders (3 orders with different statuses), and sample earnings records."
 
 frontend:
-  # No frontend testing performed as per instructions
+  - task: "My Shop Screen - Online/Offline Toggle"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(main)/products/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented iOS-style toggle with color animation (green/red). Toggle calls vendorAPI.updateStatus() to persist shop status. UI includes animated pulse effect when shop is open."
+
+  - task: "Add Product Screen (Full-screen Form)"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(main)/products/add.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Created full-screen form with: product image upload (camera/gallery), name, description, category grid selection, pricing with discount calculation, unit selection, stock toggle and quantity. Form has progress indicator and validation."
+
+  - task: "Edit Product Screen"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(main)/products/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Created edit screen that loads existing product data, allows updating all fields including image, and includes delete product functionality with confirmation."
 
 metadata:
   created_by: "testing_agent"
