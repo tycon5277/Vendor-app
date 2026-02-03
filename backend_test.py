@@ -10,7 +10,7 @@ import sys
 from datetime import datetime
 
 # Base URL from frontend environment
-BASE_URL = "https://vendor-hub-124.preview.emergentagent.com/api"
+BASE_URL = "https://shopkeeper-app-6.preview.emergentagent.com/api"
 
 class VendorAPITester:
     def __init__(self):
