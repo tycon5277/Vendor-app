@@ -21,6 +21,7 @@ import { format } from 'date-fns';
 export default function ChatsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ room?: string }>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
@@ -150,7 +151,7 @@ export default function ChatsScreen() {
   // Chat Detail View
   if (selectedRoom) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.chatHeader}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -246,7 +247,7 @@ export default function ChatsScreen() {
           </View>
         }
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
