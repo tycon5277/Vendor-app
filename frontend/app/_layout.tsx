@@ -1,15 +1,13 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useAuthStore } from '../src/store/authStore';
-import { LoadingScreen } from '../src/components/LoadingScreen';
+import { View } from 'react-native';
 import { 
   ThemeProvider,
-  DarkTheme,
   DefaultTheme,
 } from '@react-navigation/native';
+import { useAuthStore } from '../src/store/authStore';
+import { LoadingScreen } from '../src/components/LoadingScreen';
 
 const LightTheme = {
   ...DefaultTheme,
@@ -65,11 +63,9 @@ function InitialLayout() {
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={LightTheme}>
-        <StatusBar style="dark" />
-        <InitialLayout />
-      </ThemeProvider>
-    </GestureHandlerRootView>
+    <ThemeProvider value={LightTheme}>
+      <StatusBar style="dark" />
+      <InitialLayout />
+    </ThemeProvider>
   );
 }
