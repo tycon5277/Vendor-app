@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Animated,
   Dimensions,
+  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -56,6 +57,15 @@ export default function PerformanceScreen() {
         useNativeDriver: true,
       }),
     ]).start();
+  }, []);
+
+  // Handle hardware back button - go to previous screen
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.back();
+      return true;
+    });
+    return () => backHandler.remove();
   }, []);
 
   const onRefresh = async () => {
@@ -249,7 +259,7 @@ export default function PerformanceScreen() {
                 {lowStockProducts.length > 3 && (
                   <TouchableOpacity 
                     style={styles.viewAllBtn}
-                    onPress={() => router.push('/(main)/products')}
+                    onPress={() => router.push('/(main)/warehouse')}
                   >
                     <Text style={styles.viewAllText}>View all {lowStockProducts.length} items</Text>
                   </TouchableOpacity>

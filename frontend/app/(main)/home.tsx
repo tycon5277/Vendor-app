@@ -9,6 +9,8 @@ import {
   Alert,
   Animated,
   Dimensions,
+  BackHandler,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -27,6 +29,13 @@ export default function HomeScreen() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
   
+  // Back button handling
+  const [backPressCount, setBackPressCount] = useState(0);
+  const [showExitToast, setShowExitToast] = useState(false);
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastScale = useRef(new Animated.Value(0.8)).current;
+  const backPressTimer = useRef<NodeJS.Timeout | null>(null);
+  
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -43,6 +52,78 @@ export default function HomeScreen() {
       console.error('Load data error:', error);
     }
   };
+
+  // Show exit toast with animation
+  const showExitNotification = () => {
+    setShowExitToast(true);
+    Animated.parallel([
+      Animated.spring(toastAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.spring(toastScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Auto hide after 2.5 seconds
+    setTimeout(() => {
+      hideExitNotification();
+    }, 2500);
+  };
+
+  const hideExitNotification = () => {
+    Animated.parallel([
+      Animated.timing(toastAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(toastScale, {
+        toValue: 0.8,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowExitToast(false);
+    });
+  };
+
+  // Handle back button press
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // Clear previous timer
+      if (backPressTimer.current) {
+        clearTimeout(backPressTimer.current);
+      }
+
+      const newCount = backPressCount + 1;
+      setBackPressCount(newCount);
+
+      if (newCount === 2) {
+        // Show toast on second press
+        showExitNotification();
+      } else if (newCount >= 3) {
+        // Exit app on third press
+        BackHandler.exitApp();
+        return true;
+      }
+
+      // Reset counter after 2 seconds of no press
+      backPressTimer.current = setTimeout(() => {
+        setBackPressCount(0);
+      }, 2000);
+
+      return true; // Prevent default back behavior
+    });
+
+    return () => backHandler.remove();
+  }, [backPressCount]);
 
   useEffect(() => {
     loadData();
@@ -97,15 +178,6 @@ export default function HomeScreen() {
     if (level >= 10) return '#F59E0B'; // Gold
     if (level >= 5) return '#8B5CF6'; // Purple
     return '#6366F1'; // Indigo
-  };
-
-  // Calculate comparison percentages
-  const getComparisonText = (current: number, previous: number) => {
-    if (previous === 0) return { text: 'New!', positive: true };
-    const diff = ((current - previous) / previous) * 100;
-    if (diff > 0) return { text: `+${diff.toFixed(0)}%`, positive: true };
-    if (diff < 0) return { text: `${diff.toFixed(0)}%`, positive: false };
-    return { text: 'Same', positive: true };
   };
 
   return (
@@ -194,61 +266,7 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Weekly Overview Cards */}
-          <View style={styles.statsSection}>
-            <Text style={styles.sectionTitle}>This Week</Text>
-            <View style={styles.statsGrid}>
-              <TouchableOpacity 
-                style={[styles.statCard, styles.statCardPrimary]}
-                onPress={() => router.push('/(main)/performance')}
-              >
-                <View style={styles.statIconBg}>
-                  <Ionicons name="cash" size={20} color="#22C55E" />
-                </View>
-                <Text style={styles.statValue}>₹{(analytics?.week.earnings || 0).toLocaleString()}</Text>
-                <Text style={styles.statLabel}>Earnings</Text>
-                <View style={styles.statTrend}>
-                  <Ionicons name="trending-up" size={12} color="#22C55E" />
-                  <Text style={styles.statTrendText}>+12%</Text>
-                </View>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.statCard, styles.statCardSecondary]}
-                onPress={() => router.push('/(main)/orders')}
-              >
-                <View style={styles.statIconBg}>
-                  <Ionicons name="bag-check" size={20} color="#6366F1" />
-                </View>
-                <Text style={styles.statValue}>{analytics?.week.orders || 0}</Text>
-                <Text style={styles.statLabel}>Orders</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.statCard, styles.statCardTertiary]}
-                onPress={() => router.push('/(main)/performance')}
-              >
-                <View style={styles.statIconBg}>
-                  <Ionicons name="star" size={20} color="#F59E0B" />
-                </View>
-                <Text style={styles.statValue}>{analytics?.rating?.toFixed(1) || '5.0'}</Text>
-                <Text style={styles.statLabel}>Rating</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.statCard, styles.statCardQuaternary]}
-                onPress={() => router.push('/(main)/performance')}
-              >
-                <View style={styles.statIconBg}>
-                  <Ionicons name="trending-up" size={20} color="#EC4899" />
-                </View>
-                <Text style={styles.statValue}>{analytics?.month.orders || 0}</Text>
-                <Text style={styles.statLabel}>Monthly</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Recent Orders - Simplified */}
+          {/* Recent Orders */}
           <View style={styles.ordersSection}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recent Orders</Text>
@@ -326,6 +344,43 @@ export default function HomeScreen() {
           <View style={{ height: 100 }} />
         </Animated.View>
       </ScrollView>
+
+      {/* Claymorphism Exit Toast */}
+      {showExitToast && (
+        <Animated.View 
+          style={[
+            styles.exitToastContainer,
+            {
+              opacity: toastAnim,
+              transform: [
+                { scale: toastScale },
+                { translateY: toastAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                })}
+              ],
+            }
+          ]}
+        >
+          <View style={styles.exitToast}>
+            <View style={styles.exitToastInner}>
+              <View style={styles.exitToastIcon}>
+                <Ionicons name="exit-outline" size={28} color="#6366F1" />
+              </View>
+              <View style={styles.exitToastContent}>
+                <Text style={styles.exitToastTitle}>Ready to leave? 👋</Text>
+                <Text style={styles.exitToastText}>Press back once more to exit</Text>
+              </View>
+              <View style={styles.exitToastBadge}>
+                <Ionicons name="arrow-back" size={16} color="#FFFFFF" />
+              </View>
+            </View>
+            <View style={styles.exitToastProgress}>
+              <Animated.View style={styles.exitToastProgressBar} />
+            </View>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -521,8 +576,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255,255,255,0.6)',
   },
-  // Stats Section
-  statsSection: {
+  // Orders Section
+  ordersSection: {
     paddingHorizontal: 16,
     marginTop: 24,
   },
@@ -531,61 +586,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
     marginBottom: 14,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  statCard: {
-    width: (width - 42) / 2,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  statCardPrimary: {},
-  statCardSecondary: {},
-  statCardTertiary: {},
-  statCardQuaternary: {},
-  statIconBg: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 4,
-  },
-  statTrend: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 4,
-  },
-  statTrendText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#22C55E',
-  },
-  // Orders Section
-  ordersSection: {
-    paddingHorizontal: 16,
-    marginTop: 24,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -752,5 +752,97 @@ const styles = StyleSheet.create({
     color: '#78350F',
     marginTop: 4,
     lineHeight: 18,
+  },
+  // Claymorphism Exit Toast
+  exitToastContainer: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+  },
+  exitToast: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 4,
+    // Claymorphism shadows
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    elevation: 12,
+    // Inner glow effect
+    borderWidth: 2,
+    borderColor: 'rgba(99, 102, 241, 0.1)',
+  },
+  exitToastInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%)',
+    borderRadius: 20,
+    padding: 16,
+    // Claymorphism inner styling
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  exitToastIcon: {
+    width: 56,
+    height: 56,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    // Claymorphism bulge effect
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  exitToastContent: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  exitToastTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  exitToastText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  exitToastBadge: {
+    width: 36,
+    height: 36,
+    backgroundColor: '#6366F1',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    // Soft shadow for badge
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  exitToastProgress: {
+    height: 4,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
+    marginTop: 4,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  exitToastProgressBar: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#6366F1',
+    borderRadius: 2,
   },
 });

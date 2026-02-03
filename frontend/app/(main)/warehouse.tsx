@@ -11,6 +11,7 @@ import {
   Animated,
   TextInput,
   Dimensions,
+  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -90,6 +91,15 @@ export default function WarehouseScreen() {
       duration: 400,
       useNativeDriver: true,
     }).start();
+  }, []);
+
+  // Handle hardware back button - go to previous screen
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.back();
+      return true;
+    });
+    return () => backHandler.remove();
   }, []);
 
   useEffect(() => {
