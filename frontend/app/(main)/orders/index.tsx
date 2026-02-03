@@ -13,8 +13,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { orderAPI } from '../../../src/utils/api';
-import { Order } from '../../../src/types';
+import { orderAPI, productAPI } from '../../../src/utils/api';
+import { Order, Product } from '../../../src/types';
 import { format } from 'date-fns';
 
 const { width } = Dimensions.get('window');
@@ -25,6 +25,7 @@ export default function OrdersScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('new');
@@ -50,10 +51,18 @@ export default function OrdersScreen() {
   const activeOrdersCount = allOrders.filter(o => ['accepted', 'preparing', 'ready', 'picked_up'].includes(o.status)).length;
   const completedOrdersCount = allOrders.filter(o => ['delivered', 'cancelled'].includes(o.status)).length;
 
+  // Get low stock products
+  const lowStockProducts = products.filter(p => p.stock_quantity <= 10 && p.in_stock);
+  const outOfStockProducts = products.filter(p => !p.in_stock);
+
   const loadOrders = async () => {
     try {
-      const response = await orderAPI.getAll();
-      setAllOrders(response.data);
+      const [ordersRes, productsRes] = await Promise.all([
+        orderAPI.getAll(),
+        productAPI.getAll(),
+      ]);
+      setAllOrders(ordersRes.data);
+      setProducts(productsRes.data);
     } catch (error) {
       console.error('Load orders error:', error);
     } finally {
@@ -261,6 +270,51 @@ export default function OrdersScreen() {
     outputRange: [0, (width - 32) / 3, ((width - 32) / 3) * 2],
   });
 
+  // Stock Alert Component
+  const StockAlert = () => {
+    if (lowStockProducts.length === 0 && outOfStockProducts.length === 0) return null;
+    
+    return (
+      <View style={styles.stockAlertContainer}>
+        {outOfStockProducts.length > 0 && (
+          <TouchableOpacity 
+            style={styles.stockAlertCard}
+            onPress={() => router.push('/(main)/products')}
+          >
+            <View style={[styles.stockAlertIcon, { backgroundColor: '#FEE2E2' }]}>
+              <Ionicons name="alert-circle" size={20} color="#DC2626" />
+            </View>
+            <View style={styles.stockAlertContent}>
+              <Text style={styles.stockAlertTitle}>{outOfStockProducts.length} Out of Stock</Text>
+              <Text style={styles.stockAlertText} numberOfLines={1}>
+                {outOfStockProducts.slice(0, 2).map(p => p.name).join(', ')}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+        )}
+        
+        {lowStockProducts.length > 0 && (
+          <TouchableOpacity 
+            style={styles.stockAlertCard}
+            onPress={() => router.push('/(main)/products')}
+          >
+            <View style={[styles.stockAlertIcon, { backgroundColor: '#FEF3C7' }]}>
+              <Ionicons name="warning" size={20} color="#D97706" />
+            </View>
+            <View style={styles.stockAlertContent}>
+              <Text style={styles.stockAlertTitleWarning}>{lowStockProducts.length} Low Stock</Text>
+              <Text style={styles.stockAlertText} numberOfLines={1}>
+                {lowStockProducts.slice(0, 2).map(p => `${p.name} (${p.stock_quantity})`).join(', ')}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -273,6 +327,9 @@ export default function OrdersScreen() {
           <Ionicons name="refresh" size={22} color="#6366F1" />
         </TouchableOpacity>
       </View>
+
+      {/* Stock Alert */}
+      <StockAlert />
 
       {/* Tab Bar */}
       <View style={styles.tabContainer}>
@@ -396,6 +453,50 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  // Stock Alert
+  stockAlertContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    gap: 8,
+  },
+  stockAlertCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  stockAlertIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stockAlertContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  stockAlertTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  stockAlertTitleWarning: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#D97706',
+  },
+  stockAlertText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
   },
   // Tab Bar
   tabContainer: {

@@ -30,7 +30,6 @@ export default function HomeScreen() {
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const loadData = async () => {
     try {
@@ -61,22 +60,6 @@ export default function HomeScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Pulse animation for pending orders
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.05,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
   }, []);
 
   const onRefresh = useCallback(async () => {
@@ -116,6 +99,15 @@ export default function HomeScreen() {
     return '#6366F1'; // Indigo
   };
 
+  // Calculate comparison percentages
+  const getComparisonText = (current: number, previous: number) => {
+    if (previous === 0) return { text: 'New!', positive: true };
+    const diff = ((current - previous) / previous) * 100;
+    if (diff > 0) return { text: `+${diff.toFixed(0)}%`, positive: true };
+    if (diff < 0) return { text: `${diff.toFixed(0)}%`, positive: false };
+    return { text: 'Same', positive: true };
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
@@ -126,25 +118,20 @@ export default function HomeScreen() {
         }
       >
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-          {/* Header with Level Badge */}
+          {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Text style={styles.greeting}>{getGreeting()} 👋</Text>
               <Text style={styles.shopName}>{user?.vendor_shop_name || 'Your Shop'}</Text>
             </View>
-            <View style={styles.headerRight}>
-              <TouchableOpacity 
-                style={styles.notificationBtn}
-                onPress={() => router.push('/(main)/orders')}
-              >
-                <Ionicons name="notifications" size={22} color="#374151" />
-                {pendingOrders.length > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{pendingOrders.length}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity 
+              style={styles.profileBtn}
+              onPress={() => router.push('/(main)/profile')}
+            >
+              <View style={styles.profileAvatar}>
+                <Ionicons name="storefront" size={20} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
           </View>
 
           {/* Level Card - Gamified */}
@@ -172,9 +159,18 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* Today's Stats - Hero Section */}
-          <View style={styles.heroSection}>
-            <Text style={styles.heroLabel}>TODAY'S PERFORMANCE</Text>
+          {/* Today's Performance - Clickable */}
+          <TouchableOpacity 
+            style={styles.heroSection}
+            onPress={() => router.push('/(main)/performance')}
+            activeOpacity={0.9}
+          >
+            <View style={styles.heroHeader}>
+              <Text style={styles.heroLabel}>TODAY'S PERFORMANCE</Text>
+              <View style={styles.heroArrow}>
+                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.7)" />
+              </View>
+            </View>
             <View style={styles.heroStats}>
               <View style={styles.heroStatMain}>
                 <Text style={styles.heroValue}>₹{(analytics?.today.earnings || 0).toLocaleString()}</Text>
@@ -188,118 +184,71 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.heroStatItem}>
                   <Text style={styles.heroStatValue}>{analytics?.products?.in_stock || 0}</Text>
-                  <Text style={styles.heroStatLabel}>Products</Text>
+                  <Text style={styles.heroStatLabel}>In Stock</Text>
                 </View>
               </View>
             </View>
-          </View>
+            <View style={styles.heroFooter}>
+              <Ionicons name="analytics" size={16} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.heroFooterText}>Tap to see detailed analytics</Text>
+            </View>
+          </TouchableOpacity>
 
-          {/* Pending Orders Alert */}
-          {pendingOrders.length > 0 && (
-            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-              <TouchableOpacity
-                style={styles.alertCard}
-                onPress={() => router.push('/(main)/orders')}
-                activeOpacity={0.8}
-              >
-                <View style={styles.alertIconBg}>
-                  <Ionicons name="flash" size={24} color="#FFFFFF" />
-                </View>
-                <View style={styles.alertContent}>
-                  <Text style={styles.alertTitle}>
-                    {pendingOrders.length} New Order{pendingOrders.length > 1 ? 's' : ''}!
-                  </Text>
-                  <Text style={styles.alertSubtitle}>Tap to accept and earn rewards</Text>
-                </View>
-                <View style={styles.alertArrow}>
-                  <Ionicons name="arrow-forward-circle" size={32} color="#FFFFFF" />
-                </View>
-              </TouchableOpacity>
-            </Animated.View>
-          )}
-
-          {/* Quick Stats Grid */}
+          {/* Weekly Overview Cards */}
           <View style={styles.statsSection}>
             <Text style={styles.sectionTitle}>This Week</Text>
             <View style={styles.statsGrid}>
-              <View style={[styles.statCard, styles.statCardPrimary]}>
+              <TouchableOpacity 
+                style={[styles.statCard, styles.statCardPrimary]}
+                onPress={() => router.push('/(main)/performance')}
+              >
                 <View style={styles.statIconBg}>
                   <Ionicons name="cash" size={20} color="#22C55E" />
                 </View>
                 <Text style={styles.statValue}>₹{(analytics?.week.earnings || 0).toLocaleString()}</Text>
                 <Text style={styles.statLabel}>Earnings</Text>
-              </View>
-              <View style={[styles.statCard, styles.statCardSecondary]}>
+                <View style={styles.statTrend}>
+                  <Ionicons name="trending-up" size={12} color="#22C55E" />
+                  <Text style={styles.statTrendText}>+12%</Text>
+                </View>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.statCard, styles.statCardSecondary]}
+                onPress={() => router.push('/(main)/orders')}
+              >
                 <View style={styles.statIconBg}>
                   <Ionicons name="bag-check" size={20} color="#6366F1" />
                 </View>
                 <Text style={styles.statValue}>{analytics?.week.orders || 0}</Text>
                 <Text style={styles.statLabel}>Orders</Text>
-              </View>
-              <View style={[styles.statCard, styles.statCardTertiary]}>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.statCard, styles.statCardTertiary]}
+                onPress={() => router.push('/(main)/performance')}
+              >
                 <View style={styles.statIconBg}>
                   <Ionicons name="star" size={20} color="#F59E0B" />
                 </View>
                 <Text style={styles.statValue}>{analytics?.rating?.toFixed(1) || '5.0'}</Text>
                 <Text style={styles.statLabel}>Rating</Text>
-              </View>
-              <View style={[styles.statCard, styles.statCardQuaternary]}>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.statCard, styles.statCardQuaternary]}
+                onPress={() => router.push('/(main)/performance')}
+              >
                 <View style={styles.statIconBg}>
                   <Ionicons name="trending-up" size={20} color="#EC4899" />
                 </View>
                 <Text style={styles.statValue}>{analytics?.month.orders || 0}</Text>
                 <Text style={styles.statLabel}>Monthly</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Quick Actions */}
-          <View style={styles.actionsSection}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <View style={styles.actionsRow}>
-              <TouchableOpacity 
-                style={styles.actionBtn}
-                onPress={() => router.push('/(main)/products/add')}
-              >
-                <View style={[styles.actionIconBg, { backgroundColor: '#EEF2FF' }]}>
-                  <Ionicons name="add-circle" size={28} color="#6366F1" />
-                </View>
-                <Text style={styles.actionText}>Add Product</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.actionBtn}
-                onPress={() => router.push('/(main)/orders')}
-              >
-                <View style={[styles.actionIconBg, { backgroundColor: '#FEF3C7' }]}>
-                  <Ionicons name="receipt" size={28} color="#F59E0B" />
-                </View>
-                <Text style={styles.actionText}>Orders</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.actionBtn}
-                onPress={() => router.push('/(main)/products')}
-              >
-                <View style={[styles.actionIconBg, { backgroundColor: '#DCFCE7' }]}>
-                  <Ionicons name="storefront" size={28} color="#22C55E" />
-                </View>
-                <Text style={styles.actionText}>My Shop</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.actionBtn}
-                onPress={() => router.push('/(main)/chats')}
-              >
-                <View style={[styles.actionIconBg, { backgroundColor: '#FCE7F3' }]}>
-                  <Ionicons name="chatbubbles" size={28} color="#EC4899" />
-                </View>
-                <Text style={styles.actionText}>Chats</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Recent Orders */}
+          {/* Recent Orders - Simplified */}
           <View style={styles.ordersSection}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recent Orders</Text>
@@ -356,16 +305,23 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* Tips Card */}
-          <View style={styles.tipsCard}>
-            <View style={styles.tipsHeader}>
-              <Ionicons name="bulb" size={20} color="#F59E0B" />
-              <Text style={styles.tipsTitle}>Pro Tip</Text>
+          {/* Insights Card */}
+          <TouchableOpacity 
+            style={styles.insightsCard}
+            onPress={() => router.push('/(main)/performance')}
+          >
+            <View style={styles.insightsIcon}>
+              <Ionicons name="bulb" size={24} color="#F59E0B" />
             </View>
-            <Text style={styles.tipsText}>
-              Keep your shop status "Online" during business hours to receive more orders!
-            </Text>
-          </View>
+            <View style={styles.insightsContent}>
+              <Text style={styles.insightsTitle}>Business Insights</Text>
+              <Text style={styles.insightsText}>
+                {analytics?.products?.out_of_stock || 0} products are out of stock. 
+                Keep inventory updated for better sales!
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
 
           <View style={{ height: 100 }} />
         </Animated.View>
@@ -404,40 +360,16 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginTop: 2,
   },
-  headerRight: {
-    flexDirection: 'row',
-    gap: 12,
+  profileBtn: {
+    marginLeft: 12,
   },
-  notificationBtn: {
+  profileAvatar: {
     width: 48,
     height: 48,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    backgroundColor: '#6366F1',
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  badge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#EF4444',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
   },
   // Level Card
   levelCard: {
@@ -509,7 +441,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6366F1',
   },
-  // Hero Section
+  // Hero Section - Clickable
   heroSection: {
     backgroundColor: '#6366F1',
     marginHorizontal: 16,
@@ -517,12 +449,25 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 20,
   },
+  heroHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   heroLabel: {
     fontSize: 11,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.7)',
     letterSpacing: 1,
-    marginBottom: 12,
+  },
+  heroArrow: {
+    width: 28,
+    height: 28,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   heroStats: {
     flexDirection: 'row',
@@ -562,40 +507,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255,255,255,0.7)',
   },
-  // Alert Card
-  alertCard: {
+  heroFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EF4444',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 16,
-  },
-  alertIconBg: {
-    width: 48,
-    height: 48,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 24,
     justifyContent: 'center',
-    alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.15)',
+    gap: 6,
   },
-  alertContent: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  alertTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  alertSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.85)',
-    marginTop: 2,
-  },
-  alertArrow: {
-    marginLeft: 8,
+  heroFooterText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
   },
   // Stats Section
   statsSection: {
@@ -647,32 +571,16 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
   },
-  // Actions Section
-  actionsSection: {
-    paddingHorizontal: 16,
-    marginTop: 24,
-  },
-  actionsRow: {
+  statTrend: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  actionBtn: {
     alignItems: 'center',
-    width: (width - 64) / 4,
+    marginTop: 8,
+    gap: 4,
   },
-  actionIconBg: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  actionText: {
+  statTrendText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
-    textAlign: 'center',
+    color: '#22C55E',
   },
   // Orders Section
   ordersSection: {
@@ -810,30 +718,39 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6366F1',
   },
-  // Tips Card
-  tipsCard: {
+  // Insights Card
+  insightsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFBEB',
     marginHorizontal: 16,
     marginTop: 24,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#FDE68A',
   },
-  tipsHeader: {
-    flexDirection: 'row',
+  insightsIcon: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 14,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
   },
-  tipsTitle: {
+  insightsContent: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  insightsTitle: {
     fontSize: 14,
     fontWeight: '700',
     color: '#92400E',
   },
-  tipsText: {
-    fontSize: 13,
+  insightsText: {
+    fontSize: 12,
     color: '#78350F',
-    lineHeight: 20,
+    marginTop: 4,
+    lineHeight: 18,
   },
 });
