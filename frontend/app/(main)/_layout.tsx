@@ -1,15 +1,13 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function MainLayout() {
   const insets = useSafeAreaInsets();
   
-  // Calculate proper bottom padding for tab bar
-  const bottomPadding = Math.max(insets.bottom, 10);
-  const tabBarHeight = 60 + bottomPadding;
+  // Ensure minimum bottom padding for devices with gesture navigation
+  const bottomPadding = Math.max(insets.bottom, 12);
 
   return (
     <Tabs
@@ -22,30 +20,16 @@ export default function MainLayout() {
           borderTopWidth: 1,
           borderTopColor: '#E5E7EB',
           paddingBottom: bottomPadding,
-          paddingTop: 8,
-          height: tabBarHeight,
-          // Ensure tab bar is above system navigation
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          elevation: 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
+          paddingTop: 10,
+          height: 60 + bottomPadding,
         },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
-          marginBottom: 2,
+          marginBottom: 0,
         },
         tabBarIconStyle: {
-          marginTop: 4,
-        },
-        // Add padding to screen content so it doesn't hide behind tab bar
-        sceneContainerStyle: {
-          paddingBottom: tabBarHeight,
+          marginTop: 2,
         },
       }}
     >
