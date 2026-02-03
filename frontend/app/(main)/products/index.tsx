@@ -6,27 +6,19 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Image,
   Alert,
   Animated,
   Easing,
-  FlatList,
-  Modal,
-  TextInput,
-  Switch,
+  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../../../src/store/authStore';
 import { vendorAPI, productAPI } from '../../../src/utils/api';
 import { Product } from '../../../src/types';
 
-const PRODUCT_CATEGORIES = [
-  'All', 'Groceries', 'Dairy', 'Beverages', 'Snacks', 'Bakery',
-  'Fruits', 'Vegetables', 'Meat', 'Seafood', 'Frozen', 'Other'
-];
+const { width } = Dimensions.get('window');
 
 export default function MyShopScreen() {
   const router = useRouter();
@@ -34,10 +26,7 @@ export default function MyShopScreen() {
   const { user, setUser } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
   const [shopOpen, setShopOpen] = useState(user?.partner_status === 'available');
-  const [products, setProducts] = useState<Product[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [showAddProduct, setShowAddProduct] = useState(false);
-  const [productStats, setProductStats] = useState({ total: 0, inStock: 0, outOfStock: 0 });
+  const [productStats, setProductStats] = useState({ total: 0, inStock: 0, outOfStock: 0, lowStock: 0 });
   
   // Animation for shop status
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -80,13 +69,14 @@ export default function MyShopScreen() {
 
   const loadData = async () => {
     try {
-      const response = await productAPI.getAll(selectedCategory === 'All' ? undefined : selectedCategory);
-      setProducts(response.data);
+      const response = await productAPI.getAll();
+      const products: Product[] = response.data;
       
       // Calculate stats
-      const total = response.data.length;
-      const inStock = response.data.filter((p: Product) => p.in_stock).length;
-      setProductStats({ total, inStock, outOfStock: total - inStock });
+      const total = products.length;
+      const inStock = products.filter((p: Product) => p.in_stock).length;
+      const lowStock = products.filter((p: Product) => p.in_stock && p.stock_quantity <= 10).length;
+      setProductStats({ total, inStock, outOfStock: total - inStock, lowStock });
     } catch (error) {
       console.error('Load products error:', error);
     }
@@ -94,13 +84,13 @@ export default function MyShopScreen() {
 
   useEffect(() => {
     loadData();
-  }, [selectedCategory]);
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
-  }, [selectedCategory]);
+  }, []);
 
   const toggleShopStatus = async () => {
     const newStatus = shopOpen ? 'offline' : 'available';
@@ -115,112 +105,10 @@ export default function MyShopScreen() {
     }
   };
 
-  const handleToggleStock = async (product: Product) => {
-    try {
-      await productAPI.updateStock(product.product_id, !product.in_stock);
-      setProducts(products.map(p => 
-        p.product_id === product.product_id 
-          ? { ...p, in_stock: !p.in_stock } 
-          : p
-      ));
-      loadData(); // Refresh stats
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update stock');
-    }
-  };
-
-  const handleDeleteProduct = (product: Product) => {
-    Alert.alert(
-      'Delete Product',
-      `Remove "${product.name}" from your shop?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await productAPI.delete(product.product_id);
-              setProducts(products.filter(p => p.product_id !== product.product_id));
-              loadData();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete product');
-            }
-          },
-        },
-      ]
-    );
-  };
-
   const glowColor = glowAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['rgba(34, 197, 94, 0)', 'rgba(34, 197, 94, 0.3)'],
   });
-
-  const renderProductCard = ({ item }: { item: Product }) => (
-    <View style={styles.productCard}>
-      <View style={styles.productImageContainer}>
-        {item.image ? (
-          <Image source={{ uri: item.image }} style={styles.productImage} />
-        ) : (
-          <View style={styles.productImagePlaceholder}>
-            <Ionicons name="cube-outline" size={28} color="#D1D5DB" />
-          </View>
-        )}
-        {!item.in_stock && (
-          <View style={styles.outOfStockBadge}>
-            <Text style={styles.outOfStockText}>OUT</Text>
-          </View>
-        )}
-      </View>
-      
-      <View style={styles.productInfo}>
-        <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.productCategory}>{item.category}</Text>
-        <View style={styles.productPriceRow}>
-          {item.discounted_price ? (
-            <>
-              <Text style={styles.productOriginalPrice}>₹{item.price}</Text>
-              <Text style={styles.productPrice}>₹{item.discounted_price}</Text>
-            </>
-          ) : (
-            <Text style={styles.productPrice}>₹{item.price}</Text>
-          )}
-        </View>
-      </View>
-      
-      <View style={styles.productActions}>
-        <TouchableOpacity
-          style={[styles.stockToggleBtn, item.in_stock ? styles.stockToggleBtnActive : styles.stockToggleBtnInactive]}
-          onPress={() => handleToggleStock(item)}
-        >
-          <Ionicons 
-            name={item.in_stock ? "checkmark-circle" : "close-circle"} 
-            size={16} 
-            color={item.in_stock ? "#22C55E" : "#9CA3AF"} 
-          />
-          <Text style={[styles.stockToggleText, item.in_stock && styles.stockToggleTextActive]}>
-            {item.in_stock ? 'In Stock' : 'Out'}
-          </Text>
-        </TouchableOpacity>
-        
-        <View style={styles.productActionBtns}>
-          <TouchableOpacity 
-            style={styles.editBtn}
-            onPress={() => router.push(`/(main)/products/${item.product_id}`)}
-          >
-            <Ionicons name="pencil" size={16} color="#6366F1" />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.deleteBtn}
-            onPress={() => handleDeleteProduct(item)}
-          >
-            <Ionicons name="trash" size={16} color="#DC2626" />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -242,7 +130,7 @@ export default function MyShopScreen() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366F1']} />
         }
       >
         {/* Shop Status Card - Beautiful Toggle */}
@@ -325,9 +213,65 @@ export default function MyShopScreen() {
           <View style={[styles.statCard, styles.statCardOutStock]}>
             <Ionicons name="alert-circle" size={24} color="#F59E0B" />
             <Text style={[styles.statValue, { color: '#F59E0B' }]}>{productStats.outOfStock}</Text>
-            <Text style={styles.statLabel}>Out of Stock</Text>
+            <Text style={styles.statLabel}>Out</Text>
           </View>
         </View>
+
+        {/* Low Stock Alert */}
+        {productStats.lowStock > 0 && (
+          <TouchableOpacity 
+            style={styles.alertCard}
+            onPress={() => router.push('/(main)/warehouse')}
+          >
+            <View style={styles.alertIcon}>
+              <Ionicons name="warning" size={24} color="#D97706" />
+            </View>
+            <View style={styles.alertContent}>
+              <Text style={styles.alertTitle}>{productStats.lowStock} items running low</Text>
+              <Text style={styles.alertText}>Tap to manage stock in warehouse</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#D97706" />
+          </TouchableOpacity>
+        )}
+
+        {/* Action Cards */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Manage Shop</Text>
+        </View>
+
+        {/* My Warehouse - Main Product Management */}
+        <TouchableOpacity 
+          style={styles.warehouseCard}
+          onPress={() => router.push('/(main)/warehouse')}
+          activeOpacity={0.9}
+        >
+          <View style={styles.warehouseIconBg}>
+            <Ionicons name="file-tray-stacked" size={36} color="#FFFFFF" />
+          </View>
+          <View style={styles.warehouseContent}>
+            <Text style={styles.warehouseTitle}>My Warehouse</Text>
+            <Text style={styles.warehouseSubtitle}>View and manage all your products</Text>
+            <View style={styles.warehouseStats}>
+              <View style={styles.warehouseStat}>
+                <Text style={styles.warehouseStatValue}>{productStats.total}</Text>
+                <Text style={styles.warehouseStatLabel}>Total</Text>
+              </View>
+              <View style={styles.warehouseStatDivider} />
+              <View style={styles.warehouseStat}>
+                <Text style={[styles.warehouseStatValue, { color: '#22C55E' }]}>{productStats.inStock}</Text>
+                <Text style={styles.warehouseStatLabel}>Active</Text>
+              </View>
+              <View style={styles.warehouseStatDivider} />
+              <View style={styles.warehouseStat}>
+                <Text style={[styles.warehouseStatValue, { color: '#F59E0B' }]}>{productStats.lowStock}</Text>
+                <Text style={styles.warehouseStatLabel}>Low</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.warehouseArrow}>
+            <Ionicons name="arrow-forward-circle" size={32} color="#6366F1" />
+          </View>
+        </TouchableOpacity>
 
         {/* Add Product Button */}
         <TouchableOpacity 
@@ -344,76 +288,58 @@ export default function MyShopScreen() {
           <Ionicons name="chevron-forward" size={24} color="#6366F1" />
         </TouchableOpacity>
 
-        {/* Category Filter */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Your Products</Text>
-          <Text style={styles.productCount}>{products.length} items</Text>
-        </View>
-        
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoryScroll}
-          contentContainerStyle={styles.categoryContainer}
-        >
-          {PRODUCT_CATEGORIES.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              style={[
-                styles.categoryChip,
-                selectedCategory === cat && styles.categoryChipActive
-              ]}
-              onPress={() => setSelectedCategory(cat)}
-            >
-              <Text style={[
-                styles.categoryText,
-                selectedCategory === cat && styles.categoryTextActive
-              ]}>
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Products List */}
-        {products.length > 0 ? (
-          <View style={styles.productsList}>
-            {products.map((product) => (
-              <View key={product.product_id}>
-                {renderProductCard({ item: product })}
-              </View>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconContainer}>
-              <Ionicons name="cube-outline" size={48} color="#D1D5DB" />
+        {/* Quick Actions Grid */}
+        <View style={styles.quickActionsGrid}>
+          <TouchableOpacity style={styles.quickActionCard}>
+            <View style={[styles.quickActionIcon, { backgroundColor: '#EEF2FF' }]}>
+              <Ionicons name="pricetag" size={24} color="#6366F1" />
             </View>
-            <Text style={styles.emptyTitle}>No products yet</Text>
-            <Text style={styles.emptySubtitle}>
-              {selectedCategory === 'All' 
-                ? 'Start adding products to your shop'
-                : `No products in ${selectedCategory}`}
-            </Text>
-            <TouchableOpacity 
-              style={styles.emptyAddBtn}
-              onPress={() => router.push('/(main)/products/add')}
-            >
-              <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.emptyAddText}>Add Your First Product</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+            <Text style={styles.quickActionText}>Discounts</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.quickActionCard}>
+            <View style={[styles.quickActionIcon, { backgroundColor: '#FEF3C7' }]}>
+              <Ionicons name="time" size={24} color="#F59E0B" />
+            </View>
+            <Text style={styles.quickActionText}>Timings</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.quickActionCard}
+            onPress={() => router.push('/(main)/profile')}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#DCFCE7' }]}>
+              <Ionicons name="qr-code" size={24} color="#22C55E" />
+            </View>
+            <Text style={styles.quickActionText}>Shop QR</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.quickActionCard}>
+            <View style={[styles.quickActionIcon, { backgroundColor: '#FCE7F3' }]}>
+              <Ionicons name="megaphone" size={24} color="#EC4899" />
+            </View>
+            <Text style={styles.quickActionText}>Promote</Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* Quick Tips */}
+        {/* Pro Tips */}
         <View style={styles.tipsCard}>
           <View style={styles.tipsHeader}>
-            <Ionicons name="bulb" size={20} color="#F59E0B" />
+            <Ionicons name="bulb" size={20} color="#6366F1" />
             <Text style={styles.tipsTitle}>Pro Tips</Text>
           </View>
-          <Text style={styles.tipText}>• Add clear product images to increase sales by 40%</Text>
-          <Text style={styles.tipText}>• Keep your stock updated to avoid customer disappointment</Text>
-          <Text style={styles.tipText}>• Use discounts to move slow-selling items</Text>
+          <View style={styles.tipItem}>
+            <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+            <Text style={styles.tipText}>Add clear product images for better sales</Text>
+          </View>
+          <View style={styles.tipItem}>
+            <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+            <Text style={styles.tipText}>Keep stock levels updated to avoid cancellations</Text>
+          </View>
+          <View style={styles.tipItem}>
+            <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+            <Text style={styles.tipText}>Use discounts to attract more customers</Text>
+          </View>
         </View>
 
         <View style={{ height: 100 }} />
@@ -425,7 +351,10 @@ export default function MyShopScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F8FAFC',
+  },
+  scrollView: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -440,11 +369,11 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: '#111827',
   },
   settingsBtn: {
@@ -455,18 +384,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scrollView: {
-    flex: 1,
-  },
-  // Status Card Styles
+  // Status Card
   statusCard: {
-    margin: 16,
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 24,
     padding: 20,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
-    shadowRadius: 12,
+    shadowRadius: 16,
     elevation: 8,
     overflow: 'hidden',
   },
@@ -476,7 +403,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 20,
   },
   statusContent: {
     flexDirection: 'row',
@@ -491,7 +417,7 @@ const styles = StyleSheet.create({
   statusIconContainer: {
     width: 64,
     height: 64,
-    borderRadius: 32,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -508,15 +434,13 @@ const styles = StyleSheet.create({
   statusLabel: {
     fontSize: 12,
     color: '#6B7280',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: '500',
   },
   statusValue: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#9CA3AF',
-    marginTop: 4,
+    color: '#374151',
+    marginTop: 2,
   },
   statusValueOpen: {
     color: '#22C55E',
@@ -531,10 +455,10 @@ const styles = StyleSheet.create({
   },
   statusToggleActive: {},
   toggleTrack: {
-    width: 64,
-    height: 36,
+    width: 60,
+    height: 34,
     backgroundColor: '#E5E7EB',
-    borderRadius: 18,
+    borderRadius: 17,
     padding: 3,
     justifyContent: 'center',
   },
@@ -542,20 +466,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#DCFCE7',
   },
   toggleThumb: {
-    width: 30,
-    height: 30,
+    width: 28,
+    height: 28,
     backgroundColor: '#FFFFFF',
-    borderRadius: 15,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
   },
   toggleThumbActive: {
-    alignSelf: 'flex-end',
+    transform: [{ translateX: 26 }],
   },
   statusIndicators: {
     flexDirection: 'row',
@@ -575,8 +499,9 @@ const styles = StyleSheet.create({
   // Stats Row
   statsRow: {
     flexDirection: 'row',
-    paddingHorizontal: 12,
-    gap: 8,
+    paddingHorizontal: 16,
+    marginTop: 16,
+    gap: 10,
   },
   statCard: {
     flex: 1,
@@ -584,15 +509,18 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   statCardTotal: {},
   statCardInStock: {},
   statCardOutStock: {},
   statValue: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#111827',
     marginTop: 8,
   },
@@ -600,7 +528,115 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#6B7280',
     marginTop: 4,
-    fontWeight: '500',
+  },
+  // Alert Card
+  alertCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  alertIcon: {
+    width: 44,
+    height: 44,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  alertContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  alertTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  alertText: {
+    fontSize: 12,
+    color: '#B45309',
+    marginTop: 2,
+  },
+  // Section Header
+  sectionHeader: {
+    paddingHorizontal: 16,
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  // Warehouse Card
+  warehouseCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    padding: 16,
+    borderRadius: 20,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: '#EEF2FF',
+  },
+  warehouseIconBg: {
+    width: 64,
+    height: 64,
+    backgroundColor: '#6366F1',
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  warehouseContent: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  warehouseTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  warehouseSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  warehouseStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 12,
+  },
+  warehouseStat: {
+    alignItems: 'center',
+  },
+  warehouseStatValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  warehouseStatLabel: {
+    fontSize: 10,
+    color: '#9CA3AF',
+  },
+  warehouseStatDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#E5E7EB',
+  },
+  warehouseArrow: {
+    marginLeft: 8,
   },
   // Add Product Button
   addProductBtn: {
@@ -608,18 +644,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginTop: 16,
+    marginTop: 12,
     padding: 16,
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#6366F1',
-    borderStyle: 'dashed',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   addProductIconContainer: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#6366F1',
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    backgroundColor: '#22C55E',
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -637,240 +675,72 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 2,
   },
-  // Section Header
-  sectionHeader: {
+  // Quick Actions Grid
+  quickActionsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginTop: 24,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  productCount: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  // Category Filter
-  categoryScroll: {
-    marginBottom: 16,
-  },
-  categoryContainer: {
+    flexWrap: 'wrap',
     paddingHorizontal: 16,
-    gap: 8,
+    marginTop: 20,
+    gap: 10,
   },
-  categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    marginRight: 8,
-  },
-  categoryChipActive: {
-    backgroundColor: '#6366F1',
-  },
-  categoryText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  categoryTextActive: {
-    color: '#FFFFFF',
-  },
-  // Products List
-  productsList: {
-    paddingHorizontal: 16,
-  },
-  productCard: {
-    flexDirection: 'row',
+  quickActionCard: {
+    width: (width - 42) / 2,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  productImageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  productImage: {
-    width: '100%',
-    height: '100%',
-  },
-  productImagePlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
+    padding: 16,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  outOfStockBadge: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  outOfStockText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  productInfo: {
-    flex: 1,
-    marginLeft: 12,
-    justifyContent: 'center',
-  },
-  productName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  productCategory: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  productPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    gap: 6,
-  },
-  productOriginalPrice: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    textDecorationLine: 'line-through',
-  },
-  productPrice: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  productActions: {
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  stockToggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 4,
-  },
-  stockToggleBtnActive: {
-    backgroundColor: '#DCFCE7',
-  },
-  stockToggleBtnInactive: {
-    backgroundColor: '#F3F4F6',
-  },
-  stockToggleText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#9CA3AF',
-  },
-  stockToggleTextActive: {
-    color: '#22C55E',
-  },
-  productActionBtns: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 8,
-  },
-  editBtn: {
-    width: 32,
-    height: 32,
-    backgroundColor: '#EEF2FF',
+  quickActionIcon: {
+    width: 52,
+    height: 52,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 10,
   },
-  deleteBtn: {
-    width: 32,
-    height: 32,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  // Empty State
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-  },
-  emptyIconContainer: {
-    width: 80,
-    height: 80,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
+  quickActionText: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#374151',
   },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  emptyAddBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginTop: 20,
-    gap: 8,
-  },
-  emptyAddText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
   // Tips Card
   tipsCard: {
-    backgroundColor: '#FFFBEB',
+    backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginTop: 24,
-    padding: 16,
+    marginTop: 20,
+    padding: 18,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   tipsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   tipsTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#92400E',
+    color: '#111827',
+  },
+  tipItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
   },
   tipText: {
     fontSize: 13,
-    color: '#78350F',
-    marginBottom: 6,
-    lineHeight: 20,
+    color: '#4B5563',
+    flex: 1,
   },
 });

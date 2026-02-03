@@ -148,6 +148,40 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Performance Card - NEW */}
+          <TouchableOpacity 
+            style={styles.performanceCard}
+            onPress={() => router.push('/(main)/performance')}
+            activeOpacity={0.9}
+          >
+            <View style={styles.performanceHeader}>
+              <View style={styles.performanceIconBg}>
+                <Ionicons name="analytics" size={24} color="#FFFFFF" />
+              </View>
+              <View style={styles.performanceInfo}>
+                <Text style={styles.performanceTitle}>Performance & Analytics</Text>
+                <Text style={styles.performanceSubtitle}>View detailed business insights</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#6366F1" />
+            </View>
+            <View style={styles.performanceStats}>
+              <View style={styles.performanceStat}>
+                <Text style={styles.performanceStatValue}>₹{(analytics?.total_earnings || 0).toLocaleString()}</Text>
+                <Text style={styles.performanceStatLabel}>Total Earnings</Text>
+              </View>
+              <View style={styles.performanceStatDivider} />
+              <View style={styles.performanceStat}>
+                <Text style={styles.performanceStatValue}>{analytics?.total_orders || 0}</Text>
+                <Text style={styles.performanceStatLabel}>Total Orders</Text>
+              </View>
+              <View style={styles.performanceStatDivider} />
+              <View style={styles.performanceStat}>
+                <Text style={styles.performanceStatValue}>{analytics?.rating?.toFixed(1) || '5.0'}</Text>
+                <Text style={styles.performanceStatLabel}>Rating</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
           {/* Achievements */}
           <View style={styles.achievementsCard}>
             <View style={styles.sectionHeader}>
@@ -173,41 +207,6 @@ export default function ProfileScreen() {
                   ]}>{achievement.name}</Text>
                 </View>
               ))}
-            </View>
-          </View>
-
-          {/* Stats Grid */}
-          <View style={styles.statsCard}>
-            <Text style={styles.sectionTitle}>Performance</Text>
-            <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
-                <View style={[styles.statIconBg, { backgroundColor: '#DCFCE7' }]}>
-                  <Ionicons name="wallet" size={22} color="#22C55E" />
-                </View>
-                <Text style={styles.statValue}>₹{(analytics?.total_earnings || 0).toLocaleString()}</Text>
-                <Text style={styles.statLabel}>Total Earnings</Text>
-              </View>
-              <View style={styles.statItem}>
-                <View style={[styles.statIconBg, { backgroundColor: '#EEF2FF' }]}>
-                  <Ionicons name="bag-check" size={22} color="#6366F1" />
-                </View>
-                <Text style={styles.statValue}>{analytics?.total_orders || 0}</Text>
-                <Text style={styles.statLabel}>Total Orders</Text>
-              </View>
-              <View style={styles.statItem}>
-                <View style={[styles.statIconBg, { backgroundColor: '#FEF3C7' }]}>
-                  <Ionicons name="cube" size={22} color="#F59E0B" />
-                </View>
-                <Text style={styles.statValue}>{analytics?.products?.total || 0}</Text>
-                <Text style={styles.statLabel}>Products</Text>
-              </View>
-              <View style={styles.statItem}>
-                <View style={[styles.statIconBg, { backgroundColor: '#FCE7F3' }]}>
-                  <Ionicons name="trending-up" size={22} color="#EC4899" />
-                </View>
-                <Text style={styles.statValue}>₹{(analytics?.month?.earnings || 0).toLocaleString()}</Text>
-                <Text style={styles.statLabel}>This Month</Text>
-              </View>
             </View>
           </View>
 
@@ -524,6 +523,73 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6366F1',
   },
+  // Performance Card
+  performanceCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 18,
+    borderRadius: 20,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: '#EEF2FF',
+  },
+  performanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  performanceIconBg: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#6366F1',
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  performanceInfo: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  performanceTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  performanceSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  performanceStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  performanceStat: {
+    alignItems: 'center',
+  },
+  performanceStatValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  performanceStatLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  performanceStatDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#E5E7EB',
+  },
   // Achievements
   achievementsCard: {
     backgroundColor: '#FFFFFF',
@@ -582,47 +648,6 @@ const styles = StyleSheet.create({
   },
   achievementNameLocked: {
     color: '#9CA3AF',
-  },
-  // Stats
-  statsCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 20,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 8,
-  },
-  statItem: {
-    width: '50%',
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-  },
-  statIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  statLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 2,
   },
   // QR Card
   qrCard: {

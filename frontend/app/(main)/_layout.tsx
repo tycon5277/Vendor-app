@@ -78,6 +78,19 @@ export default function MainLayout() {
           ),
         }}
       />
+      {/* Hidden screens - not shown in tab bar */}
+      <Tabs.Screen
+        name="performance"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="warehouse"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
     </Tabs>
   );
 }
