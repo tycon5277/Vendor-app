@@ -26,6 +26,7 @@ const PRESET_SHOP_TYPES = [
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { setUser, user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
