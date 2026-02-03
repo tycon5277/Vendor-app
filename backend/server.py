@@ -352,6 +352,11 @@ async def register_as_vendor(data: VendorRegistration, current_user: User = Depe
     if data.shop_type == "Other" and data.custom_shop_type:
         shop_type = data.custom_shop_type
     
+    # Build opening hours string from times
+    opening_hours = None
+    if data.opening_time and data.closing_time:
+        opening_hours = f"{data.opening_time} - {data.closing_time}"
+    
     await db.users.update_one(
         {"user_id": current_user.user_id},
         {"$set": {
@@ -364,9 +369,14 @@ async def register_as_vendor(data: VendorRegistration, current_user: User = Depe
             "vendor_shop_location": data.shop_location,
             "vendor_can_deliver": data.can_deliver,
             "vendor_categories": data.categories,
-            "vendor_opening_hours": data.opening_hours,
+            "vendor_opening_time": data.opening_time,
+            "vendor_closing_time": data.closing_time,
+            "vendor_opening_hours": opening_hours,
             "vendor_description": data.description,
             "vendor_shop_image": data.shop_image,
+            "vendor_gst_number": data.gst_number,
+            "vendor_license_number": data.license_number,
+            "vendor_fssai_number": data.fssai_number,
         }}
     )
     
