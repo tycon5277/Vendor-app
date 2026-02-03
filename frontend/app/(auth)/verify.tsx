@@ -9,7 +9,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { authAPI } from '../../src/utils/api';
@@ -17,6 +17,7 @@ import { useAuthStore } from '../../src/store/authStore';
 
 export default function VerifyScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { phone } = useLocalSearchParams<{ phone: string }>();
   const { setUser, setToken } = useAuthStore();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
