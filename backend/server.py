@@ -328,9 +328,13 @@ class VendorRegistration(BaseModel):
     shop_location: Optional[dict] = None  # {lat, lng}
     can_deliver: bool = False
     categories: List[str] = []
-    opening_hours: Optional[str] = None
+    opening_time: Optional[str] = None  # e.g., "09:00"
+    closing_time: Optional[str] = None  # e.g., "21:00"
     description: Optional[str] = None
     shop_image: Optional[str] = None  # base64
+    gst_number: Optional[str] = None
+    license_number: Optional[str] = None
+    fssai_number: Optional[str] = None  # For food businesses
 
 @api_router.get("/vendor/shop-types")
 async def get_shop_types():
