@@ -1,25 +1,12 @@
 import React, { useEffect } from 'react';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ThemeProvider, DefaultTheme } from '@react-navigation/native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAuthStore } from '../src/store/authStore';
 import { LoadingScreen } from '../src/components/LoadingScreen';
 
-const MyTheme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    background: '#F9FAFB',
-    card: '#FFFFFF',
-    text: '#111827',
-    border: '#E5E7EB',
-    primary: '#6366F1',
-  },
-};
-
-function RootLayoutNav() {
+function useProtectedRoute() {
   const { isLoading, isAuthenticated, isVendor, loadStoredAuth } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
@@ -42,31 +29,30 @@ function RootLayoutNav() {
     }
   }, [isLoading, isAuthenticated, isVendor, segments]);
 
-  if (isLoading) {
-    return <LoadingScreen message="Loading..." />;
-  }
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      <Slot />
-    </View>
-  );
+  return { isLoading };
 }
 
 export default function RootLayout() {
+  const { isLoading } = useProtectedRoute();
+
+  if (isLoading) {
+    return (
+      <SafeAreaProvider>
+        <LoadingScreen message="Loading..." />
+      </SafeAreaProvider>
+    );
+  }
+
   return (
-    <SafeAreaProvider>
-      <ThemeProvider value={MyTheme}>
-        <RootLayoutNav />
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(main)" />
+        </Stack>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-});
