@@ -314,7 +314,7 @@ export default function RegisterScreen() {
         {step === 2 && renderStep2()}
         {step === 3 && renderStep3()}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
