@@ -9,6 +9,9 @@ import {
   Alert,
   Switch,
   Image,
+  Modal,
+  Platform,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,11 +21,163 @@ import * as Location from 'expo-location';
 import { vendorAPI } from '../../src/utils/api';
 import { useAuthStore } from '../../src/store/authStore';
 
-const PRESET_SHOP_TYPES = [
-  'Grocery', 'Restaurant', 'Pharmacy', 'Electronics', 'Fashion',
-  'Bakery', 'Farm Produce', 'Fish & Seafood', 'Nursery & Plants',
-  'Hardware', 'Stationery', 'Supermarket', 'Sweet Shop', 'Dairy', 'Other'
+// Shop types with icons
+const SHOP_TYPES = [
+  { id: 'Grocery', name: 'Grocery', icon: 'cart' },
+  { id: 'Restaurant', name: 'Restaurant', icon: 'restaurant' },
+  { id: 'Pharmacy', name: 'Pharmacy', icon: 'medkit' },
+  { id: 'Electronics', name: 'Electronics', icon: 'phone-portrait' },
+  { id: 'Fashion', name: 'Fashion', icon: 'shirt' },
+  { id: 'Bakery', name: 'Bakery', icon: 'cafe' },
+  { id: 'Farm Produce', name: 'Farm Produce', icon: 'leaf' },
+  { id: 'Fish & Seafood', name: 'Fish & Seafood', icon: 'fish' },
+  { id: 'Nursery & Plants', name: 'Plants', icon: 'flower' },
+  { id: 'Hardware', name: 'Hardware', icon: 'hammer' },
+  { id: 'Stationery', name: 'Stationery', icon: 'pencil' },
+  { id: 'Supermarket', name: 'Supermarket', icon: 'storefront' },
+  { id: 'Sweet Shop', name: 'Sweets', icon: 'ice-cream' },
+  { id: 'Dairy', name: 'Dairy', icon: 'water' },
+  { id: 'Meat Shop', name: 'Meat', icon: 'nutrition' },
+  { id: 'Other', name: 'Other', icon: 'ellipsis-horizontal' },
 ];
+
+// Description examples based on shop type
+const DESCRIPTION_EXAMPLES: Record<string, string> = {
+  'Grocery': 'Your neighborhood grocery store with fresh produce, daily essentials, and household items at competitive prices. We offer home delivery within 2km radius.',
+  'Restaurant': 'Authentic home-style cooking with a variety of cuisines. Specializing in North Indian dishes, Chinese fusion, and quick bites. Dine-in and takeaway available.',
+  'Pharmacy': '24/7 pharmacy with all prescription medicines, OTC drugs, and healthcare products. Licensed pharmacist available for consultation.',
+  'Electronics': 'One-stop shop for mobile phones, accessories, repair services, and electronics. Authorized service center for major brands.',
+  'Fashion': 'Trendy clothing and accessories for men, women, and kids. Latest collections, seasonal discounts, and alterations available.',
+  'Bakery': 'Freshly baked bread, cakes, pastries, and confectioneries. Custom cake orders for birthdays and celebrations. Using premium ingredients.',
+  'Farm Produce': 'Farm-fresh fruits, vegetables, and organic produce directly from local farmers. Daily fresh stock with seasonal specialties.',
+  'Fish & Seafood': 'Fresh catch daily! Premium quality fish, prawns, crabs, and seafood. Cleaning and cutting services available.',
+  'Nursery & Plants': 'Beautiful indoor and outdoor plants, gardening supplies, fertilizers, and pots. Expert advice for plant care and landscaping.',
+  'Hardware': 'Complete hardware solutions - tools, paints, plumbing, electrical supplies, and construction materials. Bulk orders welcome.',
+  'Stationery': 'School and office supplies, art materials, gift items, and printing services. Back-to-school special offers available.',
+  'Supermarket': 'Wide range of groceries, fresh produce, dairy, beverages, and household items under one roof. Weekly deals and membership benefits.',
+  'Sweet Shop': 'Traditional Indian sweets, savories, and snacks made fresh daily. Perfect for festivals, celebrations, and gifting.',
+  'Dairy': 'Fresh milk, curd, paneer, ghee, and dairy products delivered daily. Farm-fresh quality guaranteed.',
+  'Meat Shop': 'Halal certified fresh meat - chicken, mutton, and beef. Hygienically processed with custom cutting options.',
+  'Other': 'Describe your shop and what makes it special. Mention your products, services, and any unique offerings.',
+};
+
+// Time options for picker
+const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+const MINUTES = ['00', '15', '30', '45'];
+
+interface TimePickerModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (time: string) => void;
+  title: string;
+  initialTime?: string;
+}
+
+const TimePickerModal: React.FC<TimePickerModalProps> = ({
+  visible,
+  onClose,
+  onSelect,
+  title,
+  initialTime = '09:00',
+}) => {
+  const [selectedHour, setSelectedHour] = useState(initialTime.split(':')[0] || '09');
+  const [selectedMinute, setSelectedMinute] = useState(initialTime.split(':')[1] || '00');
+
+  const formatTime = (hour: string, minute: string) => {
+    const h = parseInt(hour);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${displayHour}:${minute} ${ampm}`;
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          
+          <View style={styles.timePickerContainer}>
+            {/* Hour Picker */}
+            <View style={styles.pickerColumn}>
+              <Text style={styles.pickerLabel}>Hour</Text>
+              <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
+                {HOURS.map((hour) => (
+                  <TouchableOpacity
+                    key={hour}
+                    style={[
+                      styles.pickerItem,
+                      selectedHour === hour && styles.pickerItemSelected,
+                    ]}
+                    onPress={() => setSelectedHour(hour)}
+                  >
+                    <Text
+                      style={[
+                        styles.pickerItemText,
+                        selectedHour === hour && styles.pickerItemTextSelected,
+                      ]}
+                    >
+                      {hour}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            <Text style={styles.timeSeparator}>:</Text>
+
+            {/* Minute Picker */}
+            <View style={styles.pickerColumn}>
+              <Text style={styles.pickerLabel}>Min</Text>
+              <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
+                {MINUTES.map((minute) => (
+                  <TouchableOpacity
+                    key={minute}
+                    style={[
+                      styles.pickerItem,
+                      selectedMinute === minute && styles.pickerItemSelected,
+                    ]}
+                    onPress={() => setSelectedMinute(minute)}
+                  >
+                    <Text
+                      style={[
+                        styles.pickerItemText,
+                        selectedMinute === minute && styles.pickerItemTextSelected,
+                      ]}
+                    >
+                      {minute}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+
+          <View style={styles.selectedTimeDisplay}>
+            <Ionicons name="time" size={24} color="#6366F1" />
+            <Text style={styles.selectedTimeText}>
+              {formatTime(selectedHour, selectedMinute)}
+            </Text>
+          </View>
+
+          <View style={styles.modalButtons}>
+            <TouchableOpacity style={styles.modalCancelBtn} onPress={onClose}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalConfirmBtn}
+              onPress={() => {
+                onSelect(`${selectedHour}:${selectedMinute}`);
+                onClose();
+              }}
+            >
+              <Text style={styles.modalConfirmText}>Confirm</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -30,6 +185,8 @@ export default function RegisterScreen() {
   const { setUser, user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [showOpeningTimePicker, setShowOpeningTimePicker] = useState(false);
+  const [showClosingTimePicker, setShowClosingTimePicker] = useState(false);
 
   const [formData, setFormData] = useState({
     name: user?.name || '',
@@ -39,11 +196,35 @@ export default function RegisterScreen() {
     shop_address: '',
     shop_location: null as { lat: number; lng: number } | null,
     can_deliver: false,
-    categories: [] as string[],
-    opening_hours: '9:00 AM - 9:00 PM',
+    opening_time: '09:00',
+    closing_time: '21:00',
     description: '',
     shop_image: null as string | null,
+    gst_number: '',
+    license_number: '',
+    fssai_number: '',
   });
+
+  // Calculate progress percentage
+  const getProgress = () => {
+    let progress = 0;
+    if (formData.name) progress += 10;
+    if (formData.shop_name) progress += 15;
+    if (formData.shop_type) progress += 15;
+    if (formData.shop_address) progress += 15;
+    if (formData.opening_time && formData.closing_time) progress += 15;
+    if (formData.description) progress += 15;
+    if (formData.shop_image) progress += 15;
+    return Math.min(progress, 100);
+  };
+
+  const formatTimeDisplay = (time: string) => {
+    const [hour, minute] = time.split(':');
+    const h = parseInt(hour);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${displayHour}:${minute} ${ampm}`;
+  };
 
   const getCurrentLocation = async () => {
     try {
@@ -54,14 +235,14 @@ export default function RegisterScreen() {
       }
 
       const location = await Location.getCurrentPositionAsync({});
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         shop_location: {
           lat: location.coords.latitude,
           lng: location.coords.longitude,
-        }
+        },
       }));
-      Alert.alert('Success', 'Location captured!');
+      Alert.alert('Success', 'Location captured successfully!');
     } catch (error) {
       Alert.alert('Error', 'Failed to get location');
     }
@@ -84,9 +265,9 @@ export default function RegisterScreen() {
       });
 
       if (!result.canceled && result.assets[0].base64) {
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
-          shop_image: `data:image/jpeg;base64,${result.assets[0].base64}`
+          shop_image: `data:image/jpeg;base64,${result.assets[0].base64}`,
         }));
       }
     } catch (error) {
@@ -100,12 +281,17 @@ export default function RegisterScreen() {
       return;
     }
 
+    if (!formData.description) {
+      Alert.alert('Missing Description', 'Please add a description for your shop');
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await vendorAPI.register(formData);
       setUser(response.data.user);
-      Alert.alert('Success', 'Shop registered successfully!', [
-        { text: 'OK', onPress: () => router.replace('/(main)/home') }
+      Alert.alert('Congratulations!', 'Your shop is now registered!', [
+        { text: 'Start Selling', onPress: () => router.replace('/(main)/home') },
       ]);
     } catch (error: any) {
       console.error('Register Error:', error);
@@ -115,123 +301,228 @@ export default function RegisterScreen() {
     }
   };
 
+  // Step 1: Owner & Shop Info with Shop Type Grid
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Owner Details</Text>
-      
-      <Text style={styles.label}>Your Name *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your full name"
-        placeholderTextColor="#9CA3AF"
-        value={formData.name}
-        onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
-      />
+      <View style={styles.stepHeader}>
+        <View style={styles.stepBadge}>
+          <Ionicons name="person" size={20} color="#FFFFFF" />
+        </View>
+        <Text style={styles.stepTitle}>Let's Get Started!</Text>
+        <Text style={styles.stepSubtitle}>Tell us about you and your shop</Text>
+      </View>
 
-      <Text style={styles.label}>Shop Name *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your shop name"
-        placeholderTextColor="#9CA3AF"
-        value={formData.shop_name}
-        onChangeText={(text) => setFormData(prev => ({ ...prev, shop_name: text }))}
-      />
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Your Name</Text>
+        <View style={styles.inputWithIcon}>
+          <Ionicons name="person-outline" size={20} color="#9CA3AF" />
+          <TextInput
+            style={styles.inputField}
+            placeholder="Enter your full name"
+            placeholderTextColor="#9CA3AF"
+            value={formData.name}
+            onChangeText={(text) => setFormData((prev) => ({ ...prev, name: text }))}
+          />
+          {formData.name && <Ionicons name="checkmark-circle" size={20} color="#22C55E" />}
+        </View>
+      </View>
 
-      <Text style={styles.label}>Shop Type *</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-        {PRESET_SHOP_TYPES.map((type) => (
-          <TouchableOpacity
-            key={type}
-            style={[
-              styles.chip,
-              formData.shop_type === type && styles.chipSelected
-            ]}
-            onPress={() => setFormData(prev => ({ ...prev, shop_type: type }))}
-          >
-            <Text style={[
-              styles.chipText,
-              formData.shop_type === type && styles.chipTextSelected
-            ]}>
-              {type}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Shop Name</Text>
+        <View style={styles.inputWithIcon}>
+          <Ionicons name="storefront-outline" size={20} color="#9CA3AF" />
+          <TextInput
+            style={styles.inputField}
+            placeholder="What's your shop called?"
+            placeholderTextColor="#9CA3AF"
+            value={formData.shop_name}
+            onChangeText={(text) => setFormData((prev) => ({ ...prev, shop_name: text }))}
+          />
+          {formData.shop_name && <Ionicons name="checkmark-circle" size={20} color="#22C55E" />}
+        </View>
+      </View>
 
-      {formData.shop_type === 'Other' && (
-        <TextInput
-          style={[styles.input, { marginTop: 12 }]}
-          placeholder="Enter custom shop type"
-          placeholderTextColor="#9CA3AF"
-          value={formData.custom_shop_type}
-          onChangeText={(text) => setFormData(prev => ({ ...prev, custom_shop_type: text }))}
-        />
-      )}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>What do you sell?</Text>
+        <Text style={styles.labelHint}>Select your shop type</Text>
+        <View style={styles.shopTypeGrid}>
+          {SHOP_TYPES.map((type) => (
+            <TouchableOpacity
+              key={type.id}
+              style={[
+                styles.shopTypeCard,
+                formData.shop_type === type.id && styles.shopTypeCardSelected,
+              ]}
+              onPress={() => setFormData((prev) => ({ ...prev, shop_type: type.id }))}
+            >
+              <View
+                style={[
+                  styles.shopTypeIconContainer,
+                  formData.shop_type === type.id && styles.shopTypeIconContainerSelected,
+                ]}
+              >
+                <Ionicons
+                  name={type.icon as any}
+                  size={24}
+                  color={formData.shop_type === type.id ? '#FFFFFF' : '#6366F1'}
+                />
+              </View>
+              <Text
+                style={[
+                  styles.shopTypeText,
+                  formData.shop_type === type.id && styles.shopTypeTextSelected,
+                ]}
+                numberOfLines={1}
+              >
+                {type.name}
+              </Text>
+              {formData.shop_type === type.id && (
+                <View style={styles.shopTypeCheck}>
+                  <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {formData.shop_type === 'Other' && (
+          <View style={[styles.inputWithIcon, { marginTop: 12 }]}>
+            <Ionicons name="create-outline" size={20} color="#9CA3AF" />
+            <TextInput
+              style={styles.inputField}
+              placeholder="Enter your shop type"
+              placeholderTextColor="#9CA3AF"
+              value={formData.custom_shop_type}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, custom_shop_type: text }))}
+            />
+          </View>
+        )}
+      </View>
 
       <TouchableOpacity
-        style={styles.nextButton}
+        style={[
+          styles.continueButton,
+          (!formData.name || !formData.shop_name || !formData.shop_type) && styles.continueButtonDisabled,
+        ]}
         onPress={() => {
           if (formData.name && formData.shop_name && formData.shop_type) {
             setStep(2);
           } else {
-            Alert.alert('Missing Information', 'Please fill all required fields');
+            Alert.alert('Missing Information', 'Please fill all fields');
           }
         }}
+        disabled={!formData.name || !formData.shop_name || !formData.shop_type}
       >
-        <Text style={styles.nextButtonText}>Continue</Text>
-        <Ionicons name="arrow-forward" size={20} color="#FFF" />
+        <Text style={styles.continueButtonText}>Continue</Text>
+        <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
   );
 
+  // Step 2: Location & Operating Hours
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Shop Location</Text>
+      <View style={styles.stepHeader}>
+        <View style={[styles.stepBadge, { backgroundColor: '#22C55E' }]}>
+          <Ionicons name="location" size={20} color="#FFFFFF" />
+        </View>
+        <Text style={styles.stepTitle}>Where's Your Shop?</Text>
+        <Text style={styles.stepSubtitle}>Help customers find you</Text>
+      </View>
 
-      <Text style={styles.label}>Shop Address *</Text>
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        placeholder="Enter complete shop address"
-        placeholderTextColor="#9CA3AF"
-        multiline
-        numberOfLines={3}
-        value={formData.shop_address}
-        onChangeText={(text) => setFormData(prev => ({ ...prev, shop_address: text }))}
-      />
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Shop Address</Text>
+        <TextInput
+          style={styles.textArea}
+          placeholder="Enter complete address with landmarks"
+          placeholderTextColor="#9CA3AF"
+          multiline
+          numberOfLines={3}
+          value={formData.shop_address}
+          onChangeText={(text) => setFormData((prev) => ({ ...prev, shop_address: text }))}
+        />
+      </View>
 
       <TouchableOpacity style={styles.locationButton} onPress={getCurrentLocation}>
-        <Ionicons name="location" size={24} color="#6366F1" />
-        <Text style={styles.locationButtonText}>
-          {formData.shop_location ? 'Location Captured ✓' : 'Get Current Location'}
-        </Text>
+        <View style={styles.locationIconContainer}>
+          <Ionicons name="locate" size={24} color="#6366F1" />
+        </View>
+        <View style={styles.locationTextContainer}>
+          <Text style={styles.locationButtonTitle}>
+            {formData.shop_location ? 'Location Captured!' : 'Get Current Location'}
+          </Text>
+          <Text style={styles.locationButtonSubtitle}>
+            {formData.shop_location
+              ? `Lat: ${formData.shop_location.lat.toFixed(4)}, Lng: ${formData.shop_location.lng.toFixed(4)}`
+              : 'Tap to capture your shop location'}
+          </Text>
+        </View>
+        {formData.shop_location ? (
+          <Ionicons name="checkmark-circle" size={28} color="#22C55E" />
+        ) : (
+          <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
+        )}
       </TouchableOpacity>
 
-      <Text style={styles.label}>Opening Hours</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g., 9:00 AM - 9:00 PM"
-        placeholderTextColor="#9CA3AF"
-        value={formData.opening_hours}
-        onChangeText={(text) => setFormData(prev => ({ ...prev, opening_hours: text }))}
-      />
+      {/* Operating Hours */}
+      <View style={styles.operatingHoursSection}>
+        <Text style={styles.sectionTitle}>Operating Hours</Text>
+        <Text style={styles.sectionSubtitle}>When is your shop open?</Text>
 
-      <View style={styles.switchRow}>
-        <Text style={styles.switchLabel}>We do our own delivery</Text>
+        <View style={styles.timePickersRow}>
+          <TouchableOpacity
+            style={styles.timePickerButton}
+            onPress={() => setShowOpeningTimePicker(true)}
+          >
+            <View style={styles.timePickerIcon}>
+              <Ionicons name="sunny" size={24} color="#F59E0B" />
+            </View>
+            <View style={styles.timePickerContent}>
+              <Text style={styles.timePickerLabel}>Opens At</Text>
+              <Text style={styles.timePickerValue}>{formatTimeDisplay(formData.opening_time)}</Text>
+            </View>
+            <Ionicons name="chevron-down" size={20} color="#6366F1" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.timePickerButton}
+            onPress={() => setShowClosingTimePicker(true)}
+          >
+            <View style={styles.timePickerIcon}>
+              <Ionicons name="moon" size={24} color="#6366F1" />
+            </View>
+            <View style={styles.timePickerContent}>
+              <Text style={styles.timePickerLabel}>Closes At</Text>
+              <Text style={styles.timePickerValue}>{formatTimeDisplay(formData.closing_time)}</Text>
+            </View>
+            <Ionicons name="chevron-down" size={20} color="#6366F1" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.deliveryToggleCard}>
+        <View style={styles.deliveryToggleLeft}>
+          <Ionicons name="bicycle" size={28} color="#6366F1" />
+          <View style={styles.deliveryToggleText}>
+            <Text style={styles.deliveryToggleTitle}>Own Delivery</Text>
+            <Text style={styles.deliveryToggleSubtitle}>We deliver to customers</Text>
+          </View>
+        </View>
         <Switch
           value={formData.can_deliver}
-          onValueChange={(value) => setFormData(prev => ({ ...prev, can_deliver: value }))}
+          onValueChange={(value) => setFormData((prev) => ({ ...prev, can_deliver: value }))}
           trackColor={{ false: '#E5E7EB', true: '#A5B4FC' }}
           thumbColor={formData.can_deliver ? '#6366F1' : '#9CA3AF'}
         />
       </View>
 
-      <View style={styles.buttonRow}>
-        <TouchableOpacity style={styles.backStepButton} onPress={() => setStep(1)}>
+      <View style={styles.navigationButtons}>
+        <TouchableOpacity style={styles.backButton} onPress={() => setStep(1)}>
           <Ionicons name="arrow-back" size={20} color="#6366F1" />
-          <Text style={styles.backStepText}>Back</Text>
+          <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.nextButton}
+          style={[styles.continueButton, { flex: 1 }, !formData.shop_address && styles.continueButtonDisabled]}
           onPress={() => {
             if (formData.shop_address) {
               setStep(3);
@@ -239,80 +530,203 @@ export default function RegisterScreen() {
               Alert.alert('Missing Information', 'Please enter shop address');
             }
           }}
+          disabled={!formData.shop_address}
         >
-          <Text style={styles.nextButtonText}>Continue</Text>
-          <Ionicons name="arrow-forward" size={20} color="#FFF" />
+          <Text style={styles.continueButtonText}>Continue</Text>
+          <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
-    </View>
-  );
 
-  const renderStep3 = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Shop Photo & Description</Text>
-
-      <TouchableOpacity style={styles.imagePickerContainer} onPress={pickImage}>
-        {formData.shop_image ? (
-          <Image source={{ uri: formData.shop_image }} style={styles.shopImage} />
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <Ionicons name="camera" size={48} color="#9CA3AF" />
-            <Text style={styles.imagePlaceholderText}>Add Shop Photo</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-
-      <Text style={styles.label}>Description (Optional)</Text>
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        placeholder="Tell customers about your shop..."
-        placeholderTextColor="#9CA3AF"
-        multiline
-        numberOfLines={4}
-        value={formData.description}
-        onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
+      <TimePickerModal
+        visible={showOpeningTimePicker}
+        onClose={() => setShowOpeningTimePicker(false)}
+        onSelect={(time) => setFormData((prev) => ({ ...prev, opening_time: time }))}
+        title="Opening Time"
+        initialTime={formData.opening_time}
       />
 
-      <View style={styles.buttonRow}>
-        <TouchableOpacity style={styles.backStepButton} onPress={() => setStep(2)}>
-          <Ionicons name="arrow-back" size={20} color="#6366F1" />
-          <Text style={styles.backStepText}>Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.nextButton, loading && styles.buttonDisabled]}
-          onPress={handleRegister}
-          disabled={loading}
-        >
-          <Text style={styles.nextButtonText}>
-            {loading ? 'Registering...' : 'Complete Registration'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <TimePickerModal
+        visible={showClosingTimePicker}
+        onClose={() => setShowClosingTimePicker(false)}
+        onSelect={(time) => setFormData((prev) => ({ ...prev, closing_time: time }))}
+        title="Closing Time"
+        initialTime={formData.closing_time}
+      />
     </View>
   );
+
+  // Step 3: Business Details & Description
+  const renderStep3 = () => {
+    const descriptionExample = DESCRIPTION_EXAMPLES[formData.shop_type] || DESCRIPTION_EXAMPLES['Other'];
+
+    return (
+      <View style={styles.stepContainer}>
+        <View style={styles.stepHeader}>
+          <View style={[styles.stepBadge, { backgroundColor: '#EC4899' }]}>
+            <Ionicons name="document-text" size={20} color="#FFFFFF" />
+          </View>
+          <Text style={styles.stepTitle}>Almost Done!</Text>
+          <Text style={styles.stepSubtitle}>Add final details about your shop</Text>
+        </View>
+
+        {/* Shop Image */}
+        <TouchableOpacity style={styles.imagePickerLarge} onPress={pickImage}>
+          {formData.shop_image ? (
+            <Image source={{ uri: formData.shop_image }} style={styles.shopImageLarge} />
+          ) : (
+            <View style={styles.imagePlaceholderLarge}>
+              <View style={styles.cameraIconContainer}>
+                <Ionicons name="camera" size={32} color="#6366F1" />
+              </View>
+              <Text style={styles.imagePlaceholderTitle}>Add Shop Photo</Text>
+              <Text style={styles.imagePlaceholderSubtitle}>Help customers recognize your shop</Text>
+            </View>
+          )}
+          {formData.shop_image && (
+            <View style={styles.imageEditBadge}>
+              <Ionicons name="pencil" size={16} color="#FFFFFF" />
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* Business Registration */}
+        <View style={styles.businessSection}>
+          <Text style={styles.sectionTitle}>Business Registration</Text>
+          <Text style={styles.sectionSubtitle}>Optional but helps build trust</Text>
+
+          <View style={styles.businessInputRow}>
+            <View style={styles.businessInput}>
+              <Text style={styles.businessInputLabel}>GST Number</Text>
+              <TextInput
+                style={styles.businessInputField}
+                placeholder="22AAAAA0000A1Z5"
+                placeholderTextColor="#D1D5DB"
+                value={formData.gst_number}
+                onChangeText={(text) => setFormData((prev) => ({ ...prev, gst_number: text.toUpperCase() }))}
+                autoCapitalize="characters"
+              />
+            </View>
+            <View style={styles.businessInput}>
+              <Text style={styles.businessInputLabel}>License No.</Text>
+              <TextInput
+                style={styles.businessInputField}
+                placeholder="LIC123456"
+                placeholderTextColor="#D1D5DB"
+                value={formData.license_number}
+                onChangeText={(text) => setFormData((prev) => ({ ...prev, license_number: text.toUpperCase() }))}
+                autoCapitalize="characters"
+              />
+            </View>
+          </View>
+
+          {['Restaurant', 'Bakery', 'Sweet Shop', 'Dairy', 'Meat Shop', 'Fish & Seafood'].includes(formData.shop_type) && (
+            <View style={styles.fssaiInput}>
+              <Text style={styles.businessInputLabel}>FSSAI License (Food Business)</Text>
+              <TextInput
+                style={styles.businessInputField}
+                placeholder="14 digit FSSAI number"
+                placeholderTextColor="#D1D5DB"
+                value={formData.fssai_number}
+                onChangeText={(text) => setFormData((prev) => ({ ...prev, fssai_number: text }))}
+                keyboardType="numeric"
+                maxLength={14}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Description */}
+        <View style={styles.descriptionSection}>
+          <Text style={styles.sectionTitle}>Shop Description</Text>
+          <Text style={styles.descriptionRequired}>
+            <Ionicons name="star" size={12} color="#DC2626" /> Required
+          </Text>
+          
+          <TextInput
+            style={styles.descriptionInput}
+            placeholder="Describe your shop..."
+            placeholderTextColor="#9CA3AF"
+            multiline
+            numberOfLines={5}
+            value={formData.description}
+            onChangeText={(text) => setFormData((prev) => ({ ...prev, description: text }))}
+          />
+
+          <View style={styles.exampleContainer}>
+            <View style={styles.exampleHeader}>
+              <Ionicons name="bulb" size={16} color="#F59E0B" />
+              <Text style={styles.exampleTitle}>Example for {formData.shop_type}:</Text>
+            </View>
+            <Text style={styles.exampleText}>{descriptionExample}</Text>
+            <TouchableOpacity
+              style={styles.useExampleButton}
+              onPress={() => setFormData((prev) => ({ ...prev, description: descriptionExample }))}
+            >
+              <Text style={styles.useExampleButtonText}>Use This Example</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.navigationButtons}>
+          <TouchableOpacity style={styles.backButton} onPress={() => setStep(2)}>
+            <Ionicons name="arrow-back" size={20} color="#6366F1" />
+            <Text style={styles.backButtonText}>Back</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.registerButton, loading && styles.registerButtonDisabled]}
+            onPress={handleRegister}
+            disabled={loading}
+          >
+            <Ionicons name="rocket" size={20} color="#FFFFFF" />
+            <Text style={styles.registerButtonText}>
+              {loading ? 'Creating Shop...' : 'Launch My Shop'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.progressContainer}>
-            {[1, 2, 3].map((s) => (
-              <View
-                key={s}
-                style={[
-                  styles.progressDot,
-                  s <= step && styles.progressDotActive
-                ]}
-              />
-            ))}
-          </View>
-          <Text style={styles.headerTitle}>Register Your Shop</Text>
-          <Text style={styles.headerSubtitle}>Step {step} of 3</Text>
+      {/* Progress Bar */}
+      <View style={styles.progressSection}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressTitle}>Register Your Shop</Text>
+          <Text style={styles.progressPercent}>{getProgress()}%</Text>
         </View>
+        <View style={styles.progressBarBg}>
+          <View style={[styles.progressBarFill, { width: `${getProgress()}%` }]} />
+        </View>
+        <View style={styles.stepsIndicator}>
+          {[1, 2, 3].map((s) => (
+            <View key={s} style={styles.stepIndicatorItem}>
+              <View
+                style={[
+                  styles.stepDot,
+                  s < step && styles.stepDotCompleted,
+                  s === step && styles.stepDotActive,
+                ]}
+              >
+                {s < step ? (
+                  <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                ) : (
+                  <Text style={[styles.stepDotText, s === step && styles.stepDotTextActive]}>{s}</Text>
+                )}
+              </View>
+              <Text style={[styles.stepLabel, s === step && styles.stepLabelActive]}>
+                {s === 1 ? 'Basics' : s === 2 ? 'Location' : 'Details'}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
 
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {step === 1 && renderStep1()}
         {step === 2 && renderStep2()}
         {step === 3 && renderStep3()}
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -323,49 +737,111 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  progressSection: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  progressPercent: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#6366F1',
+  },
+  progressBarBg: {
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#6366F1',
+    borderRadius: 4,
+  },
+  stepsIndicator: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  stepIndicatorItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  stepDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  stepDotCompleted: {
+    backgroundColor: '#22C55E',
+  },
+  stepDotActive: {
+    backgroundColor: '#6366F1',
+  },
+  stepDotText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF',
+  },
+  stepDotTextActive: {
+    color: '#FFFFFF',
+  },
+  stepLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  stepLabelActive: {
+    color: '#6366F1',
+    fontWeight: '600',
+  },
   scrollView: {
     flex: 1,
   },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 16,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 20,
-  },
-  progressDot: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E5E7EB',
-  },
-  progressDotActive: {
-    backgroundColor: '#6366F1',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginTop: 4,
-  },
   stepContainer: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+    padding: 20,
+  },
+  stepHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  stepBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#6366F1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   stepTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#374151',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  stepSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  inputGroup: {
     marginBottom: 20,
   },
   label: {
@@ -373,102 +849,220 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
-    marginTop: 16,
   },
-  input: {
+  labelHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginBottom: 12,
+  },
+  inputWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    height: 52,
+    gap: 10,
+  },
+  inputField: {
+    flex: 1,
     fontSize: 16,
     color: '#111827',
   },
   textArea: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#111827',
     minHeight: 100,
     textAlignVertical: 'top',
   },
-  chipScroll: {
-    marginTop: 8,
+  shopTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
   },
-  chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    marginRight: 8,
-    borderWidth: 1,
+  shopTypeCard: {
+    width: '25%',
+    padding: 6,
+  },
+  shopTypeCardSelected: {},
+  shopTypeIconContainer: {
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
     borderColor: '#E5E7EB',
   },
-  chipSelected: {
+  shopTypeIconContainerSelected: {
     backgroundColor: '#6366F1',
     borderColor: '#6366F1',
   },
-  chipText: {
-    fontSize: 14,
-    color: '#4B5563',
-  },
-  chipTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  locationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#EEF2FF',
-    borderRadius: 12,
-    paddingVertical: 14,
-    marginTop: 16,
-    gap: 8,
-  },
-  locationButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6366F1',
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 20,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  switchLabel: {
-    fontSize: 15,
-    color: '#374151',
+  shopTypeText: {
+    fontSize: 11,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 6,
     fontWeight: '500',
   },
-  nextButton: {
+  shopTypeTextSelected: {
+    color: '#6366F1',
+    fontWeight: '700',
+  },
+  shopTypeCheck: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#22C55E',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  continueButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#6366F1',
     borderRadius: 12,
     paddingVertical: 16,
-    marginTop: 24,
+    marginTop: 8,
     gap: 8,
-    flex: 1,
   },
-  nextButtonText: {
+  continueButtonDisabled: {
+    backgroundColor: '#A5B4FC',
+  },
+  continueButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  buttonDisabled: {
-    backgroundColor: '#A5B4FC',
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  buttonRow: {
+  locationIconContainer: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locationTextContainer: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  locationButtonTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  locationButtonSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  operatingHoursSection: {
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 16,
+  },
+  timePickersRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  timePickerButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  timePickerIcon: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timePickerContent: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  timePickerLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  timePickerValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 2,
+  },
+  deliveryToggleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  deliveryToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  deliveryToggleText: {},
+  deliveryToggleTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  deliveryToggleSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  navigationButtons: {
     flexDirection: 'row',
     gap: 12,
     marginTop: 24,
   },
-  backStepButton: {
+  backButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -478,32 +1072,271 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 6,
   },
-  backStepText: {
+  backButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#6366F1',
   },
-  imagePickerContainer: {
-    marginTop: 8,
+  // Time Picker Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
   },
-  imagePlaceholder: {
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  timePickerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  pickerColumn: {
+    alignItems: 'center',
+  },
+  pickerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  pickerScroll: {
+    height: 150,
+    width: 70,
+  },
+  pickerItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginVertical: 2,
+  },
+  pickerItemSelected: {
+    backgroundColor: '#6366F1',
+  },
+  pickerItemText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  pickerItemTextSelected: {
+    color: '#FFFFFF',
+  },
+  timeSeparator: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#374151',
+    marginTop: 20,
+  },
+  selectedTimeDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 20,
+    gap: 10,
+  },
+  selectedTimeText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#6366F1',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  modalConfirmBtn: {
+    flex: 1,
+    backgroundColor: '#6366F1',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  // Step 3 Styles
+  imagePickerLarge: {
+    position: 'relative',
+    marginBottom: 24,
+  },
+  shopImageLarge: {
+    width: '100%',
+    height: 180,
+    borderRadius: 16,
+  },
+  imagePlaceholderLarge: {
+    width: '100%',
+    height: 180,
     backgroundColor: '#F3F4F6',
     borderRadius: 16,
     borderWidth: 2,
     borderColor: '#E5E7EB',
     borderStyle: 'dashed',
-    height: 180,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  imagePlaceholderText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#9CA3AF',
+  cameraIconContainer: {
+    width: 64,
+    height: 64,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  shopImage: {
-    width: '100%',
-    height: 180,
-    borderRadius: 16,
+  imagePlaceholderTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  imagePlaceholderSubtitle: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  imageEditBadge: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    backgroundColor: '#6366F1',
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  businessSection: {
+    marginBottom: 24,
+  },
+  businessInputRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  businessInput: {
+    flex: 1,
+  },
+  businessInputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 6,
+  },
+  businessInputField: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: '#111827',
+  },
+  fssaiInput: {
+    marginTop: 12,
+  },
+  descriptionSection: {
+    marginBottom: 8,
+  },
+  descriptionRequired: {
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  descriptionInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#111827',
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
+  exampleContainer: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  exampleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  exampleTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#92400E',
+  },
+  exampleText: {
+    fontSize: 13,
+    color: '#78350F',
+    lineHeight: 20,
+  },
+  useExampleButton: {
+    backgroundColor: '#F59E0B',
+    borderRadius: 8,
+    paddingVertical: 10,
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  useExampleButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  registerButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#22C55E',
+    borderRadius: 12,
+    paddingVertical: 16,
+    gap: 8,
+  },
+  registerButtonDisabled: {
+    backgroundColor: '#86EFAC',
+  },
+  registerButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
