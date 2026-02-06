@@ -8,31 +8,44 @@ import {
   RefreshControl,
   Animated,
   Dimensions,
-  Alert,
+  Modal,
+  Vibration,
   AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { orderAPI, productAPI } from '../../../src/utils/api';
-import { Order, Product } from '../../../src/types';
+import { Audio } from 'expo-av';
+import { orderAPI } from '../../../src/utils/api';
+import { Order } from '../../../src/types';
+import { useAlert } from '../../../src/context/AlertContext';
 import { format } from 'date-fns';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 type TabType = 'new' | 'active' | 'completed';
 
 export default function OrdersScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { showAlert } = useAlert();
   const [allOrders, setAllOrders] = useState<Order[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('new');
   const slideAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // New Order Alert State
+  const [showNewOrderAlert, setShowNewOrderAlert] = useState(false);
+  const [newOrderData, setNewOrderData] = useState<Order | null>(null);
+  const [countdown, setCountdown] = useState(0);
+  const alertScaleAnim = useRef(new Animated.Value(0.5)).current;
+  const alertOpacityAnim = useRef(new Animated.Value(0)).current;
+  const countdownAnim = useRef(new Animated.Value(1)).current;
+  const previousOrderIds = useRef<Set<string>>(new Set());
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   // Filter orders by tab
   const getFilteredOrders = () => {
@@ -40,7 +53,7 @@ export default function OrdersScreen() {
       case 'new':
         return allOrders.filter(o => o.status === 'pending');
       case 'active':
-        return allOrders.filter(o => ['accepted', 'confirmed', 'preparing', 'ready', 'picked_up'].includes(o.status));
+        return allOrders.filter(o => ['accepted', 'confirmed', 'preparing', 'ready', 'awaiting_pickup', 'picked_up', 'out_for_delivery'].includes(o.status));
       case 'completed':
         return allOrders.filter(o => ['delivered', 'cancelled', 'rejected'].includes(o.status));
       default:
@@ -49,22 +62,125 @@ export default function OrdersScreen() {
   };
 
   const filteredOrders = getFilteredOrders();
-  const newOrdersCount = allOrders.filter(o => o.status === 'pending').length;
-  const activeOrdersCount = allOrders.filter(o => ['accepted', 'confirmed', 'preparing', 'ready', 'picked_up'].includes(o.status)).length;
+  const pendingOrders = allOrders.filter(o => o.status === 'pending');
+  const newOrdersCount = pendingOrders.length;
+  const activeOrdersCount = allOrders.filter(o => ['accepted', 'confirmed', 'preparing', 'ready', 'awaiting_pickup', 'picked_up', 'out_for_delivery'].includes(o.status)).length;
   const completedOrdersCount = allOrders.filter(o => ['delivered', 'cancelled', 'rejected'].includes(o.status)).length;
 
-  // Get low stock products
-  const lowStockProducts = products.filter(p => p.stock_quantity <= 10 && p.in_stock);
-  const outOfStockProducts = products.filter(p => !p.in_stock);
+  // Play notification sound
+  const playNotificationSound = async () => {
+    try {
+      // Use system sound via vibration pattern (since we can't load custom sounds easily)
+      Vibration.vibrate([0, 500, 200, 500, 200, 500]);
+    } catch (error) {
+      console.error('Sound error:', error);
+    }
+  };
+
+  // Check for new orders
+  const checkForNewOrders = (orders: Order[]) => {
+    const currentPendingIds = new Set(orders.filter(o => o.status === 'pending').map(o => o.order_id));
+    
+    // Find truly new orders (not seen before)
+    const newOrders = orders.filter(
+      o => o.status === 'pending' && !previousOrderIds.current.has(o.order_id)
+    );
+    
+    if (newOrders.length > 0 && previousOrderIds.current.size > 0) {
+      // Show alert for the newest order
+      const newestOrder = newOrders[0];
+      showNewOrderNotification(newestOrder);
+    }
+    
+    // Update previous order IDs
+    previousOrderIds.current = currentPendingIds;
+  };
+
+  // Show full-screen new order notification
+  const showNewOrderNotification = (order: Order) => {
+    setNewOrderData(order);
+    setCountdown(order.auto_accept_seconds || 180);
+    setShowNewOrderAlert(true);
+    
+    // Vibrate intensely
+    playNotificationSound();
+    
+    // Animate alert appearance
+    Animated.parallel([
+      Animated.spring(alertScaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.timing(alertOpacityAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (showNewOrderAlert && countdown > 0) {
+      const timer = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            // Time's up - order will auto-accept
+            hideNewOrderAlert();
+            loadOrders();
+            return 0;
+          }
+          
+          // Pulse animation every second
+          Animated.sequence([
+            Animated.timing(countdownAnim, {
+              toValue: 1.1,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+            Animated.timing(countdownAnim, {
+              toValue: 1,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+          ]).start();
+          
+          return prev - 1;
+        });
+      }, 1000);
+      
+      return () => clearInterval(timer);
+    }
+  }, [showNewOrderAlert, countdown]);
+
+  const hideNewOrderAlert = () => {
+    Animated.parallel([
+      Animated.timing(alertScaleAnim, {
+        toValue: 0.5,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(alertOpacityAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowNewOrderAlert(false);
+      setNewOrderData(null);
+    });
+  };
 
   const loadOrders = async () => {
     try {
-      const [ordersRes, productsRes] = await Promise.all([
-        orderAPI.getAll(),
-        productAPI.getAll(),
-      ]);
-      setAllOrders(ordersRes.data);
-      setProducts(productsRes.data);
+      const ordersRes = await orderAPI.getAll();
+      const orders = ordersRes.data;
+      
+      // Check for new orders before updating state
+      checkForNewOrders(orders);
+      setAllOrders(orders);
     } catch (error) {
       console.error('Load orders error:', error);
     } finally {
@@ -93,10 +209,10 @@ export default function OrdersScreen() {
         ])
       ).start();
       
-      // Set up interval for periodic refresh (every 15 seconds for orders)
+      // Set up interval for periodic refresh (every 5 seconds for orders - more frequent)
       const intervalId = setInterval(() => {
         loadOrders();
-      }, 15000);
+      }, 5000);
       
       return () => clearInterval(intervalId);
     }, [])
@@ -131,61 +247,47 @@ export default function OrdersScreen() {
   const handleAcceptOrder = async (order: Order) => {
     try {
       await orderAPI.accept(order.order_id);
-      showClaymorphismAlert('success', 'Order Accepted! 🎉', 'Start preparing the order');
+      showAlert({
+        type: 'success',
+        title: 'Order Accepted! 🎉',
+        message: 'Start preparing the order now',
+      });
+      hideNewOrderAlert();
       loadOrders();
     } catch (error) {
-      showClaymorphismAlert('error', 'Oops!', 'Failed to accept order');
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to accept order',
+      });
     }
   };
 
-  // Claymorphism Alert State
-  const [alertVisible, setAlertVisible] = useState(false);
-  const [alertType, setAlertType] = useState<'success' | 'error' | 'warning'>('success');
-  const [alertTitle, setAlertTitle] = useState('');
-  const [alertMessage, setAlertMessage] = useState('');
-  const alertAnim = useRef(new Animated.Value(0)).current;
-  const alertScale = useRef(new Animated.Value(0.8)).current;
-
-  const showClaymorphismAlert = (type: 'success' | 'error' | 'warning', title: string, message: string) => {
-    setAlertType(type);
-    setAlertTitle(title);
-    setAlertMessage(message);
-    setAlertVisible(true);
-    
-    Animated.parallel([
-      Animated.spring(alertAnim, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-      Animated.spring(alertScale, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    setTimeout(() => {
-      hideClaymorphismAlert();
-    }, 3000);
-  };
-
-  const hideClaymorphismAlert = () => {
-    Animated.parallel([
-      Animated.timing(alertAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(alertScale, {
-        toValue: 0.8,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setAlertVisible(false);
+  const handleRejectOrder = async (order: Order) => {
+    showAlert({
+      type: 'confirm',
+      title: 'Reject Order?',
+      message: 'Are you sure you want to reject this order? Customer will be notified.',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await orderAPI.reject(order.order_id, 'Vendor rejected');
+              hideNewOrderAlert();
+              loadOrders();
+            } catch (error) {
+              showAlert({
+                type: 'error',
+                title: 'Error',
+                message: 'Failed to reject order',
+              });
+            }
+          },
+        },
+      ],
     });
   };
 
@@ -196,7 +298,9 @@ export default function OrdersScreen() {
       case 'confirmed': return { bg: '#DBEAFE', text: '#2563EB' };
       case 'preparing': return { bg: '#E0E7FF', text: '#4F46E5' };
       case 'ready': return { bg: '#D1FAE5', text: '#059669' };
+      case 'awaiting_pickup': return { bg: '#CFFAFE', text: '#0891B2' };
       case 'picked_up': return { bg: '#CFFAFE', text: '#0891B2' };
+      case 'out_for_delivery': return { bg: '#FCE7F3', text: '#DB2777' };
       case 'delivered': return { bg: '#DCFCE7', text: '#22C55E' };
       case 'cancelled': return { bg: '#FEE2E2', text: '#DC2626' };
       case 'rejected': return { bg: '#FEE2E2', text: '#DC2626' };
@@ -211,7 +315,9 @@ export default function OrdersScreen() {
       case 'confirmed': return 'checkmark-circle';
       case 'preparing': return 'restaurant';
       case 'ready': return 'bag-check';
+      case 'awaiting_pickup': return 'hourglass';
       case 'picked_up': return 'bicycle';
+      case 'out_for_delivery': return 'navigate';
       case 'delivered': return 'checkmark-done-circle';
       case 'cancelled': return 'close-circle';
       case 'rejected': return 'close-circle';
@@ -219,134 +325,99 @@ export default function OrdersScreen() {
     }
   };
 
-  const handleRejectOrder = async (order: Order) => {
-    try {
-      await orderAPI.reject(order.order_id, 'Vendor rejected');
-      showClaymorphismAlert('warning', 'Order Rejected', 'The order has been declined');
-      loadOrders();
-    } catch (error) {
-      showClaymorphismAlert('error', 'Oops!', 'Failed to reject order');
-    }
+  const formatCountdown = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const renderOrder = ({ item, index }: { item: Order; index: number }) => {
     const statusColor = getStatusColor(item.status);
-    const isNew = item.status === 'pending';
+    const isPending = item.status === 'pending';
+    const autoAcceptSeconds = (item as any).auto_accept_seconds;
     
     return (
-      <Animated.View
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => router.push(`/(main)/orders/${item.order_id}`)}
         style={[
           styles.orderCard,
-          isNew && styles.orderCardNew,
-          { opacity: 1, transform: [{ translateY: 0 }] }
+          isPending && styles.orderCardPending,
         ]}
       >
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => router.push(`/(main)/orders/${item.order_id}`)}
-        >
-          {/* Order Header */}
-          <View style={styles.orderHeader}>
-            <View style={styles.orderIdRow}>
-              <View style={[styles.statusIconBg, { backgroundColor: statusColor.bg }]}>
-                <Ionicons name={getStatusIcon(item.status) as any} size={18} color={statusColor.text} />
-              </View>
-              <View>
-                <Text style={styles.orderId}>#{item.order_id.slice(-6).toUpperCase()}</Text>
-                <Text style={styles.orderTime}>
-                  {format(new Date(item.created_at), 'MMM d, h:mm a')}
-                </Text>
-              </View>
+        {/* Countdown Badge for Pending */}
+        {isPending && autoAcceptSeconds > 0 && (
+          <View style={styles.countdownBadge}>
+            <Ionicons name="timer" size={14} color="#FFFFFF" />
+            <Text style={styles.countdownBadgeText}>
+              {formatCountdown(autoAcceptSeconds)}
+            </Text>
+          </View>
+        )}
+
+        {/* Order Header */}
+        <View style={styles.orderHeader}>
+          <View style={styles.orderIdRow}>
+            <View style={[styles.statusIconBg, { backgroundColor: statusColor.bg }]}>
+              <Ionicons name={getStatusIcon(item.status) as any} size={18} color={statusColor.text} />
             </View>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor.bg }]}>
-              <Text style={[styles.statusText, { color: statusColor.text }]}>
-                {item.status.replace('_', ' ').toUpperCase()}
+            <View>
+              <Text style={styles.orderId}>#{item.order_id.slice(-6).toUpperCase()}</Text>
+              <Text style={styles.orderTime}>
+                {format(new Date(item.created_at), 'MMM d, h:mm a')}
               </Text>
             </View>
           </View>
+          <View style={[styles.statusBadge, { backgroundColor: statusColor.bg }]}>
+            <Text style={[styles.statusText, { color: statusColor.text }]}>
+              {item.status.replace(/_/g, ' ').toUpperCase()}
+            </Text>
+          </View>
+        </View>
 
-          {/* Customer Info */}
-          <View style={styles.customerRow}>
-            <View style={styles.customerAvatar}>
-              <Text style={styles.customerInitial}>
-                {(item.customer_name || 'C')[0].toUpperCase()}
-              </Text>
-            </View>
-            <View style={styles.customerInfo}>
-              <Text style={styles.customerName}>{item.customer_name || 'Customer'}</Text>
-              {item.customer_phone && (
-                <Text style={styles.customerPhone}>{item.customer_phone}</Text>
-              )}
-            </View>
-            <TouchableOpacity style={styles.callBtn}>
-              <Ionicons name="call" size={18} color="#22C55E" />
+        {/* Customer Info */}
+        <View style={styles.customerRow}>
+          <View style={styles.customerAvatar}>
+            <Text style={styles.customerInitial}>
+              {(item.customer_name || 'C')[0].toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.customerInfo}>
+            <Text style={styles.customerName}>{item.customer_name || 'Customer'}</Text>
+            {item.customer_phone && (
+              <Text style={styles.customerPhone}>{item.customer_phone}</Text>
+            )}
+          </View>
+          <Text style={styles.totalAmount}>₹{item.total_amount}</Text>
+        </View>
+
+        {/* Items Preview */}
+        <View style={styles.itemsPreview}>
+          <Text style={styles.itemsText}>
+            {item.items.length} items • {item.items.slice(0, 2).map(i => i.name).join(', ')}
+            {item.items.length > 2 ? ` +${item.items.length - 2} more` : ''}
+          </Text>
+        </View>
+
+        {/* Quick Actions for Pending */}
+        {isPending && (
+          <View style={styles.quickActions}>
+            <TouchableOpacity 
+              style={styles.rejectBtnSmall}
+              onPress={() => handleRejectOrder(item)}
+            >
+              <Ionicons name="close" size={18} color="#DC2626" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.acceptBtnSmall}
+              onPress={() => handleAcceptOrder(item)}
+            >
+              <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+              <Text style={styles.acceptBtnTextSmall}>Accept</Text>
             </TouchableOpacity>
           </View>
-
-          {/* Items Preview */}
-          <View style={styles.itemsContainer}>
-            <View style={styles.itemsHeader}>
-              <Ionicons name="cart" size={16} color="#6B7280" />
-              <Text style={styles.itemsCount}>{item.items.length} items</Text>
-            </View>
-            <View style={styles.itemsList}>
-              {item.items.slice(0, 3).map((orderItem, idx) => (
-                <View key={idx} style={styles.itemRow}>
-                  <Text style={styles.itemQty}>{orderItem.quantity}x</Text>
-                  <Text style={styles.itemName} numberOfLines={1}>{orderItem.name}</Text>
-                  <Text style={styles.itemPrice}>₹{orderItem.price * orderItem.quantity}</Text>
-                </View>
-              ))}
-              {item.items.length > 3 && (
-                <Text style={styles.moreItems}>+{item.items.length - 3} more items</Text>
-              )}
-            </View>
-          </View>
-
-          {/* Order Footer */}
-          <View style={styles.orderFooter}>
-            <View style={styles.deliveryInfo}>
-              <View style={[styles.deliveryBadge, item.delivery_type === 'delivery' && styles.deliveryBadgeActive]}>
-                <Ionicons
-                  name={item.delivery_type === 'self_pickup' ? 'storefront' : 'bicycle'}
-                  size={16}
-                  color={item.delivery_type === 'delivery' ? '#6366F1' : '#6B7280'}
-                />
-                <Text style={[
-                  styles.deliveryText,
-                  item.delivery_type === 'delivery' && styles.deliveryTextActive
-                ]}>
-                  {item.delivery_type === 'self_pickup' ? 'Self Pickup' : 'Delivery'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.totalContainer}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalAmount}>₹{item.total_amount}</Text>
-            </View>
-          </View>
-
-          {/* Action Buttons for New Orders */}
-          {isNew && (
-            <View style={styles.actionButtons}>
-              <TouchableOpacity 
-                style={styles.rejectBtn}
-                onPress={() => handleRejectOrder(item)}
-              >
-                <Ionicons name="close" size={20} color="#DC2626" />
-                <Text style={styles.rejectBtnText}>Reject</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.acceptBtn}
-                onPress={() => handleAcceptOrder(item)}
-              >
-                <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                <Text style={styles.acceptBtnText}>Accept Order</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </TouchableOpacity>
-      </Animated.View>
+        )}
+      </TouchableOpacity>
     );
   };
 
@@ -355,99 +426,25 @@ export default function OrdersScreen() {
     outputRange: [0, (width - 32) / 3, ((width - 32) / 3) * 2],
   });
 
-  // Stock Alert Component - Redesigned with direct navigation to warehouse filters
-  const StockAlert = () => {
-    if (lowStockProducts.length === 0 && outOfStockProducts.length === 0) return null;
-    
-    return (
-      <View style={styles.stockAlertSection}>
-        <View style={styles.stockAlertHeader}>
-          <View style={styles.stockAlertHeaderLeft}>
-            <Ionicons name="cube" size={18} color="#6366F1" />
-            <Text style={styles.stockAlertHeaderTitle}>Inventory Alerts</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.viewAllBtn}
-            onPress={() => router.push('/(main)/warehouse')}
-          >
-            <Text style={styles.viewAllText}>View All</Text>
-            <Ionicons name="arrow-forward" size={14} color="#6366F1" />
-          </TouchableOpacity>
-        </View>
-        
-        <View style={styles.stockAlertCards}>
-          {outOfStockProducts.length > 0 && (
-            <TouchableOpacity 
-              style={styles.alertCardDanger}
-              onPress={() => router.push({
-                pathname: '/(main)/warehouse',
-                params: { filter: 'out_of_stock' }
-              })}
-            >
-              <View style={styles.alertCardIcon}>
-                <View style={styles.alertIconCircleDanger}>
-                  <Ionicons name="close-circle" size={24} color="#FFFFFF" />
-                </View>
-              </View>
-              <View style={styles.alertCardBody}>
-                <Text style={styles.alertCardCount}>{outOfStockProducts.length}</Text>
-                <Text style={styles.alertCardLabel}>Out of Stock</Text>
-              </View>
-              <View style={styles.alertCardArrow}>
-                <Ionicons name="chevron-forward" size={20} color="#DC2626" />
-              </View>
-            </TouchableOpacity>
-          )}
-          
-          {lowStockProducts.length > 0 && (
-            <TouchableOpacity 
-              style={styles.alertCardWarning}
-              onPress={() => router.push({
-                pathname: '/(main)/warehouse',
-                params: { filter: 'low_stock' }
-              })}
-            >
-              <View style={styles.alertCardIcon}>
-                <View style={styles.alertIconCircleWarning}>
-                  <Ionicons name="warning" size={22} color="#FFFFFF" />
-                </View>
-              </View>
-              <View style={styles.alertCardBody}>
-                <Text style={styles.alertCardCountWarning}>{lowStockProducts.length}</Text>
-                <Text style={styles.alertCardLabelWarning}>Low Stock</Text>
-              </View>
-              <View style={styles.alertCardArrow}>
-                <Ionicons name="chevron-forward" size={20} color="#F59E0B" />
-              </View>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    );
-  };
-
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header - Compact */}
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title}>Orders</Text>
-          <View style={styles.orderSummary}>
-            <View style={styles.summaryDot} />
-            <Text style={styles.summaryText}>
-              {newOrdersCount} new • {activeOrdersCount} active
-            </Text>
-          </View>
+          {newOrdersCount > 0 && (
+            <Animated.View style={[styles.newOrderIndicator, { transform: [{ scale: pulseAnim }] }]}>
+              <View style={styles.newOrderDot} />
+              <Text style={styles.newOrderText}>{newOrdersCount} new</Text>
+            </Animated.View>
+          )}
         </View>
         <TouchableOpacity style={styles.refreshBtn} onPress={onRefresh}>
           <Ionicons name="refresh" size={22} color="#6366F1" />
         </TouchableOpacity>
       </View>
 
-      {/* Stock Alert - Distinct Section */}
-      <StockAlert />
-
-      {/* Tab Bar - Improved */}
+      {/* Tab Bar */}
       <View style={styles.tabContainer}>
         <View style={styles.tabBar}>
           <TouchableOpacity
@@ -455,7 +452,7 @@ export default function OrdersScreen() {
             onPress={() => handleTabChange('new')}
           >
             <Text style={[styles.tabText, activeTab === 'new' && styles.tabTextActive]}>
-              New
+              Pending
             </Text>
             {newOrdersCount > 0 && (
               <Animated.View style={[styles.tabBadge, styles.tabBadgeNew, { transform: [{ scale: pulseAnim }] }]}>
@@ -483,13 +480,8 @@ export default function OrdersScreen() {
             onPress={() => handleTabChange('completed')}
           >
             <Text style={[styles.tabText, activeTab === 'completed' && styles.tabTextActive]}>
-              Completed
+              History
             </Text>
-            {completedOrdersCount > 0 && (
-              <View style={[styles.tabBadge, styles.tabBadgeCompleted]}>
-                <Text style={styles.tabBadgeTextDark}>{completedOrdersCount}</Text>
-              </View>
-            )}
           </TouchableOpacity>
           
           {/* Animated Indicator */}
@@ -525,76 +517,132 @@ export default function OrdersScreen() {
               />
             </View>
             <Text style={styles.emptyTitle}>
-              {activeTab === 'new' ? 'No new orders' :
-               activeTab === 'active' ? 'No active orders' : 'No completed orders'}
+              {activeTab === 'new' ? 'No pending orders' :
+               activeTab === 'active' ? 'No active orders' : 'No order history'}
             </Text>
             <Text style={styles.emptySubtitle}>
-              {activeTab === 'new' ? 'New orders will appear here when customers place them' :
-               activeTab === 'active' ? 'Orders you\'re working on will show here' :
-               'Completed and cancelled orders will be archived here'}
+              {activeTab === 'new' ? 'New orders will appear here instantly' :
+               activeTab === 'active' ? 'Orders being processed will show here' :
+               'Completed orders will be archived here'}
             </Text>
           </View>
         }
       />
 
-      {/* Claymorphism Alert */}
-      {alertVisible && (
+      {/* Full-Screen New Order Alert Modal */}
+      <Modal
+        visible={showNewOrderAlert}
+        transparent
+        animationType="none"
+        onRequestClose={hideNewOrderAlert}
+      >
         <Animated.View 
           style={[
-            styles.alertContainer,
-            {
-              opacity: alertAnim,
-              transform: [
-                { scale: alertScale },
-                { translateY: alertAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                })}
-              ],
-            }
+            styles.newOrderOverlay,
+            { opacity: alertOpacityAnim }
           ]}
         >
-          <View style={[
-            styles.alertBox,
-            alertType === 'success' && styles.alertBoxSuccess,
-            alertType === 'error' && styles.alertBoxError,
-            alertType === 'warning' && styles.alertBoxWarning,
-          ]}>
-            <View style={styles.alertInner}>
-              <View style={[
-                styles.alertIconBg,
-                alertType === 'success' && styles.alertIconBgSuccess,
-                alertType === 'error' && styles.alertIconBgError,
-                alertType === 'warning' && styles.alertIconBgWarning,
-              ]}>
-                <Ionicons 
-                  name={
-                    alertType === 'success' ? 'checkmark-circle' :
-                    alertType === 'error' ? 'close-circle' : 'warning'
-                  } 
-                  size={32} 
-                  color={
-                    alertType === 'success' ? '#22C55E' :
-                    alertType === 'error' ? '#EF4444' : '#F59E0B'
-                  } 
+          <Animated.View 
+            style={[
+              styles.newOrderModal,
+              { transform: [{ scale: alertScaleAnim }] }
+            ]}
+          >
+            {/* Pulsing Ring Animation */}
+            <View style={styles.alertRingContainer}>
+              <View style={styles.alertRing1} />
+              <View style={styles.alertRing2} />
+              <View style={styles.alertIconCircle}>
+                <Ionicons name="receipt" size={40} color="#FFFFFF" />
+              </View>
+            </View>
+
+            <Text style={styles.newOrderTitle}>NEW ORDER!</Text>
+            
+            {/* Countdown Timer */}
+            <Animated.View style={[styles.countdownContainer, { transform: [{ scale: countdownAnim }] }]}>
+              <Text style={styles.countdownLabel}>Auto-accepts in</Text>
+              <Text style={styles.countdownTime}>{formatCountdown(countdown)}</Text>
+              <View style={styles.countdownProgressBg}>
+                <View 
+                  style={[
+                    styles.countdownProgress,
+                    { width: `${(countdown / 180) * 100}%` }
+                  ]} 
                 />
               </View>
-              <View style={styles.alertContent}>
-                <Text style={styles.alertTitle}>{alertTitle}</Text>
-                <Text style={styles.alertMessage}>{alertMessage}</Text>
-              </View>
-            </View>
-            <View style={styles.alertProgressBar}>
-              <View style={[
-                styles.alertProgress,
-                alertType === 'success' && styles.alertProgressSuccess,
-                alertType === 'error' && styles.alertProgressError,
-                alertType === 'warning' && styles.alertProgressWarning,
-              ]} />
-            </View>
-          </View>
+            </Animated.View>
+
+            {newOrderData && (
+              <>
+                {/* Order Summary */}
+                <View style={styles.orderSummaryCard}>
+                  <View style={styles.orderSummaryHeader}>
+                    <Text style={styles.orderSummaryId}>
+                      #{newOrderData.order_id.slice(-8).toUpperCase()}
+                    </Text>
+                    <Text style={styles.orderSummaryTotal}>₹{newOrderData.total_amount}</Text>
+                  </View>
+                  
+                  <View style={styles.orderSummaryCustomer}>
+                    <View style={styles.customerAvatarLarge}>
+                      <Text style={styles.customerInitialLarge}>
+                        {(newOrderData.customer_name || 'C')[0].toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.customerDetails}>
+                      <Text style={styles.customerNameLarge}>{newOrderData.customer_name || 'Customer'}</Text>
+                      <Text style={styles.customerPhoneLarge}>{newOrderData.customer_phone}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.orderSummaryItems}>
+                    <Text style={styles.itemsLabel}>{newOrderData.items.length} items</Text>
+                    {newOrderData.items.slice(0, 3).map((item, idx) => (
+                      <Text key={idx} style={styles.itemLine}>
+                        {item.quantity}x {item.name}
+                      </Text>
+                    ))}
+                    {newOrderData.items.length > 3 && (
+                      <Text style={styles.moreItemsText}>+{newOrderData.items.length - 3} more items</Text>
+                    )}
+                  </View>
+
+                  <View style={styles.deliveryBadgeLarge}>
+                    <Ionicons 
+                      name={newOrderData.delivery_type === 'self_pickup' ? 'storefront' : 'bicycle'} 
+                      size={16} 
+                      color="#6366F1" 
+                    />
+                    <Text style={styles.deliveryTextLarge}>
+                      {newOrderData.delivery_type === 'self_pickup' ? 'Customer Pickup' : 'Delivery'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Action Buttons */}
+                <View style={styles.alertActions}>
+                  <TouchableOpacity 
+                    style={styles.rejectBtnLarge}
+                    onPress={() => handleRejectOrder(newOrderData)}
+                  >
+                    <Ionicons name="close" size={24} color="#DC2626" />
+                    <Text style={styles.rejectBtnTextLarge}>Reject</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.acceptBtnLarge}
+                    onPress={() => handleAcceptOrder(newOrderData)}
+                  >
+                    <Ionicons name="checkmark" size={24} color="#FFFFFF" />
+                    <Text style={styles.acceptBtnTextLarge}>Accept Order</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </Animated.View>
         </Animated.View>
-      )}
+      </Modal>
     </View>
   );
 }
@@ -611,15 +659,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   title: {
     fontSize: 28,
     fontWeight: '800',
     color: '#111827',
   },
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 2,
+  newOrderIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    gap: 6,
+  },
+  newOrderDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+  },
+  newOrderText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#DC2626',
   },
   refreshBtn: {
     width: 44,
@@ -628,136 +696,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  // Stock Alert Section - Redesigned
-  stockAlertSection: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  stockAlertHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  stockAlertHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stockAlertHeaderTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#374151',
-  },
-  viewAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  viewAllText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6366F1',
-  },
-  stockAlertCards: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  alertCardDanger: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  alertCardWarning: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  alertCardIcon: {
-    marginRight: 10,
-  },
-  alertIconCircleDanger: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#DC2626',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  alertIconCircleWarning: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#F59E0B',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  alertCardBody: {
-    flex: 1,
-  },
-  alertCardCount: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#DC2626',
-  },
-  alertCardCountWarning: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#D97706',
-  },
-  alertCardLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#991B1B',
-  },
-  alertCardLabelWarning: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#92400E',
-  },
-  alertCardArrow: {
-    paddingLeft: 8,
-  },
-  // Header improvements
-  headerLeft: {
-    flex: 1,
-  },
-  orderSummary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    gap: 6,
-  },
-  summaryDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#22C55E',
-  },
-  summaryText: {
-    fontSize: 13,
-    color: '#6B7280',
   },
   // Tab Bar
   tabContainer: {
@@ -807,18 +745,10 @@ const styles = StyleSheet.create({
   tabBadgeActive: {
     backgroundColor: '#6366F1',
   },
-  tabBadgeCompleted: {
-    backgroundColor: '#E5E7EB',
-  },
   tabBadgeText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',
-  },
-  tabBadgeTextDark: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#6B7280',
   },
   tabIndicator: {
     position: 'absolute',
@@ -837,225 +767,147 @@ const styles = StyleSheet.create({
   // Order Card
   orderCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 14,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     elevation: 2,
   },
-  orderCardNew: {
+  orderCardPending: {
     borderWidth: 2,
     borderColor: '#FDE68A',
     backgroundColor: '#FFFEF7',
+  },
+  countdownBadge: {
+    position: 'absolute',
+    top: -8,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    zIndex: 1,
+  },
+  countdownBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   orderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   orderIdRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   statusIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   orderId: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#111827',
   },
   orderTime: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#9CA3AF',
-    marginTop: 2,
+    marginTop: 1,
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
   },
-  // Customer Row
   customerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingBottom: 14,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
   customerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
   customerInitial: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: '#6366F1',
   },
   customerInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   customerName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#111827',
   },
   customerPhone: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  callBtn: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#DCFCE7',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  // Items
-  itemsContainer: {
-    paddingVertical: 14,
-  },
-  itemsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 10,
-  },
-  itemsCount: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  itemsList: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 12,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  itemQty: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#6366F1',
-    width: 30,
-  },
-  itemName: {
-    flex: 1,
-    fontSize: 14,
-    color: '#374151',
-  },
-  itemPrice: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  moreItems: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6366F1',
-    marginTop: 4,
-  },
-  // Footer
-  orderFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  deliveryInfo: {},
-  deliveryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 6,
-  },
-  deliveryBadgeActive: {
-    backgroundColor: '#EEF2FF',
-  },
-  deliveryText: {
     fontSize: 12,
-    fontWeight: '600',
     color: '#6B7280',
-  },
-  deliveryTextActive: {
-    color: '#6366F1',
-  },
-  totalContainer: {
-    alignItems: 'flex-end',
-  },
-  totalLabel: {
-    fontSize: 11,
-    color: '#9CA3AF',
   },
   totalAmount: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     color: '#111827',
   },
-  // Action Buttons
-  actionButtons: {
+  itemsPreview: {
+    paddingVertical: 10,
+  },
+  itemsText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  quickActions: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-    paddingTop: 16,
+    gap: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#FDE68A',
   },
-  rejectBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  rejectBtnSmall: {
+    width: 44,
+    height: 44,
     backgroundColor: '#FEE2E2',
-    paddingVertical: 14,
     borderRadius: 12,
-    gap: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  rejectBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#DC2626',
-  },
-  acceptBtn: {
-    flex: 2,
+  acceptBtnSmall: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#22C55E',
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 12,
     gap: 6,
   },
-  acceptBtnText: {
-    fontSize: 15,
+  acceptBtnTextSmall: {
+    fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -1086,108 +938,211 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  // Claymorphism Alert Styles
-  alertContainer: {
-    position: 'absolute',
-    bottom: 120,
-    left: 16,
-    right: 16,
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  alertBox: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 4,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 24,
-    elevation: 15,
-    borderWidth: 2,
-    borderColor: 'rgba(99, 102, 241, 0.15)',
-  },
-  alertBoxSuccess: {
-    shadowColor: '#22C55E',
-    borderColor: 'rgba(34, 197, 94, 0.2)',
-  },
-  alertBoxError: {
-    shadowColor: '#EF4444',
-    borderColor: 'rgba(239, 68, 68, 0.2)',
-  },
-  alertBoxWarning: {
-    shadowColor: '#F59E0B',
-    borderColor: 'rgba(245, 158, 11, 0.2)',
-  },
-  alertInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-  },
-  alertIconBg: {
-    width: 56,
-    height: 56,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 18,
+  // Full-Screen New Order Alert
+  newOrderOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    padding: 20,
   },
-  alertIconBgSuccess: {
-    backgroundColor: '#DCFCE7',
-    shadowColor: '#22C55E',
+  newOrderModal: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    padding: 24,
+    alignItems: 'center',
   },
-  alertIconBgError: {
-    backgroundColor: '#FEE2E2',
-    shadowColor: '#EF4444',
+  alertRingContainer: {
+    position: 'relative',
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  alertIconBgWarning: {
-    backgroundColor: '#FEF3C7',
-    shadowColor: '#F59E0B',
+  alertRing1: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 3,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
   },
-  alertContent: {
-    flex: 1,
-    marginLeft: 14,
+  alertRing2: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
   },
-  alertTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+  alertIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  newOrderTitle: {
+    fontSize: 28,
+    fontWeight: '900',
     color: '#111827',
+    marginBottom: 16,
   },
-  alertMessage: {
+  countdownContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  countdownLabel: {
     fontSize: 14,
     color: '#6B7280',
-    marginTop: 2,
+    marginBottom: 4,
   },
-  alertProgressBar: {
-    height: 4,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
-    marginTop: 4,
-    marginHorizontal: 12,
-    marginBottom: 8,
+  countdownTime: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#EF4444',
+  },
+  countdownProgressBg: {
+    width: 200,
+    height: 6,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 3,
+    marginTop: 8,
     overflow: 'hidden',
   },
-  alertProgress: {
-    width: '100%',
+  countdownProgress: {
     height: '100%',
-    backgroundColor: '#6366F1',
-    borderRadius: 2,
-  },
-  alertProgressSuccess: {
-    backgroundColor: '#22C55E',
-  },
-  alertProgressError: {
     backgroundColor: '#EF4444',
+    borderRadius: 3,
   },
-  alertProgressWarning: {
-    backgroundColor: '#F59E0B',
+  orderSummaryCard: {
+    width: '100%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+  },
+  orderSummaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  orderSummaryId: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#6366F1',
+  },
+  orderSummaryTotal: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  orderSummaryCustomer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  customerAvatarLarge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customerInitialLarge: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#6366F1',
+  },
+  customerDetails: {
+    marginLeft: 12,
+  },
+  customerNameLarge: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  customerPhoneLarge: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  orderSummaryItems: {
+    marginBottom: 12,
+  },
+  itemsLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 6,
+  },
+  itemLine: {
+    fontSize: 14,
+    color: '#374151',
+    marginBottom: 2,
+  },
+  moreItemsText: {
+    fontSize: 13,
+    color: '#6366F1',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  deliveryBadgeLarge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    gap: 6,
+  },
+  deliveryTextLarge: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6366F1',
+  },
+  alertActions: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  rejectBtnLarge: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEE2E2',
+    paddingVertical: 16,
+    borderRadius: 14,
+    gap: 8,
+  },
+  rejectBtnTextLarge: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  acceptBtnLarge: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#22C55E',
+    paddingVertical: 16,
+    borderRadius: 14,
+    gap: 8,
+  },
+  acceptBtnTextLarge: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
