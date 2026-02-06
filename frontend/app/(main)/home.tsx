@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Alert,
   Animated,
   Dimensions,
 } from 'react-native';
@@ -16,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../src/store/authStore';
 import { vendorAPI, orderAPI } from '../../src/utils/api';
 import { Analytics, Order } from '../../src/types';
+import { useAlert } from '../../src/context/AlertContext';
 
 const { width } = Dimensions.get('window');
 
@@ -23,6 +23,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
+  const { showAlert } = useAlert();
   const [refreshing, setRefreshing] = useState(false);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
