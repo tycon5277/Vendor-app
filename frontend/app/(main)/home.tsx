@@ -8,9 +8,11 @@ import {
   RefreshControl,
   Animated,
   Dimensions,
+  AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../src/store/authStore';
 import { vendorAPI, orderAPI } from '../../src/utils/api';
@@ -45,9 +47,32 @@ export default function HomeScreen() {
     }
   };
 
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+      
+      // Set up interval for periodic refresh (every 30 seconds)
+      const intervalId = setInterval(() => {
+        loadData();
+      }, 30000);
+      
+      return () => clearInterval(intervalId);
+    }, [])
+  );
+
+  // Refresh when app comes to foreground
   useEffect(() => {
-    loadData();
-    
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        loadData();
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
     // Entrance animation
     Animated.parallel([
       Animated.timing(fadeAnim, {
