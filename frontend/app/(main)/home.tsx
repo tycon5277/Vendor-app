@@ -9,13 +9,9 @@ import {
   Alert,
   Animated,
   Dimensions,
-  BackHandler,
-  Platform,
-  ToastAndroid,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../src/store/authStore';
 import { vendorAPI, orderAPI } from '../../src/utils/api';
@@ -30,13 +26,6 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
-  
-  // Back button handling
-  const [backPressCount, setBackPressCount] = useState(0);
-  const [showExitToast, setShowExitToast] = useState(false);
-  const toastAnim = useRef(new Animated.Value(0)).current;
-  const toastScale = useRef(new Animated.Value(0.8)).current;
-  const backPressTimer = useRef<NodeJS.Timeout | null>(null);
   
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
