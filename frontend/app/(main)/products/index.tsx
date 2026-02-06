@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Alert,
   Animated,
   Easing,
   Dimensions,
@@ -17,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../../src/store/authStore';
 import { vendorAPI, productAPI } from '../../../src/utils/api';
 import { Product } from '../../../src/types';
+import { useAlert } from '../../../src/context/AlertContext';
 
 const { width } = Dimensions.get('window');
 
@@ -24,6 +24,7 @@ export default function MyShopScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, setUser } = useAuthStore();
+  const { showAlert } = useAlert();
   const [refreshing, setRefreshing] = useState(false);
   const [shopOpen, setShopOpen] = useState(user?.partner_status === 'available');
   const [productStats, setProductStats] = useState({ total: 0, inStock: 0, outOfStock: 0, lowStock: 0 });
