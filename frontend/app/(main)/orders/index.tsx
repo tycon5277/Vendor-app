@@ -38,9 +38,9 @@ export default function OrdersScreen() {
       case 'new':
         return allOrders.filter(o => o.status === 'pending');
       case 'active':
-        return allOrders.filter(o => ['accepted', 'preparing', 'ready', 'picked_up'].includes(o.status));
+        return allOrders.filter(o => ['accepted', 'confirmed', 'preparing', 'ready', 'picked_up'].includes(o.status));
       case 'completed':
-        return allOrders.filter(o => ['delivered', 'cancelled'].includes(o.status));
+        return allOrders.filter(o => ['delivered', 'cancelled', 'rejected'].includes(o.status));
       default:
         return allOrders;
     }
