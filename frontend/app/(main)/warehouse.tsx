@@ -40,6 +40,100 @@ export default function WarehouseScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  // Claymorphism Alert State
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertType, setAlertType] = useState<'success' | 'error' | 'warning'>('success');
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const alertAnim = useRef(new Animated.Value(0)).current;
+  const alertScale = useRef(new Animated.Value(0.8)).current;
+
+  // Confirmation modal state
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
+  const confirmModalAnim = useRef(new Animated.Value(0)).current;
+  const confirmModalScale = useRef(new Animated.Value(0.8)).current;
+
+  const showClaymorphismAlert = (type: 'success' | 'error' | 'warning', title: string, message: string) => {
+    setAlertType(type);
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setAlertVisible(true);
+    
+    Animated.parallel([
+      Animated.spring(alertAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.spring(alertScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    setTimeout(() => {
+      hideClaymorphismAlert();
+    }, 3000);
+  };
+
+  const hideClaymorphismAlert = () => {
+    Animated.parallel([
+      Animated.timing(alertAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(alertScale, {
+        toValue: 0.8,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setAlertVisible(false);
+    });
+  };
+
+  const showConfirmModal = (product: Product) => {
+    setPendingDeleteProduct(product);
+    setConfirmModalVisible(true);
+    Animated.parallel([
+      Animated.spring(confirmModalAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.spring(confirmModalScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const hideConfirmModal = () => {
+    Animated.parallel([
+      Animated.timing(confirmModalAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(confirmModalScale, {
+        toValue: 0.8,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setConfirmModalVisible(false);
+      setPendingDeleteProduct(null);
+    });
+  };
+
   const loadProducts = async () => {
     try {
       const response = await productAPI.getAll();
