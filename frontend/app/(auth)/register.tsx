@@ -272,18 +272,30 @@ export default function RegisterScreen() {
         }));
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to pick image');
+      showAlert({
+        type: 'error',
+        title: 'Oops!',
+        message: 'Failed to pick image. Please try again.',
+      });
     }
   };
 
   const handleRegister = async () => {
     if (!formData.name || !formData.shop_name || !formData.shop_type || !formData.shop_address) {
-      Alert.alert('Missing Information', 'Please fill all required fields');
+      showAlert({
+        type: 'warning',
+        title: 'Missing Information',
+        message: 'Please fill all required fields to continue.',
+      });
       return;
     }
 
     if (!formData.description) {
-      Alert.alert('Missing Description', 'Please add a description for your shop');
+      showAlert({
+        type: 'warning',
+        title: 'Missing Description',
+        message: 'Please add a description for your shop.',
+      });
       return;
     }
 
@@ -291,12 +303,21 @@ export default function RegisterScreen() {
     try {
       const response = await vendorAPI.register(formData);
       setUser(response.data.user);
-      Alert.alert('Congratulations!', 'Your shop is now registered!', [
-        { text: 'Start Selling', onPress: () => router.replace('/(main)/home') },
-      ]);
+      showAlert({
+        type: 'success',
+        title: 'Congratulations! 🎉',
+        message: 'Your shop is now registered! Time to start selling.',
+        buttons: [
+          { text: 'Start Selling', onPress: () => router.replace('/(main)/home') },
+        ],
+      });
     } catch (error: any) {
       console.error('Register Error:', error);
-      Alert.alert('Error', error.response?.data?.detail || 'Registration failed');
+      showAlert({
+        type: 'error',
+        title: 'Registration Failed',
+        message: error.response?.data?.detail || 'Something went wrong. Please try again.',
+      });
     } finally {
       setLoading(false);
     }
