@@ -11,20 +11,25 @@ import {
   Platform,
   Animated,
   Image,
+  AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { chatAPI } from '../../src/utils/api';
 import { ChatRoom, Message } from '../../src/types';
 import { useAuthStore } from '../../src/store/authStore';
 import { format, isToday, isYesterday } from 'date-fns';
 
+type ChatTabType = 'customers' | 'delivery';
+
 export default function ChatsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ room?: string }>();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<ChatTabType>('customers');
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -35,6 +40,21 @@ export default function ChatsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const flatListRef = useRef<FlatList>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const tabSlideAnim = useRef(new Animated.Value(0)).current;
+
+  // Carpet Genie Support - static data for demo
+  const deliverySupport = {
+    room_id: 'carpet_genie_support',
+    name: 'Carpet Genie',
+    subtitle: 'Delivery Support',
+    is_online: true,
+    icon: 'bicycle',
+    color: '#22C55E',
+    messages: [
+      { id: '1', content: 'Welcome to Carpet Genie Delivery Support! 🚴', sender: 'system', time: 'Just now' },
+      { id: '2', content: 'How can we help you today?', sender: 'system', time: 'Just now' },
+    ]
+  };
 
   const loadRooms = async () => {
     try {
@@ -64,13 +84,27 @@ export default function ChatsScreen() {
     }
   };
 
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadRooms();
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    }, [])
+  );
+
+  // Refresh when app comes to foreground
   useEffect(() => {
-    loadRooms();
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        loadRooms();
+      }
+    });
+
+    return () => subscription.remove();
   }, []);
 
   useEffect(() => {
@@ -107,6 +141,14 @@ export default function ChatsScreen() {
     }
   };
 
+  const handleTabChange = (tab: ChatTabType) => {
+    setActiveTab(tab);
+    Animated.spring(tabSlideAnim, {
+      toValue: tab === 'customers' ? 0 : 1,
+      useNativeDriver: true,
+    }).start();
+  };
+
   const formatMessageDate = (date: Date) => {
     if (isToday(date)) return format(date, 'h:mm a');
     if (isYesterday(date)) return 'Yesterday';
@@ -123,6 +165,10 @@ export default function ChatsScreen() {
     const index = name.charCodeAt(0) % colors.length;
     return colors[index];
   };
+
+  // Count stats
+  const unreadCustomers = rooms.filter(r => r.unread_count > 0).length;
+  const onlineCustomers = rooms.filter(r => r.is_online).length;
 
   const renderRoom = ({ item }: { item: ChatRoom }) => {
     const avatarColor = getAvatarColor(item.customer?.name || 'C');
@@ -338,74 +384,199 @@ export default function ChatsScreen() {
     );
   }
 
-  // Room List View
+  // Room List View with Tabs
   return (
     <Animated.View style={[styles.container, { paddingTop: insets.top, opacity: fadeAnim }]}>
+      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Messages</Text>
-          <Text style={styles.subtitle}>{rooms.length} conversations</Text>
+          <Text style={styles.subtitle}>
+            {activeTab === 'customers' ? `${rooms.length} customers` : 'Delivery support'}
+          </Text>
         </View>
         <TouchableOpacity style={styles.newChatBtn}>
           <Ionicons name="create-outline" size={24} color="#6366F1" />
         </TouchableOpacity>
       </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color="#9CA3AF" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search conversations..."
-            placeholderTextColor="#9CA3AF"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+      {/* Tab Switcher */}
+      <View style={styles.tabSwitcher}>
+        <TouchableOpacity 
+          style={[styles.tabBtn, activeTab === 'customers' && styles.tabBtnActive]}
+          onPress={() => handleTabChange('customers')}
+        >
+          <Ionicons 
+            name="people" 
+            size={20} 
+            color={activeTab === 'customers' ? '#FFFFFF' : '#6B7280'} 
           />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* Filter Chips */}
-      <View style={styles.filterRow}>
-        <TouchableOpacity style={[styles.filterChip, styles.filterChipActive]}>
-          <Text style={[styles.filterText, styles.filterTextActive]}>All</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterChip}>
-          <Ionicons name="ellipse" size={8} color="#22C55E" />
-          <Text style={styles.filterText}>Online</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.filterChip}>
-          <Ionicons name="notifications" size={14} color="#6B7280" />
-          <Text style={styles.filterText}>Unread</Text>
-        </TouchableOpacity>
-      </View>
-
-      <FlatList
-        data={filteredRooms}
-        renderItem={renderRoom}
-        keyExtractor={(item) => item.room_id}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366F1']} />
-        }
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconBg}>
-              <Ionicons name="chatbubbles-outline" size={56} color="#D1D5DB" />
+          <Text style={[styles.tabBtnText, activeTab === 'customers' && styles.tabBtnTextActive]}>
+            Customers
+          </Text>
+          {unreadCustomers > 0 && (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>{unreadCustomers}</Text>
             </View>
-            <Text style={styles.emptyTitle}>No conversations yet</Text>
-            <Text style={styles.emptySubtitle}>
-              When customers message you about their orders, they'll appear here
+          )}
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.tabBtn, activeTab === 'delivery' && styles.tabBtnActive, activeTab === 'delivery' && styles.tabBtnDelivery]}
+          onPress={() => handleTabChange('delivery')}
+        >
+          <Ionicons 
+            name="bicycle" 
+            size={20} 
+            color={activeTab === 'delivery' ? '#FFFFFF' : '#6B7280'} 
+          />
+          <Text style={[styles.tabBtnText, activeTab === 'delivery' && styles.tabBtnTextActive]}>
+            Carpet Genie
+          </Text>
+          <View style={[styles.tabOnlineDot, activeTab === 'delivery' && styles.tabOnlineDotActive]} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Customers Tab Content */}
+      {activeTab === 'customers' && (
+        <>
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={20} color="#9CA3AF" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search customers..."
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Quick Stats */}
+          <View style={styles.quickStats}>
+            <View style={styles.quickStatItem}>
+              <View style={[styles.quickStatIcon, { backgroundColor: '#DCFCE7' }]}>
+                <Ionicons name="ellipse" size={10} color="#22C55E" />
+              </View>
+              <Text style={styles.quickStatText}>{onlineCustomers} online</Text>
+            </View>
+            <View style={styles.quickStatItem}>
+              <View style={[styles.quickStatIcon, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="notifications" size={12} color="#EF4444" />
+              </View>
+              <Text style={styles.quickStatText}>{unreadCustomers} unread</Text>
+            </View>
+          </View>
+
+          <FlatList
+            data={filteredRooms}
+            renderItem={renderRoom}
+            keyExtractor={(item) => item.room_id}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366F1']} />
+            }
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconBg}>
+                  <Ionicons name="chatbubbles-outline" size={56} color="#D1D5DB" />
+                </View>
+                <Text style={styles.emptyTitle}>No customer chats yet</Text>
+                <Text style={styles.emptySubtitle}>
+                  When customers message you about their wishes, they'll appear here
+                </Text>
+              </View>
+            }
+          />
+        </>
+      )}
+
+      {/* Delivery Tab Content - Carpet Genie Support */}
+      {activeTab === 'delivery' && (
+        <View style={styles.deliveryContainer}>
+          {/* Carpet Genie Card */}
+          <View style={styles.genieCard}>
+            <View style={styles.genieHeader}>
+              <View style={styles.genieAvatar}>
+                <Ionicons name="bicycle" size={32} color="#FFFFFF" />
+              </View>
+              <View style={styles.genieInfo}>
+                <Text style={styles.genieName}>Carpet Genie</Text>
+                <View style={styles.genieStatus}>
+                  <View style={styles.genieOnlineDot} />
+                  <Text style={styles.genieStatusText}>Delivery Support Online</Text>
+                </View>
+              </View>
+            </View>
+            <Text style={styles.genieDescription}>
+              Get help with deliveries, track orders, and resolve delivery issues
             </Text>
           </View>
-        }
-      />
+
+          {/* Quick Action Buttons */}
+          <View style={styles.quickActions}>
+            <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+            
+            <TouchableOpacity style={styles.quickActionCard}>
+              <View style={[styles.quickActionIcon, { backgroundColor: '#DBEAFE' }]}>
+                <Ionicons name="location" size={22} color="#3B82F6" />
+              </View>
+              <View style={styles.quickActionContent}>
+                <Text style={styles.quickActionTitle}>Track Delivery</Text>
+                <Text style={styles.quickActionSubtitle}>See where your delivery partner is</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickActionCard}>
+              <View style={[styles.quickActionIcon, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="alert-circle" size={22} color="#F59E0B" />
+              </View>
+              <View style={styles.quickActionContent}>
+                <Text style={styles.quickActionTitle}>Report Issue</Text>
+                <Text style={styles.quickActionSubtitle}>Report delivery problems</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickActionCard}>
+              <View style={[styles.quickActionIcon, { backgroundColor: '#DCFCE7' }]}>
+                <Ionicons name="call" size={22} color="#22C55E" />
+              </View>
+              <View style={styles.quickActionContent}>
+                <Text style={styles.quickActionTitle}>Call Support</Text>
+                <Text style={styles.quickActionSubtitle}>Talk to delivery team directly</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickActionCard}>
+              <View style={[styles.quickActionIcon, { backgroundColor: '#F3E8FF' }]}>
+                <Ionicons name="time" size={22} color="#8B5CF6" />
+              </View>
+              <View style={styles.quickActionContent}>
+                <Text style={styles.quickActionTitle}>Delivery Schedule</Text>
+                <Text style={styles.quickActionSubtitle}>View pickup and delivery times</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Start Chat Button */}
+          <TouchableOpacity style={styles.startChatBtn}>
+            <Ionicons name="chatbubble-ellipses" size={22} color="#FFFFFF" />
+            <Text style={styles.startChatBtnText}>Start Chat with Support</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -421,7 +592,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 16,
+    paddingBottom: 12,
   },
   title: {
     fontSize: 28,
@@ -440,6 +611,90 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  // Tab Switcher
+  tabSwitcher: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  tabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  tabBtnActive: {
+    backgroundColor: '#6366F1',
+  },
+  tabBtnDelivery: {
+    backgroundColor: '#22C55E',
+  },
+  tabBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  tabBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  tabBadge: {
+    backgroundColor: '#EF4444',
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  tabBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  tabOnlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#22C55E',
+  },
+  tabOnlineDotActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  // Quick Stats
+  quickStats: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 12,
+  },
+  quickStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  quickStatIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickStatText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   // Search
   searchContainer: {
@@ -464,33 +719,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: '#111827',
-  },
-  // Filters
-  filterRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginBottom: 12,
-    gap: 8,
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-  },
-  filterChipActive: {
-    backgroundColor: '#6366F1',
-  },
-  filterText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  filterTextActive: {
-    color: '#FFFFFF',
   },
   listContent: {
     paddingHorizontal: 16,
@@ -622,6 +850,122 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  // Delivery Tab
+  deliveryContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  genieCard: {
+    backgroundColor: '#22C55E',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+  },
+  genieHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  genieAvatar: {
+    width: 60,
+    height: 60,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  genieInfo: {
+    marginLeft: 14,
+  },
+  genieName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  genieStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 6,
+  },
+  genieOnlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+  },
+  genieStatusText: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  genieDescription: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    lineHeight: 20,
+  },
+  // Quick Actions
+  quickActions: {
+    marginBottom: 20,
+  },
+  quickActionsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  quickActionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  quickActionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickActionContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  quickActionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  quickActionSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  startChatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#22C55E',
+    paddingVertical: 16,
+    borderRadius: 16,
+    gap: 10,
+    shadowColor: '#22C55E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  startChatBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   // Chat Detail Styles
   chatHeader: {
