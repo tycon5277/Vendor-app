@@ -1490,13 +1490,13 @@ async def get_premium_insights(user: User = Depends(require_vendor)):
     is_premium = subscription is not None
     
     # Basic stats (available to all)
-    orders_30d = await db.orders.count_documents({
+    orders_30d = await db.shop_orders.count_documents({
         "vendor_id": vendor_id,
         "created_at": {"$gte": now - timedelta(days=30)}
     })
     
     revenue_30d = 0
-    orders_cursor = db.orders.find({
+    orders_cursor = db.shop_orders.find({
         "vendor_id": vendor_id,
         "created_at": {"$gte": now - timedelta(days=30)}
     })
