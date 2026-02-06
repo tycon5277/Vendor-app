@@ -97,33 +97,50 @@ export default function HomeScreen() {
   };
 
   // Handle back button press - Only for home screen exit behavior
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      // Clear previous timer
-      if (backPressTimer.current) {
-        clearTimeout(backPressTimer.current);
-      }
+  // Using useFocusEffect to ensure handler only runs when screen is focused
+  const backPressCountRef = useRef(0);
+  
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        // Clear previous timer
+        if (backPressTimer.current) {
+          clearTimeout(backPressTimer.current);
+        }
 
-      if (backPressCount === 0) {
-        // First press - show toast
-        setBackPressCount(1);
-        showExitNotification();
-        
-        // Reset counter after 2.5 seconds of no press
-        backPressTimer.current = setTimeout(() => {
-          setBackPressCount(0);
-        }, 2500);
-        
-        return true; // Prevent default back behavior (don't navigate)
-      } else {
-        // Second press - exit app
-        BackHandler.exitApp();
-        return true;
-      }
-    });
+        if (backPressCountRef.current === 0) {
+          // First press - show toast
+          backPressCountRef.current = 1;
+          setBackPressCount(1);
+          showExitNotification();
+          
+          // Reset counter after 2.5 seconds of no press
+          backPressTimer.current = setTimeout(() => {
+            backPressCountRef.current = 0;
+            setBackPressCount(0);
+          }, 2500);
+          
+          return true; // Prevent default back behavior
+        } else {
+          // Second press - exit app
+          BackHandler.exitApp();
+          return true;
+        }
+      };
 
-    return () => backHandler.remove();
-  }, [backPressCount]);
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      return () => {
+        backHandler.remove();
+        if (backPressTimer.current) {
+          clearTimeout(backPressTimer.current);
+        }
+        // Reset counter when leaving screen
+        backPressCountRef.current = 0;
+        setBackPressCount(0);
+      };
+    }, [])
+  );
 
   useEffect(() => {
     loadData();
