@@ -293,28 +293,33 @@ export default function OrdersScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return { bg: '#FEF3C7', text: '#D97706' };
-      case 'accepted': return { bg: '#DBEAFE', text: '#2563EB' };
-      case 'confirmed': return { bg: '#DBEAFE', text: '#2563EB' };
-      case 'preparing': return { bg: '#E0E7FF', text: '#4F46E5' };
-      case 'ready': return { bg: '#D1FAE5', text: '#059669' };
-      case 'awaiting_pickup': return { bg: '#CFFAFE', text: '#0891B2' };
-      case 'picked_up': return { bg: '#CFFAFE', text: '#0891B2' };
-      case 'out_for_delivery': return { bg: '#FCE7F3', text: '#DB2777' };
-      case 'delivered': return { bg: '#DCFCE7', text: '#22C55E' };
-      case 'cancelled': return { bg: '#FEE2E2', text: '#DC2626' };
-      case 'rejected': return { bg: '#FEE2E2', text: '#DC2626' };
-      default: return { bg: '#F3F4F6', text: '#6B7280' };
+      case 'pending': return { bg: '#FEF3C7', text: '#D97706', border: '#FDE68A' };
+      // PRIORITY: Confirmed but not started - RED/URGENT
+      case 'accepted': return { bg: '#FEE2E2', text: '#DC2626', border: '#FECACA' };
+      case 'confirmed': return { bg: '#FEE2E2', text: '#DC2626', border: '#FECACA' };
+      // Preparing - ORANGE/IN PROGRESS
+      case 'preparing': return { bg: '#FEF3C7', text: '#D97706', border: '#FDE68A' };
+      // Ready - GREEN/COMPLETED PREP
+      case 'ready': return { bg: '#D1FAE5', text: '#059669', border: '#A7F3D0' };
+      // Delivery stages - BLUE
+      case 'awaiting_pickup': return { bg: '#DBEAFE', text: '#2563EB', border: '#BFDBFE' };
+      case 'picked_up': return { bg: '#E0E7FF', text: '#4F46E5', border: '#C7D2FE' };
+      case 'out_for_delivery': return { bg: '#EDE9FE', text: '#7C3AED', border: '#DDD6FE' };
+      // Final statuses
+      case 'delivered': return { bg: '#DCFCE7', text: '#22C55E', border: '#BBF7D0' };
+      case 'cancelled': return { bg: '#FEE2E2', text: '#DC2626', border: '#FECACA' };
+      case 'rejected': return { bg: '#FEE2E2', text: '#DC2626', border: '#FECACA' };
+      default: return { bg: '#F3F4F6', text: '#6B7280', border: '#E5E7EB' };
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pending': return 'time';
-      case 'accepted': return 'checkmark-circle';
-      case 'confirmed': return 'checkmark-circle';
-      case 'preparing': return 'restaurant';
-      case 'ready': return 'bag-check';
+      case 'accepted': return 'alert-circle'; // Changed to alert for urgency
+      case 'confirmed': return 'alert-circle'; // Changed to alert for urgency
+      case 'preparing': return 'flame'; // Changed to flame for cooking
+      case 'ready': return 'checkmark-circle';
       case 'awaiting_pickup': return 'hourglass';
       case 'picked_up': return 'bicycle';
       case 'out_for_delivery': return 'navigate';
@@ -325,15 +330,63 @@ export default function OrdersScreen() {
     }
   };
 
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'NEW ORDER';
+      case 'accepted': return 'START PREPARING!';
+      case 'confirmed': return 'START PREPARING!';
+      case 'preparing': return 'PREPARING';
+      case 'ready': return 'READY';
+      case 'awaiting_pickup': return 'AWAITING PICKUP';
+      case 'picked_up': return 'PICKED UP';
+      case 'out_for_delivery': return 'ON THE WAY';
+      case 'delivered': return 'DELIVERED';
+      case 'cancelled': return 'CANCELLED';
+      case 'rejected': return 'REJECTED';
+      default: return status.toUpperCase();
+    }
+  };
+
+  const isPriorityOrder = (status: string) => {
+    return status === 'accepted' || status === 'confirmed';
+  };
+
   const formatCountdown = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Handle workflow action
+  const handleWorkflowAction = async (order: Order, action: string) => {
+    try {
+      await orderAPI.workflowAction(order.order_id, action);
+      const messages: Record<string, string> = {
+        'start_preparing': 'Started preparing! 👨‍🍳',
+        'mark_ready': 'Order is ready! 📦',
+      };
+      showAlert({
+        type: 'success',
+        title: messages[action] || 'Updated!',
+        message: 'Order status updated',
+      });
+      loadOrders();
+    } catch (error) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to update order',
+      });
+    }
+  };
+
   const renderOrder = ({ item, index }: { item: Order; index: number }) => {
     const statusColor = getStatusColor(item.status);
     const isPending = item.status === 'pending';
+    const isConfirmed = item.status === 'confirmed' || item.status === 'accepted';
+    const isPreparing = item.status === 'preparing';
+    const isReady = item.status === 'ready';
+    const isPriority = isPriorityOrder(item.status);
     const autoAcceptSeconds = (item as any).auto_accept_seconds;
     
     return (
@@ -343,8 +396,19 @@ export default function OrdersScreen() {
         style={[
           styles.orderCard,
           isPending && styles.orderCardPending,
+          isPriority && styles.orderCardPriority,
+          isPreparing && styles.orderCardPreparing,
+          isReady && styles.orderCardReady,
         ]}
       >
+        {/* Priority Badge for Confirmed Orders */}
+        {isPriority && (
+          <View style={styles.priorityBadge}>
+            <Ionicons name="alert-circle" size={14} color="#FFFFFF" />
+            <Text style={styles.priorityBadgeText}>ACTION NEEDED</Text>
+          </View>
+        )}
+
         {/* Countdown Badge for Pending */}
         {isPending && autoAcceptSeconds > 0 && (
           <View style={styles.countdownBadge}>
