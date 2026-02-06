@@ -188,13 +188,27 @@ export default function WarehouseScreen() {
     setFilteredProducts(filtered);
   };
 
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadProducts();
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    }, [])
+  );
+
+  // Refresh when app comes to foreground
   useEffect(() => {
-    loadProducts();
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        loadProducts();
+      }
+    });
+
+    return () => subscription.remove();
   }, []);
 
   // Handle hardware back button - removed, handled in _layout.tsx
