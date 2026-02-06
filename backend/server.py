@@ -884,6 +884,368 @@ async def request_agent_delivery(order_id: str, current_user: User = Depends(req
         "agents": available_agents
     }
 
+# ===================== ORDER WORKFLOW & DELIVERY MANAGEMENT =====================
+
+# Order Status Checkpoints
+ORDER_STATUSES = [
+    "pending",           # Customer placed order
+    "confirmed",         # Vendor accepted
+    "preparing",         # Vendor is preparing
+    "ready",            # Ready for pickup/delivery
+    "awaiting_pickup",   # Waiting for delivery partner
+    "picked_up",         # Picked up by delivery
+    "out_for_delivery",  # On the way to customer
+    "delivered",         # Delivered to customer
+    "completed",         # Order fully completed
+    "cancelled",         # Order cancelled
+    "rejected"           # Order rejected by vendor
+]
+
+class DeliveryAssignment(BaseModel):
+    delivery_type: str  # "self_delivery", "carpet_genie"
+    notes: Optional[str] = None
+
+@api_router.get("/vendor/orders/{order_id}/details")
+async def get_order_details(order_id: str, current_user: User = Depends(require_vendor)):
+    """Get comprehensive order details with status history"""
+    order = await db.shop_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id},
+        {"_id": 0}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Get vendor info to check delivery capabilities
+    vendor = await db.users.find_one({"user_id": current_user.user_id})
+    
+    # Calculate status progress
+    current_status = order.get("status", "pending")
+    completed_statuses = ORDER_STATUSES[:ORDER_STATUSES.index(current_status) + 1] if current_status in ORDER_STATUSES else []
+    
+    return {
+        "order": order,
+        "status_checkpoints": get_status_checkpoints(order),
+        "vendor_can_deliver": vendor.get("vendor_can_deliver", False),
+        "delivery_options": get_delivery_options(order, vendor),
+        "next_actions": get_next_actions(order, vendor)
+    }
+
+def get_status_checkpoints(order: dict) -> list:
+    """Generate status checkpoint data for UI"""
+    current_status = order.get("status", "pending")
+    status_history = {s["status"]: s for s in order.get("status_history", [])}
+    
+    checkpoints = [
+        {"key": "pending", "label": "Order Placed", "icon": "cart", "description": "Customer placed the order"},
+        {"key": "confirmed", "label": "Accepted", "icon": "checkmark-circle", "description": "You accepted the order"},
+        {"key": "preparing", "label": "Preparing", "icon": "restaurant", "description": "Preparing the order"},
+        {"key": "ready", "label": "Ready", "icon": "bag-check", "description": "Order is ready"},
+        {"key": "awaiting_pickup", "label": "Awaiting Pickup", "icon": "time", "description": "Waiting for delivery pickup"},
+        {"key": "picked_up", "label": "Picked Up", "icon": "bicycle", "description": "Delivery partner picked up"},
+        {"key": "out_for_delivery", "label": "On The Way", "icon": "navigate", "description": "Out for delivery"},
+        {"key": "delivered", "label": "Delivered", "icon": "home", "description": "Delivered to customer"},
+    ]
+    
+    status_order = ["pending", "confirmed", "preparing", "ready", "awaiting_pickup", "picked_up", "out_for_delivery", "delivered"]
+    current_index = status_order.index(current_status) if current_status in status_order else -1
+    
+    for i, cp in enumerate(checkpoints):
+        if i <= current_index:
+            cp["completed"] = True
+            cp["current"] = (i == current_index)
+            if cp["key"] in status_history:
+                cp["timestamp"] = status_history[cp["key"]].get("timestamp")
+        else:
+            cp["completed"] = False
+            cp["current"] = False
+    
+    return checkpoints
+
+def get_delivery_options(order: dict, vendor: dict) -> list:
+    """Get available delivery options for the order"""
+    options = []
+    delivery_type = order.get("delivery_type", "")
+    
+    # Self pickup by customer
+    if delivery_type == "self_pickup":
+        options.append({
+            "type": "self_pickup",
+            "label": "Customer Pickup",
+            "description": "Customer will pick up the order",
+            "available": True,
+            "selected": True
+        })
+        return options
+    
+    # Vendor's own delivery
+    if vendor.get("vendor_can_deliver", False):
+        options.append({
+            "type": "self_delivery",
+            "label": "Own Delivery",
+            "description": "Deliver using your own delivery service",
+            "available": True,
+            "selected": order.get("delivery_type") == "vendor_delivery" and not order.get("assigned_agent_id")
+        })
+    
+    # Carpet Genie delivery
+    options.append({
+        "type": "carpet_genie",
+        "label": "Carpet Genie",
+        "description": "Assign to Carpet Genie delivery partner",
+        "available": True,
+        "selected": order.get("delivery_type") == "agent_delivery" or bool(order.get("assigned_agent_id")),
+        "icon": "bicycle",
+        "color": "#22C55E"
+    })
+    
+    return options
+
+def get_next_actions(order: dict, vendor: dict) -> list:
+    """Get available next actions based on current order status"""
+    status = order.get("status", "pending")
+    actions = []
+    
+    if status == "pending":
+        actions.append({"action": "accept", "label": "Accept Order", "primary": True})
+        actions.append({"action": "reject", "label": "Reject", "primary": False, "destructive": True})
+    
+    elif status == "confirmed":
+        actions.append({"action": "start_preparing", "label": "Start Preparing", "primary": True})
+    
+    elif status == "preparing":
+        actions.append({"action": "mark_ready", "label": "Mark Ready", "primary": True})
+    
+    elif status == "ready":
+        if order.get("delivery_type") == "self_pickup":
+            actions.append({"action": "customer_picked_up", "label": "Customer Picked Up", "primary": True})
+        else:
+            if not order.get("assigned_agent_id") and not order.get("delivery_type") == "vendor_delivery":
+                actions.append({"action": "assign_delivery", "label": "Assign Delivery", "primary": True})
+            actions.append({"action": "out_for_delivery", "label": "Out for Delivery", "primary": True})
+    
+    elif status == "awaiting_pickup":
+        actions.append({"action": "picked_up", "label": "Picked Up by Delivery", "primary": True})
+    
+    elif status == "picked_up" or status == "out_for_delivery":
+        actions.append({"action": "delivered", "label": "Mark Delivered", "primary": True})
+    
+    return actions
+
+@api_router.post("/vendor/orders/{order_id}/workflow/{action}")
+async def execute_order_workflow_action(
+    order_id: str, 
+    action: str,
+    notes: Optional[str] = None,
+    current_user: User = Depends(require_vendor)
+):
+    """Execute workflow action on order"""
+    order = await db.shop_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    current_status = order.get("status", "pending")
+    new_status = None
+    message = ""
+    
+    # Map actions to status changes
+    action_map = {
+        "accept": ("confirmed", "Order accepted"),
+        "start_preparing": ("preparing", "Started preparing"),
+        "mark_ready": ("ready", "Order is ready"),
+        "assign_delivery": ("awaiting_pickup", "Assigned for delivery"),
+        "out_for_delivery": ("out_for_delivery", "Out for delivery"),
+        "picked_up": ("picked_up", "Picked up by delivery"),
+        "customer_picked_up": ("delivered", "Customer picked up"),
+        "delivered": ("delivered", "Order delivered"),
+    }
+    
+    if action not in action_map:
+        raise HTTPException(status_code=400, detail=f"Invalid action: {action}")
+    
+    new_status, message = action_map[action]
+    
+    # Create status entry
+    status_entry = {
+        "status": new_status,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "by": "vendor",
+        "notes": notes
+    }
+    
+    update_data = {"status": new_status}
+    
+    # Handle delivered status - record earnings
+    if new_status == "delivered":
+        earning_id = f"earn_{uuid.uuid4().hex[:12]}"
+        earning = {
+            "earning_id": earning_id,
+            "partner_id": current_user.user_id,
+            "order_id": order_id,
+            "amount": order["total_amount"],
+            "type": "sale",
+            "description": f"Order #{order_id[-8:]}",
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.earnings.insert_one(earning)
+        
+        await db.users.update_one(
+            {"user_id": current_user.user_id},
+            {
+                "$inc": {
+                    "partner_total_earnings": order["total_amount"],
+                    "partner_total_tasks": 1
+                }
+            }
+        )
+    
+    await db.shop_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": update_data,
+            "$push": {"status_history": status_entry}
+        }
+    )
+    
+    return {
+        "message": message,
+        "new_status": new_status,
+        "order_id": order_id
+    }
+
+@api_router.post("/vendor/orders/{order_id}/assign-delivery")
+async def assign_delivery_partner(
+    order_id: str,
+    data: DeliveryAssignment,
+    current_user: User = Depends(require_vendor)
+):
+    """Assign delivery to self or Carpet Genie"""
+    order = await db.shop_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("status") not in ["ready", "confirmed", "preparing"]:
+        raise HTTPException(status_code=400, detail="Order must be ready or in preparation to assign delivery")
+    
+    update_data = {}
+    status_entry = {
+        "status": "delivery_assigned",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "by": "vendor",
+        "delivery_type": data.delivery_type,
+        "notes": data.notes
+    }
+    
+    if data.delivery_type == "self_delivery":
+        update_data["delivery_type"] = "vendor_delivery"
+        update_data["delivery_method"] = "self"
+        message = "Order assigned to your own delivery"
+        
+    elif data.delivery_type == "carpet_genie":
+        # Find available Carpet Genie agents
+        available_agents = await db.users.find({
+            "partner_type": "agent",
+            "agent_type": "mobile",
+            "partner_status": "available"
+        }, {"_id": 0, "user_id": 1, "name": 1, "phone": 1}).to_list(10)
+        
+        if available_agents:
+            # Auto-assign first available agent (in real app, would use proximity)
+            agent = available_agents[0]
+            update_data["delivery_type"] = "agent_delivery"
+            update_data["assigned_agent_id"] = agent["user_id"]
+            update_data["agent_name"] = agent.get("name", "Carpet Genie")
+            update_data["agent_phone"] = agent.get("phone")
+            update_data["delivery_method"] = "carpet_genie"
+            status_entry["agent_id"] = agent["user_id"]
+            status_entry["agent_name"] = agent.get("name")
+            message = f"Order assigned to Carpet Genie ({agent.get('name', 'Agent')})"
+        else:
+            # Create a pending delivery request
+            update_data["delivery_type"] = "agent_delivery"
+            update_data["delivery_method"] = "carpet_genie"
+            update_data["delivery_status"] = "finding_agent"
+            
+            # Create delivery request in a separate collection for Genie app to pick up
+            delivery_request = {
+                "request_id": f"dlv_{uuid.uuid4().hex[:12]}",
+                "order_id": order_id,
+                "vendor_id": current_user.user_id,
+                "vendor_name": order.get("vendor_name"),
+                "pickup_address": order.get("vendor_address"),
+                "delivery_address": order.get("delivery_address"),
+                "status": "pending",
+                "created_at": datetime.now(timezone.utc)
+            }
+            await db.delivery_requests.insert_one(delivery_request)
+            message = "Delivery request sent to Carpet Genie. Finding available agents..."
+    else:
+        raise HTTPException(status_code=400, detail="Invalid delivery type")
+    
+    # Update status to awaiting pickup if order is ready
+    if order.get("status") == "ready":
+        update_data["status"] = "awaiting_pickup"
+    
+    await db.shop_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": update_data,
+            "$push": {"status_history": status_entry}
+        }
+    )
+    
+    return {
+        "message": message,
+        "delivery_type": data.delivery_type,
+        "order_id": order_id,
+        "assigned_agent": update_data.get("agent_name")
+    }
+
+@api_router.get("/vendor/orders/{order_id}/track")
+async def track_order_delivery(order_id: str, current_user: User = Depends(require_vendor)):
+    """Get real-time delivery tracking information"""
+    order = await db.shop_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id},
+        {"_id": 0}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    tracking_info = {
+        "order_id": order_id,
+        "status": order.get("status"),
+        "delivery_type": order.get("delivery_type"),
+        "delivery_method": order.get("delivery_method", "unknown"),
+        "status_history": order.get("status_history", []),
+        "checkpoints": get_status_checkpoints(order),
+    }
+    
+    # If assigned to agent, get agent details
+    if order.get("assigned_agent_id"):
+        agent = await db.users.find_one(
+            {"user_id": order["assigned_agent_id"]},
+            {"_id": 0, "name": 1, "phone": 1, "partner_status": 1}
+        )
+        if agent:
+            tracking_info["agent"] = {
+                "name": agent.get("name"),
+                "phone": agent.get("phone"),
+                "status": agent.get("partner_status"),
+                # In real app, would include live location
+                "location": None
+            }
+    
+    # Estimated times (mock data - would be calculated in real app)
+    tracking_info["estimates"] = {
+        "preparation_time": "15-20 mins",
+        "delivery_time": "20-30 mins" if order.get("delivery_type") != "self_pickup" else None
+    }
+    
+    return tracking_info
+
 # ===================== EARNINGS & ANALYTICS =====================
 
 @api_router.get("/vendor/earnings")
