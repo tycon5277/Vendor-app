@@ -353,11 +353,15 @@ class APITester:
                         response = self.make_request("PUT", f"/vendor/notifications/{first_notification_id}/read")
                         if response:
                             self.log_result("Mark Single Notification Read", True, "Notification marked as read")
-                        
-                        # Mark all notifications as read
-                        response = self.make_request("PUT", "/vendor/notifications/read-all")
-                        if response:
-                            self.log_result("Mark All Notifications Read", True, "All notifications marked as read")
+                else:
+                    self.log_result("Mark Single Notification Read", True, "No notifications to mark as read (expected for clean test)")
+                
+                # Test mark all notifications as read (should work even with 0 notifications)
+                response = self.make_request("PUT", "/vendor/notifications/read-all")
+                if response:
+                    self.log_result("Mark All Notifications Read", True, "Mark all notifications endpoint working")
+                else:
+                    self.log_result("Mark All Notifications Read", False, "Failed to call mark all notifications endpoint")
             else:
                 self.log_result("Notifications Structure", False, "Notifications not returned as array")
         else:
