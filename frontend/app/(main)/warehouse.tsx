@@ -504,6 +504,99 @@ export default function WarehouseScreen() {
           </View>
         }
       />
+
+      {/* Claymorphism Alert */}
+      {alertVisible && (
+        <Animated.View 
+          style={[
+            styles.alertContainer,
+            {
+              opacity: alertAnim,
+              transform: [
+                { scale: alertScale },
+                { translateY: alertAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                })}
+              ],
+            }
+          ]}
+        >
+          <View style={[
+            styles.alertBox,
+            alertType === 'success' && styles.alertBoxSuccess,
+            alertType === 'error' && styles.alertBoxError,
+            alertType === 'warning' && styles.alertBoxWarning,
+          ]}>
+            <View style={styles.alertInner}>
+              <View style={[
+                styles.alertIconBg,
+                alertType === 'success' && styles.alertIconBgSuccess,
+                alertType === 'error' && styles.alertIconBgError,
+                alertType === 'warning' && styles.alertIconBgWarning,
+              ]}>
+                <Ionicons 
+                  name={
+                    alertType === 'success' ? 'checkmark-circle' :
+                    alertType === 'error' ? 'close-circle' : 'warning'
+                  } 
+                  size={28} 
+                  color={
+                    alertType === 'success' ? '#22C55E' :
+                    alertType === 'error' ? '#EF4444' : '#F59E0B'
+                  } 
+                />
+              </View>
+              <View style={styles.alertContent}>
+                <Text style={styles.alertTitle}>{alertTitle}</Text>
+                <Text style={styles.alertMessage}>{alertMessage}</Text>
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+      )}
+
+      {/* Claymorphism Delete Confirmation Modal */}
+      {confirmModalVisible && (
+        <Animated.View 
+          style={[
+            styles.modalOverlay,
+            { opacity: confirmModalAnim }
+          ]}
+        >
+          <Animated.View 
+            style={[
+              styles.confirmModal,
+              { transform: [{ scale: confirmModalScale }] }
+            ]}
+          >
+            <View style={styles.confirmModalInner}>
+              <View style={styles.confirmIconBg}>
+                <Ionicons name="trash" size={32} color="#EF4444" />
+              </View>
+              <Text style={styles.confirmTitle}>Delete Product? 🗑️</Text>
+              <Text style={styles.confirmMessage}>
+                Remove "{pendingDeleteProduct?.name}" from your warehouse?
+              </Text>
+              <View style={styles.confirmButtons}>
+                <TouchableOpacity 
+                  style={styles.confirmCancelBtn}
+                  onPress={hideConfirmModal}
+                >
+                  <Text style={styles.confirmCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.confirmDeleteBtn}
+                  onPress={confirmDeleteProduct}
+                >
+                  <Ionicons name="trash" size={18} color="#FFFFFF" />
+                  <Text style={styles.confirmDeleteText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Animated.View>
+        </Animated.View>
+      )}
     </Animated.View>
   );
 }
