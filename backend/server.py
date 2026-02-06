@@ -1591,6 +1591,9 @@ async def create_subscription(
     
     await db.premium_subscriptions.insert_one(subscription)
     
+    # Remove MongoDB _id field to avoid serialization issues
+    subscription.pop("_id", None)
+    
     return {"message": f"Subscribed to {plan_type} plan", "subscription": subscription}
 
 # ===================== HEALTH CHECK =====================
