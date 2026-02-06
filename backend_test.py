@@ -391,7 +391,7 @@ class APITester:
 
     def run_all_tests(self):
         """Run all tests in sequence"""
-        print("🚀 Starting QuickWish Vendor App Order Workflow API Testing")
+        print("🚀 Starting QuickWish Vendor App Timed Auto-Accept Feature Testing")
         print(f"Backend URL: {self.base_url}")
         print(f"Test Phone: {TEST_PHONE}")
         print(f"Test OTP: {TEST_OTP}")
@@ -401,22 +401,21 @@ class APITester:
             print("❌ Authentication failed - cannot proceed with other tests")
             return
         
-        # Step 2: Create seed data
+        # Step 2: Create seed data (this creates a pending order with auto_accept_at set to 3 minutes in the future)
         if not self.test_seed_data():
             print("❌ Seed data creation failed")
             return
         
-        # Step 3: Get orders
+        # Step 3: Test auto_accept_seconds in orders response
         orders = self.test_get_orders()
+        if orders:
+            self.test_auto_accept_in_orders(orders)
+            self.test_auto_accept_at_field(orders)
         
-        # Step 4: CRITICAL TEST - Test vendor restrictions with Carpet Genie
-        order_id = self.test_order_workflow_restriction(orders)
+        # Step 4: Test GET /api/vendor/orders/pending
+        pending_orders = self.test_pending_orders_auto_accept()
         
-        # Step 5: Test agent endpoints (may fail without agent auth)
-        if order_id:
-            self.test_agent_endpoints(order_id)
-        
-        # Step 6: Test notifications
+        # Step 5: Test Notifications endpoint
         self.test_notifications()
         
         # Print summary
