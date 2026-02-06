@@ -116,7 +116,12 @@ class APITester:
         print("\n=== ORDER LIST TESTING ===")
         
         response = self.make_request("GET", "/vendor/orders")
-        if response and "orders" in response:
+        if response and isinstance(response, list):
+            orders = response
+            self.log_result("Get Orders", True, f"Retrieved {len(orders)} orders")
+            print(f"   Orders statuses: {[order.get('status') for order in orders]}")
+            return orders
+        elif response and "orders" in response:
             orders = response["orders"]
             self.log_result("Get Orders", True, f"Retrieved {len(orders)} orders")
             print(f"   Orders statuses: {[order.get('status') for order in orders]}")
