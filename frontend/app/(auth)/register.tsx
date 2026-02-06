@@ -183,6 +183,7 @@ export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { setUser, user } = useAuthStore();
+  const { showAlert } = useAlert();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [showOpeningTimePicker, setShowOpeningTimePicker] = useState(false);
