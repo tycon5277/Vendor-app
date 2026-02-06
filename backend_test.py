@@ -155,24 +155,24 @@ class APITester:
         # Step 1: Accept the order
         print(f"   Step 1: Accept order {order_id}")
         response = self.make_request("POST", f"/vendor/orders/{order_id}/workflow/accept")
-        if not response or response.get("status") != "confirmed":
-            self.log_result("Accept Order", False, "Failed to accept order")
+        if not response or response.get("new_status") != "confirmed":
+            self.log_result("Accept Order", False, f"Failed to accept order. Response: {response}")
             return
         self.log_result("Accept Order", True, "Order accepted successfully")
         
         # Step 2: Start preparing
         print(f"   Step 2: Start preparing order {order_id}")
         response = self.make_request("POST", f"/vendor/orders/{order_id}/workflow/start_preparing")
-        if not response or response.get("status") != "preparing":
-            self.log_result("Start Preparing", False, "Failed to start preparing")
+        if not response or response.get("new_status") != "preparing":
+            self.log_result("Start Preparing", False, f"Failed to start preparing. Response: {response}")
             return
         self.log_result("Start Preparing", True, "Order preparing started")
         
         # Step 3: Mark ready
         print(f"   Step 3: Mark ready order {order_id}")
         response = self.make_request("POST", f"/vendor/orders/{order_id}/workflow/mark_ready")
-        if not response or response.get("status") != "ready":
-            self.log_result("Mark Ready", False, "Failed to mark ready")
+        if not response or response.get("new_status") != "ready":
+            self.log_result("Mark Ready", False, f"Failed to mark ready. Response: {response}")
             return
         self.log_result("Mark Ready", True, "Order marked as ready")
         
