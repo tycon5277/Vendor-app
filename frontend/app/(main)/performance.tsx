@@ -61,13 +61,17 @@ export default function PerformanceScreen() {
   }, []);
 
   // Handle hardware back button - go to previous screen
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      router.back();
-      return true;
-    });
-    return () => backHandler.remove();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        router.back();
+        return true;
+      };
+      
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => backHandler.remove();
+    }, [router])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
