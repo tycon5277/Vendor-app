@@ -273,12 +273,12 @@ export default function WarehouseScreen() {
     }
   };
 
-  // Stats
+  // Stats - consistent with filter logic
   const stats = {
     total: products.length,
-    inStock: products.filter(p => p.in_stock && p.stock_quantity > 10).length,
-    lowStock: products.filter(p => p.in_stock && p.stock_quantity <= 10).length,
-    outOfStock: products.filter(p => !p.in_stock).length,
+    inStock: products.filter(p => p.in_stock === true && (p.stock_quantity || 0) > 10).length,
+    lowStock: products.filter(p => p.in_stock === true && (p.stock_quantity || 0) <= 10).length,
+    outOfStock: products.filter(p => p.in_stock === false || p.in_stock === undefined).length,
   };
 
   const filters: { key: FilterType; label: string; count: number; color: string }[] = [
