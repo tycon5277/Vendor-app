@@ -9,9 +9,11 @@ import {
   Animated,
   Dimensions,
   Alert,
+  AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { orderAPI, productAPI } from '../../../src/utils/api';
 import { Order, Product } from '../../../src/types';
