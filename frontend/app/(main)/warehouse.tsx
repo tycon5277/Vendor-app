@@ -215,32 +215,33 @@ export default function WarehouseScreen() {
           : p
       ));
       loadProducts();
+      showClaymorphismAlert(
+        'success', 
+        product.in_stock ? 'Out of Stock 📦' : 'Back in Stock! 🎉',
+        product.in_stock ? `${product.name} marked as out of stock` : `${product.name} is now available`
+      );
     } catch (error) {
-      Alert.alert('Error', 'Failed to update stock');
+      showClaymorphismAlert('error', 'Oops! 😅', 'Failed to update stock status');
     }
   };
 
   const handleDeleteProduct = (product: Product) => {
-    Alert.alert(
-      'Delete Product',
-      `Remove "${product.name}" from your warehouse?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await productAPI.delete(product.product_id);
-              setProducts(products.filter(p => p.product_id !== product.product_id));
-              loadProducts();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete product');
-            }
-          },
-        },
-      ]
-    );
+    showConfirmModal(product);
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!pendingDeleteProduct) return;
+    
+    try {
+      await productAPI.delete(pendingDeleteProduct.product_id);
+      setProducts(products.filter(p => p.product_id !== pendingDeleteProduct.product_id));
+      loadProducts();
+      hideConfirmModal();
+      showClaymorphismAlert('success', 'Deleted! 🗑️', `${pendingDeleteProduct.name} removed from warehouse`);
+    } catch (error) {
+      hideConfirmModal();
+      showClaymorphismAlert('error', 'Oops! 😅', 'Failed to delete product');
+    }
   };
 
   // Stats
