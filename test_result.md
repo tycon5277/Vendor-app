@@ -204,6 +204,18 @@ backend:
           agent: "testing"
           comment: "✅ Order Accept/Reject functionality thoroughly tested. Authentication with phone 9876543210 and OTP 123456 successful. Seed data created sample orders. Accept endpoint POST /api/vendor/orders/{order_id}/accept works perfectly - changes status to 'confirmed' and updates status history. Reject endpoint POST /api/vendor/orders/{order_id}/reject works perfectly - changes status to 'rejected' with reason parameter support. Both endpoints properly validate vendor ownership and order status. Status history tracking working correctly for both operations."
 
+  - task: "Order Workflow APIs"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "🎉 ALL ORDER WORKFLOW ENDPOINTS WORKING PERFECTLY! Comprehensive testing completed with 111/111 tests passed (100% success rate). ✅ Authentication: Phone 9876543210 + OTP 123456 working ✅ Order Details API (GET /api/vendor/orders/{order_id}/details): Returns complete order info with status_checkpoints (8 stages), delivery_options, next_actions, vendor_can_deliver ✅ Workflow Actions API (POST /api/vendor/orders/{order_id}/workflow/{action}): All actions tested - accept→confirmed, start_preparing→preparing, mark_ready→ready, out_for_delivery→out_for_delivery, delivered→delivered ✅ Delivery Assignment API (POST /api/vendor/orders/{order_id}/assign-delivery): Both self_delivery and carpet_genie assignments working correctly ✅ Order Tracking API (GET /api/vendor/orders/{order_id}/track): Returns comprehensive tracking info with checkpoints, delivery_type, delivery_method, status_history ✅ Complete workflow progression tested from pending→delivered with proper status transitions and checkpoint updates ✅ Tested with 30 orders across all statuses (pending, confirmed, preparing, ready, rejected) - All APIs handle different order states correctly ✅ Delivery assignment creates requests for Carpet Genie when no agents available ✅ Status history and checkpoint tracking working perfectly throughout workflow"
+
   - task: "Analytics Endpoints (Premium Features)"
     implemented: true
     working: true
