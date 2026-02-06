@@ -355,68 +355,99 @@ export default function OrdersScreen() {
     outputRange: [0, (width - 32) / 3, ((width - 32) / 3) * 2],
   });
 
-  // Stock Alert Component
+  // Stock Alert Component - Redesigned with direct navigation to warehouse filters
   const StockAlert = () => {
     if (lowStockProducts.length === 0 && outOfStockProducts.length === 0) return null;
     
     return (
-      <View style={styles.stockAlertContainer}>
-        {outOfStockProducts.length > 0 && (
+      <View style={styles.stockAlertSection}>
+        <View style={styles.stockAlertHeader}>
+          <View style={styles.stockAlertHeaderLeft}>
+            <Ionicons name="cube" size={18} color="#6366F1" />
+            <Text style={styles.stockAlertHeaderTitle}>Inventory Alerts</Text>
+          </View>
           <TouchableOpacity 
-            style={styles.stockAlertCard}
-            onPress={() => router.push('/(main)/products')}
+            style={styles.viewAllBtn}
+            onPress={() => router.push('/(main)/warehouse')}
           >
-            <View style={[styles.stockAlertIcon, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="alert-circle" size={20} color="#DC2626" />
-            </View>
-            <View style={styles.stockAlertContent}>
-              <Text style={styles.stockAlertTitle}>{outOfStockProducts.length} Out of Stock</Text>
-              <Text style={styles.stockAlertText} numberOfLines={1}>
-                {outOfStockProducts.slice(0, 2).map(p => p.name).join(', ')}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            <Text style={styles.viewAllText}>View All</Text>
+            <Ionicons name="arrow-forward" size={14} color="#6366F1" />
           </TouchableOpacity>
-        )}
+        </View>
         
-        {lowStockProducts.length > 0 && (
-          <TouchableOpacity 
-            style={styles.stockAlertCard}
-            onPress={() => router.push('/(main)/products')}
-          >
-            <View style={[styles.stockAlertIcon, { backgroundColor: '#FEF3C7' }]}>
-              <Ionicons name="warning" size={20} color="#D97706" />
-            </View>
-            <View style={styles.stockAlertContent}>
-              <Text style={styles.stockAlertTitleWarning}>{lowStockProducts.length} Low Stock</Text>
-              <Text style={styles.stockAlertText} numberOfLines={1}>
-                {lowStockProducts.slice(0, 2).map(p => `${p.name} (${p.stock_quantity})`).join(', ')}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-          </TouchableOpacity>
-        )}
+        <View style={styles.stockAlertCards}>
+          {outOfStockProducts.length > 0 && (
+            <TouchableOpacity 
+              style={styles.alertCardDanger}
+              onPress={() => router.push({
+                pathname: '/(main)/warehouse',
+                params: { filter: 'out_of_stock' }
+              })}
+            >
+              <View style={styles.alertCardIcon}>
+                <View style={styles.alertIconCircleDanger}>
+                  <Ionicons name="close-circle" size={24} color="#FFFFFF" />
+                </View>
+              </View>
+              <View style={styles.alertCardBody}>
+                <Text style={styles.alertCardCount}>{outOfStockProducts.length}</Text>
+                <Text style={styles.alertCardLabel}>Out of Stock</Text>
+              </View>
+              <View style={styles.alertCardArrow}>
+                <Ionicons name="chevron-forward" size={20} color="#DC2626" />
+              </View>
+            </TouchableOpacity>
+          )}
+          
+          {lowStockProducts.length > 0 && (
+            <TouchableOpacity 
+              style={styles.alertCardWarning}
+              onPress={() => router.push({
+                pathname: '/(main)/warehouse',
+                params: { filter: 'low_stock' }
+              })}
+            >
+              <View style={styles.alertCardIcon}>
+                <View style={styles.alertIconCircleWarning}>
+                  <Ionicons name="warning" size={22} color="#FFFFFF" />
+                </View>
+              </View>
+              <View style={styles.alertCardBody}>
+                <Text style={styles.alertCardCountWarning}>{lowStockProducts.length}</Text>
+                <Text style={styles.alertCardLabelWarning}>Low Stock</Text>
+              </View>
+              <View style={styles.alertCardArrow}>
+                <Ionicons name="chevron-forward" size={20} color="#F59E0B" />
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     );
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
+      {/* Header - Compact */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerLeft}>
           <Text style={styles.title}>Orders</Text>
-          <Text style={styles.subtitle}>Manage your incoming orders</Text>
+          <View style={styles.orderSummary}>
+            <View style={styles.summaryDot} />
+            <Text style={styles.summaryText}>
+              {newOrdersCount} new • {activeOrdersCount} active
+            </Text>
+          </View>
         </View>
         <TouchableOpacity style={styles.refreshBtn} onPress={onRefresh}>
           <Ionicons name="refresh" size={22} color="#6366F1" />
         </TouchableOpacity>
       </View>
 
-      {/* Stock Alert */}
+      {/* Stock Alert - Distinct Section */}
       <StockAlert />
 
-      {/* Tab Bar */}
+      {/* Tab Bar - Improved */}
       <View style={styles.tabContainer}>
         <View style={styles.tabBar}>
           <TouchableOpacity
