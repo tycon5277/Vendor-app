@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
   Switch,
   Image,
   Modal,
@@ -20,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { vendorAPI } from '../../src/utils/api';
 import { useAuthStore } from '../../src/store/authStore';
+import { useAlert } from '../../src/context/AlertContext';
 
 // Shop types with icons
 const SHOP_TYPES = [
