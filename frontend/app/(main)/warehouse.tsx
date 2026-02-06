@@ -737,29 +737,47 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
-  // Category
-  categoryScroll: {
-    maxHeight: 56,
+  // Category with icons
+  categoryWrapper: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   categoryContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 10,
+    paddingVertical: 12,
+    gap: 12,
   },
   categoryChip: {
-    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 20,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
+    gap: 8,
   },
   categoryChipActive: {
     backgroundColor: '#6366F1',
     borderColor: '#6366F1',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  categoryIconBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoryIconBgActive: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   categoryText: {
     fontSize: 14,
@@ -767,6 +785,25 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   categoryTextActive: {
+    color: '#FFFFFF',
+  },
+  categoryBadge: {
+    backgroundColor: '#E5E7EB',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  categoryBadgeActive: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  categoryBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  categoryBadgeTextActive: {
     color: '#FFFFFF',
   },
   // List
