@@ -384,54 +384,58 @@ export default function WarehouseScreen() {
       </View>
 
       {/* Filter Tabs - Scrollable */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterScrollContainer}
-        contentContainerStyle={styles.filterContainer}
-      >
-        {filters.map((filter) => (
-          <TouchableOpacity
-            key={filter.key}
-            style={[
-              styles.filterTab,
-              selectedFilter === filter.key && { 
-                backgroundColor: filter.color + '20', 
-                borderColor: filter.color,
-                borderWidth: 2,
-              },
-            ]}
-            onPress={() => setSelectedFilter(filter.key)}
-          >
-            <Ionicons 
-              name={
-                filter.key === 'all' ? 'apps' :
-                filter.key === 'in_stock' ? 'checkmark-circle' :
-                filter.key === 'low_stock' ? 'warning' : 'close-circle'
-              } 
-              size={16} 
-              color={selectedFilter === filter.key ? filter.color : '#6B7280'} 
-            />
-            <Text style={[
-              styles.filterTabText,
-              selectedFilter === filter.key && { color: filter.color, fontWeight: '700' },
-            ]}>
-              {filter.label}
-            </Text>
-            <View style={[
-              styles.filterBadge,
-              { backgroundColor: selectedFilter === filter.key ? filter.color : '#E5E7EB' },
-            ]}>
-              <Text style={[
-                styles.filterBadgeText,
-                { color: selectedFilter === filter.key ? '#FFFFFF' : '#6B7280' },
-              ]}>
-                {filter.count}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <View style={styles.filterWrapper}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScrollContainer}
+          contentContainerStyle={styles.filterContainer}
+        >
+          {filters.map((filter) => {
+            const isActive = selectedFilter === filter.key;
+            return (
+              <TouchableOpacity
+                key={filter.key}
+                style={[
+                  styles.filterTab,
+                  isActive && { 
+                    backgroundColor: filter.color, 
+                    borderColor: filter.color,
+                  },
+                ]}
+                onPress={() => setSelectedFilter(filter.key)}
+              >
+                <Ionicons 
+                  name={
+                    filter.key === 'all' ? 'apps' :
+                    filter.key === 'in_stock' ? 'checkmark-circle' :
+                    filter.key === 'low_stock' ? 'warning' : 'close-circle'
+                  } 
+                  size={16} 
+                  color={isActive ? '#FFFFFF' : '#6B7280'} 
+                />
+                <Text style={[
+                  styles.filterTabText,
+                  isActive && { color: '#FFFFFF', fontWeight: '700' },
+                ]}>
+                  {filter.label}
+                </Text>
+                <View style={[
+                  styles.filterBadge,
+                  { backgroundColor: isActive ? 'rgba(255,255,255,0.3)' : '#E5E7EB' },
+                ]}>
+                  <Text style={[
+                    styles.filterBadgeText,
+                    { color: isActive ? '#FFFFFF' : '#6B7280' },
+                  ]}>
+                    {filter.count}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {/* Category Scroll */}
       <FlatList
