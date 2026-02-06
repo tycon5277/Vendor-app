@@ -760,4 +760,68 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 18,
   },
+  // Inventory Alerts Section
+  inventorySection: {
+    marginHorizontal: 16,
+    marginTop: 24,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  alertCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    borderRadius: 16,
+    marginTop: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  alertIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  alertContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  alertTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#991B1B',
+  },
+  alertSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  alertProductList: {
+    marginTop: 8,
+  },
+  alertProductName: {
+    fontSize: 12,
+    color: '#374151',
+    marginBottom: 2,
+  },
+  alertMoreText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6366F1',
+    marginTop: 4,
+  },
+  alertArrow: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
