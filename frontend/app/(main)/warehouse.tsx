@@ -446,31 +446,63 @@ export default function WarehouseScreen() {
         </ScrollView>
       </View>
 
-      {/* Category Scroll */}
-      <FlatList
-        horizontal
-        data={PRODUCT_CATEGORIES}
-        keyExtractor={(item) => item}
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoryScroll}
-        contentContainerStyle={styles.categoryContainer}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[
-              styles.categoryChip,
-              selectedCategory === item && styles.categoryChipActive,
-            ]}
-            onPress={() => setSelectedCategory(item)}
-          >
-            <Text style={[
-              styles.categoryText,
-              selectedCategory === item && styles.categoryTextActive,
-            ]}>
-              {item}
-            </Text>
-          </TouchableOpacity>
-        )}
-      />
+      {/* Category Scroll - With Icons */}
+      <View style={styles.categoryWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryContainer}
+        >
+          {CATEGORY_DATA.map((cat) => {
+            const isActive = selectedCategory === cat.id;
+            // Count products in this category
+            const catCount = cat.id === 'All' 
+              ? products.length 
+              : products.filter(p => p.category === cat.id).length;
+            
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                style={[
+                  styles.categoryChip,
+                  isActive && styles.categoryChipActive,
+                ]}
+                onPress={() => setSelectedCategory(cat.id)}
+              >
+                <View style={[
+                  styles.categoryIconBg,
+                  isActive && styles.categoryIconBgActive,
+                ]}>
+                  <Ionicons 
+                    name={cat.icon as any} 
+                    size={18} 
+                    color={isActive ? '#FFFFFF' : '#6366F1'} 
+                  />
+                </View>
+                <Text style={[
+                  styles.categoryText,
+                  isActive && styles.categoryTextActive,
+                ]}>
+                  {cat.label}
+                </Text>
+                {catCount > 0 && (
+                  <View style={[
+                    styles.categoryBadge,
+                    isActive && styles.categoryBadgeActive,
+                  ]}>
+                    <Text style={[
+                      styles.categoryBadgeText,
+                      isActive && styles.categoryBadgeTextActive,
+                    ]}>
+                      {catCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {/* Products List */}
       <FlatList
