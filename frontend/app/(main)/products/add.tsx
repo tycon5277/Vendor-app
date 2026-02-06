@@ -80,7 +80,11 @@ export default function AddProductScreen() {
   const handlePickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission Required', 'Please allow access to your photo library');
+      showAlert({
+        type: 'warning',
+        title: 'Permission Required',
+        message: 'Please allow access to your photo library',
+      });
       return;
     }
 
@@ -100,7 +104,11 @@ export default function AddProductScreen() {
   const handleTakePhoto = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission Required', 'Please allow access to your camera');
+      showAlert({
+        type: 'warning',
+        title: 'Permission Required',
+        message: 'Please allow access to your camera',
+      });
       return;
     }
 
@@ -119,15 +127,27 @@ export default function AddProductScreen() {
   const handleSubmit = async () => {
     // Validation
     if (!name.trim()) {
-      Alert.alert('Required', 'Please enter product name');
+      showAlert({
+        type: 'warning',
+        title: 'Required',
+        message: 'Please enter product name',
+      });
       return;
     }
     if (!price.trim() || isNaN(Number(price))) {
-      Alert.alert('Required', 'Please enter a valid price');
+      showAlert({
+        type: 'warning',
+        title: 'Required',
+        message: 'Please enter a valid price',
+      });
       return;
     }
     if (!category) {
-      Alert.alert('Required', 'Please select a category');
+      showAlert({
+        type: 'warning',
+        title: 'Required',
+        message: 'Please select a category',
+      });
       return;
     }
 
@@ -135,7 +155,11 @@ export default function AddProductScreen() {
     const discountNum = discountedPrice ? parseFloat(discountedPrice) : null;
 
     if (discountNum && discountNum >= priceNum) {
-      Alert.alert('Invalid', 'Discounted price must be less than original price');
+      showAlert({
+        type: 'error',
+        title: 'Invalid',
+        message: 'Discounted price must be less than original price',
+      });
       return;
     }
 
@@ -154,12 +178,21 @@ export default function AddProductScreen() {
       };
 
       await productAPI.create(productData);
-      Alert.alert('Success! 🎉', 'Product added successfully', [
-        { text: 'Add Another', onPress: () => resetForm() },
-        { text: 'Done', onPress: () => router.back() },
-      ]);
+      showAlert({
+        type: 'success',
+        title: 'Success! 🎉',
+        message: 'Product added successfully',
+        buttons: [
+          { text: 'Add Another', onPress: () => resetForm() },
+          { text: 'Done', onPress: () => router.back() },
+        ],
+      });
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to add product');
+      showAlert({
+        type: 'error',
+        title: 'Oops!',
+        message: error.response?.data?.detail || 'Failed to add product',
+      });
     } finally {
       setIsSubmitting(false);
     }
