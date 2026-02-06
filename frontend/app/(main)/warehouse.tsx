@@ -50,6 +50,16 @@ export default function WarehouseScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  // Get filter from navigation params (when coming from Orders page)
+  const params = router.params as { filter?: string } | undefined;
+  
+  // Set initial filter from params when screen loads
+  useEffect(() => {
+    if (params?.filter && ['all', 'in_stock', 'low_stock', 'out_of_stock'].includes(params.filter)) {
+      setSelectedFilter(params.filter as FilterType);
+    }
+  }, [params?.filter]);
+
   // Claymorphism Alert State
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertType, setAlertType] = useState<'success' | 'error' | 'warning'>('success');
