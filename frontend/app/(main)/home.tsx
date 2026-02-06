@@ -72,10 +72,18 @@ export default function HomeScreen() {
   const handleSeedData = async () => {
     try {
       await vendorAPI.seedData();
-      Alert.alert('Success! 🎉', 'Sample data created!');
+      showAlert({
+        type: 'success',
+        title: 'Success! 🎉',
+        message: 'Sample data created! Your shop now has demo orders and products.',
+      });
       loadData();
     } catch (error) {
-      Alert.alert('Error', 'Failed to seed data');
+      showAlert({
+        type: 'error',
+        title: 'Oops!',
+        message: 'Failed to create sample data. Please try again.',
+      });
     }
   };
 
