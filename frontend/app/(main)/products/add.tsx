@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Image,
@@ -18,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { productAPI } from '../../../src/utils/api';
+import { useAlert } from '../../../src/context/AlertContext';
 
 const PRODUCT_CATEGORIES = [
   { id: 'Groceries', icon: 'basket', label: 'Groceries' },
