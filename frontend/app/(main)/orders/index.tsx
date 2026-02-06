@@ -72,24 +72,45 @@ export default function OrdersScreen() {
     }
   };
 
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadOrders();
+      
+      // Pulse animation for new orders badge
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.2,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+      
+      // Set up interval for periodic refresh (every 15 seconds for orders)
+      const intervalId = setInterval(() => {
+        loadOrders();
+      }, 15000);
+      
+      return () => clearInterval(intervalId);
+    }, [])
+  );
+
+  // Refresh when app comes to foreground
   useEffect(() => {
-    loadOrders();
-    
-    // Pulse animation for new orders badge
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        loadOrders();
+      }
+    });
+
+    return () => subscription.remove();
   }, []);
 
   const onRefresh = useCallback(async () => {
