@@ -170,11 +170,13 @@ export default function OrdersScreen() {
     switch (status) {
       case 'pending': return { bg: '#FEF3C7', text: '#D97706' };
       case 'accepted': return { bg: '#DBEAFE', text: '#2563EB' };
+      case 'confirmed': return { bg: '#DBEAFE', text: '#2563EB' };
       case 'preparing': return { bg: '#E0E7FF', text: '#4F46E5' };
       case 'ready': return { bg: '#D1FAE5', text: '#059669' };
       case 'picked_up': return { bg: '#CFFAFE', text: '#0891B2' };
       case 'delivered': return { bg: '#DCFCE7', text: '#22C55E' };
       case 'cancelled': return { bg: '#FEE2E2', text: '#DC2626' };
+      case 'rejected': return { bg: '#FEE2E2', text: '#DC2626' };
       default: return { bg: '#F3F4F6', text: '#6B7280' };
     }
   };
@@ -183,12 +185,24 @@ export default function OrdersScreen() {
     switch (status) {
       case 'pending': return 'time';
       case 'accepted': return 'checkmark-circle';
+      case 'confirmed': return 'checkmark-circle';
       case 'preparing': return 'restaurant';
       case 'ready': return 'bag-check';
       case 'picked_up': return 'bicycle';
       case 'delivered': return 'checkmark-done-circle';
       case 'cancelled': return 'close-circle';
+      case 'rejected': return 'close-circle';
       default: return 'ellipse';
+    }
+  };
+
+  const handleRejectOrder = async (order: Order) => {
+    try {
+      await orderAPI.reject(order.order_id, 'Vendor rejected');
+      showClaymorphismAlert('warning', 'Order Rejected', 'The order has been declined');
+      loadOrders();
+    } catch (error) {
+      showClaymorphismAlert('error', 'Oops!', 'Failed to reject order');
     }
   };
 
