@@ -186,18 +186,7 @@ export default function WarehouseScreen() {
     }).start();
   }, []);
 
-  // Handle hardware back button - go to previous screen
-  useFocusEffect(
-    useCallback(() => {
-      const onBackPress = () => {
-        router.back();
-        return true;
-      };
-      
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-      return () => backHandler.remove();
-    }, [router])
-  );
+  // Handle hardware back button - removed, handled in _layout.tsx
 
   useEffect(() => {
     applyFilters(products, selectedCategory, selectedFilter, searchQuery);
