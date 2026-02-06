@@ -1959,7 +1959,8 @@ async def seed_vendor_data(current_user: User = Depends(require_auth)):
         }
         await db.products.insert_one(product)
     
-    # Create sample orders
+    # Create sample orders with auto_accept_at for pending orders
+    now = datetime.now(timezone.utc)
     sample_orders = [
         {
             "order_id": f"order_{uuid.uuid4().hex[:8]}",
@@ -1975,11 +1976,12 @@ async def seed_vendor_data(current_user: User = Depends(require_auth)):
             "delivery_type": "agent_delivery",
             "delivery_fee": 30,
             "status": "pending",
-            "status_history": [{"status": "pending", "timestamp": datetime.now(timezone.utc).isoformat()}],
+            "status_history": [{"status": "pending", "timestamp": now.isoformat()}],
             "payment_status": "paid",
             "customer_name": "Rahul Sharma",
             "customer_phone": "+91 98765 43210",
-            "created_at": datetime.now(timezone.utc)
+            "auto_accept_at": now + timedelta(seconds=AUTO_ACCEPT_TIMEOUT_SECONDS),  # Auto-accept in 3 mins
+            "created_at": now
         },
         {
             "order_id": f"order_{uuid.uuid4().hex[:8]}",
@@ -1996,13 +1998,13 @@ async def seed_vendor_data(current_user: User = Depends(require_auth)):
             "delivery_fee": 0,
             "status": "confirmed",
             "status_history": [
-                {"status": "pending", "timestamp": (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()},
-                {"status": "confirmed", "timestamp": datetime.now(timezone.utc).isoformat()}
+                {"status": "pending", "timestamp": (now - timedelta(minutes=30)).isoformat()},
+                {"status": "confirmed", "timestamp": now.isoformat()}
             ],
             "payment_status": "paid",
             "customer_name": "Priya Menon",
             "customer_phone": "+91 87654 32109",
-            "created_at": datetime.now(timezone.utc) - timedelta(minutes=30)
+            "created_at": now - timedelta(minutes=30)
         },
         {
             "order_id": f"order_{uuid.uuid4().hex[:8]}",
