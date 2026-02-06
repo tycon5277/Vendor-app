@@ -44,92 +44,9 @@ export default function HomeScreen() {
     }
   };
 
-  // Show exit toast with animation
-  const showExitNotification = () => {
-    setShowExitToast(true);
-    Animated.parallel([
-      Animated.spring(toastAnim, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-      Animated.spring(toastScale, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Auto hide after 2.5 seconds
-    setTimeout(() => {
-      hideExitNotification();
-    }, 2500);
-  };
-
-  const hideExitNotification = () => {
-    Animated.parallel([
-      Animated.timing(toastAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(toastScale, {
-        toValue: 0.8,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setShowExitToast(false);
-    });
-  };
-
-  // Handle back button press - Only for home screen exit behavior
-  // Using useFocusEffect to ensure handler only runs when screen is focused
-  const backPressCountRef = useRef(0);
-  
-  useFocusEffect(
-    useCallback(() => {
-      const onBackPress = () => {
-        // Clear previous timer
-        if (backPressTimer.current) {
-          clearTimeout(backPressTimer.current);
-        }
-
-        if (backPressCountRef.current === 0) {
-          // First press - show toast
-          backPressCountRef.current = 1;
-          setBackPressCount(1);
-          showExitNotification();
-          
-          // Reset counter after 2.5 seconds of no press
-          backPressTimer.current = setTimeout(() => {
-            backPressCountRef.current = 0;
-            setBackPressCount(0);
-          }, 2500);
-          
-          return true; // Prevent default back behavior
-        } else {
-          // Second press - exit app
-          BackHandler.exitApp();
-          return true;
-        }
-      };
-
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-
-      return () => {
-        backHandler.remove();
-        if (backPressTimer.current) {
-          clearTimeout(backPressTimer.current);
-        }
-        // Reset counter when leaving screen
-        backPressCountRef.current = 0;
-        setBackPressCount(0);
-      };
-    }, [])
-  );
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
     loadData();
