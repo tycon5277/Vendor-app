@@ -703,6 +703,7 @@ class VendorAPITester:
             self.test_product_apis()
             self.test_order_apis()
             self.test_chat_apis()
+            self.test_new_analytics_endpoints()  # NEW: Test analytics endpoints
         else:
             print("❌ Auth flow failed, skipping remaining tests")
             
