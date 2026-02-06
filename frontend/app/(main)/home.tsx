@@ -94,7 +94,7 @@ export default function HomeScreen() {
     });
   };
 
-  // Handle back button press
+  // Handle back button press - Only for home screen exit behavior
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       // Clear previous timer
@@ -111,12 +111,13 @@ export default function HomeScreen() {
         backPressTimer.current = setTimeout(() => {
           setBackPressCount(0);
         }, 2500);
+        
+        return true; // Prevent default back behavior (don't navigate)
       } else {
         // Second press - exit app
         BackHandler.exitApp();
+        return true;
       }
-
-      return true; // Prevent default back behavior
     });
 
     return () => backHandler.remove();
