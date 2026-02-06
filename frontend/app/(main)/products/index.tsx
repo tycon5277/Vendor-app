@@ -102,7 +102,11 @@ export default function MyShopScreen() {
         setUser({ ...user, partner_status: newStatus });
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to update shop status');
+      showAlert({
+        type: 'error',
+        title: 'Oops!',
+        message: 'Failed to update shop status. Please try again.',
+      });
     }
   };
 
