@@ -308,10 +308,7 @@ export default function OrdersScreen() {
             <View style={styles.actionButtons}>
               <TouchableOpacity 
                 style={styles.rejectBtn}
-                onPress={() => Alert.alert('Reject Order', 'Are you sure?', [
-                  { text: 'Cancel' },
-                  { text: 'Reject', style: 'destructive', onPress: () => orderAPI.updateStatus(item.order_id, 'cancelled').then(loadOrders) }
-                ])}
+                onPress={() => handleRejectOrder(item)}
               >
                 <Ionicons name="close" size={20} color="#DC2626" />
                 <Text style={styles.rejectBtnText}>Reject</Text>
