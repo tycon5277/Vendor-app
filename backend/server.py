@@ -1300,6 +1300,299 @@ async def seed_vendor_data(current_user: User = Depends(require_auth)):
     
     return {"message": "Vendor data seeded successfully"}
 
+# ===================== PERFORMANCE ANALYTICS ENDPOINTS =====================
+
+@api_router.post("/vendor/analytics/track-event")
+async def track_analytics_event(
+    event_type: str,
+    product_id: Optional[str] = None,
+    order_id: Optional[str] = None,
+    customer_id: Optional[str] = None,
+    metadata: Dict = {},
+    user: User = Depends(require_vendor)
+):
+    """Track analytics events for product views, orders, etc."""
+    event = {
+        "event_id": f"evt_{uuid.uuid4().hex[:12]}",
+        "vendor_id": user.user_id,
+        "event_type": event_type,
+        "product_id": product_id,
+        "order_id": order_id,
+        "customer_id": customer_id,
+        "metadata": metadata,
+        "timestamp": datetime.now(timezone.utc)
+    }
+    await db.analytics_events.insert_one(event)
+    
+    # Update product performance if product view or order
+    if event_type in ["product_view", "order_completed"] and product_id:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        product = await db.products.find_one({"product_id": product_id})
+        if product:
+            perf = await db.product_performance.find_one({
+                "vendor_id": user.user_id,
+                "product_id": product_id,
+                "date": today
+            })
+            if not perf:
+                perf = {
+                    "performance_id": f"perf_{uuid.uuid4().hex[:12]}",
+                    "vendor_id": user.user_id,
+                    "product_id": product_id,
+                    "product_name": product.get("name", ""),
+                    "date": today,
+                    "views": 0,
+                    "orders_count": 0,
+                    "units_sold": 0,
+                    "revenue": 0.0,
+                    "created_at": datetime.now(timezone.utc)
+                }
+                await db.product_performance.insert_one(perf)
+            
+            update_fields = {}
+            if event_type == "product_view":
+                update_fields["views"] = perf.get("views", 0) + 1
+            
+            if update_fields:
+                await db.product_performance.update_one(
+                    {"performance_id": perf["performance_id"]},
+                    {"$set": update_fields}
+                )
+    
+    return {"message": "Event tracked", "event_id": event["event_id"]}
+
+@api_router.get("/vendor/analytics/product-performance")
+async def get_product_performance(
+    period: str = "week",  # day, week, month
+    product_id: Optional[str] = None,
+    user: User = Depends(require_vendor)
+):
+    """Get product performance analytics - Premium feature"""
+    now = datetime.now(timezone.utc)
+    
+    if period == "day":
+        start_date = now.strftime("%Y-%m-%d")
+    elif period == "week":
+        start_date = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+    else:  # month
+        start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+    
+    query = {
+        "vendor_id": user.user_id,
+        "date": {"$gte": start_date}
+    }
+    if product_id:
+        query["product_id"] = product_id
+    
+    performances = await db.product_performance.find(query, {"_id": 0}).sort("date", -1).to_list(500)
+    
+    # Aggregate stats
+    total_views = sum(p.get("views", 0) for p in performances)
+    total_orders = sum(p.get("orders_count", 0) for p in performances)
+    total_revenue = sum(p.get("revenue", 0) for p in performances)
+    total_units = sum(p.get("units_sold", 0) for p in performances)
+    
+    # Group by product for top performers
+    product_stats = {}
+    for p in performances:
+        pid = p.get("product_id")
+        if pid not in product_stats:
+            product_stats[pid] = {
+                "product_id": pid,
+                "product_name": p.get("product_name", ""),
+                "views": 0,
+                "orders": 0,
+                "revenue": 0,
+                "units": 0
+            }
+        product_stats[pid]["views"] += p.get("views", 0)
+        product_stats[pid]["orders"] += p.get("orders_count", 0)
+        product_stats[pid]["revenue"] += p.get("revenue", 0)
+        product_stats[pid]["units"] += p.get("units_sold", 0)
+    
+    top_products = sorted(product_stats.values(), key=lambda x: x["revenue"], reverse=True)[:10]
+    
+    return {
+        "period": period,
+        "start_date": start_date,
+        "summary": {
+            "total_views": total_views,
+            "total_orders": total_orders,
+            "total_revenue": total_revenue,
+            "total_units": total_units,
+            "conversion_rate": round((total_orders / total_views * 100) if total_views > 0 else 0, 2)
+        },
+        "top_products": top_products,
+        "daily_data": performances
+    }
+
+@api_router.get("/vendor/analytics/time-performance")
+async def get_time_performance(
+    period: str = "week",
+    user: User = Depends(require_vendor)
+):
+    """Get time-based performance analytics - Peak hours analysis"""
+    now = datetime.now(timezone.utc)
+    
+    if period == "day":
+        start_date = now.strftime("%Y-%m-%d")
+    elif period == "week":
+        start_date = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+    else:
+        start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+    
+    # Get orders for the period to calculate time slots
+    orders = await db.orders.find({
+        "vendor_id": user.user_id,
+        "created_at": {"$gte": datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)}
+    }).to_list(1000)
+    
+    # Aggregate by hour
+    hourly_stats = {i: {"hour": i, "orders": 0, "revenue": 0} for i in range(24)}
+    
+    for order in orders:
+        created_at = order.get("created_at")
+        if created_at:
+            hour = created_at.hour
+            hourly_stats[hour]["orders"] += 1
+            hourly_stats[hour]["revenue"] += order.get("total_amount", 0)
+    
+    hourly_list = list(hourly_stats.values())
+    
+    # Find peak hours (top 3)
+    peak_hours = sorted(hourly_list, key=lambda x: x["orders"], reverse=True)[:3]
+    
+    # Find slow hours (bottom 3 with some orders)
+    slow_hours = sorted([h for h in hourly_list if h["orders"] > 0], key=lambda x: x["orders"])[:3]
+    
+    return {
+        "period": period,
+        "hourly_breakdown": hourly_list,
+        "peak_hours": peak_hours,
+        "slow_hours": slow_hours,
+        "best_hour": peak_hours[0] if peak_hours else None,
+        "recommendation": f"Consider increasing inventory and staff during peak hours: {', '.join([f'{h['hour']}:00' for h in peak_hours])}" if peak_hours else None
+    }
+
+@api_router.get("/vendor/analytics/premium-insights")
+async def get_premium_insights(user: User = Depends(require_vendor)):
+    """Get comprehensive analytics for premium subscription upsell"""
+    vendor_id = user.user_id
+    now = datetime.now(timezone.utc)
+    
+    # Check if vendor has premium subscription
+    subscription = await db.premium_subscriptions.find_one({
+        "vendor_id": vendor_id,
+        "status": "active",
+        "end_date": {"$gte": now}
+    })
+    
+    is_premium = subscription is not None
+    
+    # Basic stats (available to all)
+    orders_30d = await db.orders.count_documents({
+        "vendor_id": vendor_id,
+        "created_at": {"$gte": now - timedelta(days=30)}
+    })
+    
+    revenue_30d = 0
+    orders_cursor = db.orders.find({
+        "vendor_id": vendor_id,
+        "created_at": {"$gte": now - timedelta(days=30)}
+    })
+    async for order in orders_cursor:
+        revenue_30d += order.get("total_amount", 0)
+    
+    # Premium insights (locked for non-premium)
+    premium_features = {
+        "product_performance": {
+            "available": is_premium,
+            "description": "See which products are driving sales",
+            "preview": "Your top product generated ₹X revenue" if not is_premium else None
+        },
+        "peak_hours_analysis": {
+            "available": is_premium,
+            "description": "Know your busiest hours",
+            "preview": "Discover your best performing time slots" if not is_premium else None
+        },
+        "customer_insights": {
+            "available": is_premium,
+            "description": "Understand your customer base",
+            "preview": "Track new vs returning customers" if not is_premium else None
+        },
+        "trend_forecasting": {
+            "available": is_premium,
+            "description": "Predict future demand",
+            "preview": "AI-powered sales predictions" if not is_premium else None
+        },
+        "competitor_benchmarks": {
+            "available": is_premium and subscription and subscription.get("plan_type") == "enterprise",
+            "description": "Compare with area vendors",
+            "preview": "See how you stack up" if not is_premium else None
+        }
+    }
+    
+    return {
+        "is_premium": is_premium,
+        "subscription": subscription if is_premium else None,
+        "basic_stats": {
+            "orders_30d": orders_30d,
+            "revenue_30d": revenue_30d,
+            "average_order_value": round(revenue_30d / orders_30d, 2) if orders_30d > 0 else 0
+        },
+        "premium_features": premium_features,
+        "upgrade_cta": {
+            "message": "Unlock powerful insights to grow your business 📈",
+            "plans": [
+                {"name": "Pro", "price": 299, "billing": "monthly", "features": ["Product analytics", "Peak hours", "Customer insights"]},
+                {"name": "Enterprise", "price": 799, "billing": "monthly", "features": ["All Pro features", "Trend forecasting", "Competitor benchmarks", "Priority support"]}
+            ]
+        } if not is_premium else None
+    }
+
+@api_router.post("/vendor/subscribe")
+async def create_subscription(
+    plan_type: str,  # pro, enterprise
+    billing_cycle: str = "monthly",
+    user: User = Depends(require_vendor)
+):
+    """Create premium subscription - For demo purposes"""
+    now = datetime.now(timezone.utc)
+    
+    # Plan configurations
+    plans = {
+        "pro": {"price_monthly": 299, "price_yearly": 2999, "features": ["advanced_analytics", "peak_hours", "customer_insights"]},
+        "enterprise": {"price_monthly": 799, "price_yearly": 7999, "features": ["advanced_analytics", "peak_hours", "customer_insights", "trend_forecasting", "competitor_benchmarks", "priority_support"]}
+    }
+    
+    if plan_type not in plans:
+        raise HTTPException(status_code=400, detail="Invalid plan type")
+    
+    plan = plans[plan_type]
+    price = plan[f"price_{billing_cycle}"] if billing_cycle in ["monthly", "yearly"] else plan["price_monthly"]
+    
+    if billing_cycle == "yearly":
+        end_date = now + timedelta(days=365)
+    else:
+        end_date = now + timedelta(days=30)
+    
+    subscription = {
+        "subscription_id": f"sub_{uuid.uuid4().hex[:12]}",
+        "vendor_id": user.user_id,
+        "plan_type": plan_type,
+        "features": plan["features"],
+        "price": price,
+        "billing_cycle": billing_cycle,
+        "status": "active",
+        "start_date": now,
+        "end_date": end_date,
+        "created_at": now
+    }
+    
+    await db.premium_subscriptions.insert_one(subscription)
+    
+    return {"message": f"Subscribed to {plan_type} plan", "subscription": subscription}
+
 # ===================== HEALTH CHECK =====================
 
 @api_router.get("/")
