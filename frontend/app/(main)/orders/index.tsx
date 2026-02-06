@@ -434,7 +434,7 @@ export default function OrdersScreen() {
           </View>
           <View style={[styles.statusBadge, { backgroundColor: statusColor.bg }]}>
             <Text style={[styles.statusText, { color: statusColor.text }]}>
-              {item.status.replace(/_/g, ' ').toUpperCase()}
+              {getStatusLabel(item.status)}
             </Text>
           </View>
         </View>
@@ -468,16 +468,55 @@ export default function OrdersScreen() {
           <View style={styles.quickActions}>
             <TouchableOpacity 
               style={styles.rejectBtnSmall}
-              onPress={() => handleRejectOrder(item)}
+              onPress={(e) => { e.stopPropagation(); handleRejectOrder(item); }}
             >
               <Ionicons name="close" size={18} color="#DC2626" />
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.acceptBtnSmall}
-              onPress={() => handleAcceptOrder(item)}
+              onPress={(e) => { e.stopPropagation(); handleAcceptOrder(item); }}
             >
               <Ionicons name="checkmark" size={18} color="#FFFFFF" />
               <Text style={styles.acceptBtnTextSmall}>Accept</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Quick Action for Confirmed - Start Preparing */}
+        {isConfirmed && (
+          <View style={styles.quickActions}>
+            <TouchableOpacity 
+              style={styles.startPreparingBtn}
+              onPress={(e) => { e.stopPropagation(); handleWorkflowAction(item, 'start_preparing'); }}
+            >
+              <Ionicons name="flame" size={18} color="#FFFFFF" />
+              <Text style={styles.startPreparingBtnText}>Start Preparing</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Quick Action for Preparing - Mark Ready */}
+        {isPreparing && (
+          <View style={styles.quickActions}>
+            <TouchableOpacity 
+              style={styles.markReadyBtn}
+              onPress={(e) => { e.stopPropagation(); handleWorkflowAction(item, 'mark_ready'); }}
+            >
+              <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+              <Text style={styles.markReadyBtnText}>Mark Ready</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Quick Action for Ready - Assign Delivery */}
+        {isReady && (
+          <View style={styles.quickActionsRow}>
+            <TouchableOpacity 
+              style={styles.assignDeliveryBtn}
+              onPress={() => router.push(`/(main)/orders/${item.order_id}`)}
+            >
+              <Ionicons name="bicycle" size={16} color="#059669" />
+              <Text style={styles.assignDeliveryBtnText}>Assign Delivery</Text>
             </TouchableOpacity>
           </View>
         )}
