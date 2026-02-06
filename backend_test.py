@@ -1,340 +1,353 @@
 #!/usr/bin/env python3
+"""
+QuickWish Vendor App Backend API Testing
+Testing UPDATED Order Workflow APIs with vendor restriction when Carpet Genie is assigned
+"""
 
 import requests
 import json
-from datetime import datetime
 import sys
+from datetime import datetime
+from typing import Dict, Any, Optional, List
 
 # Configuration
 BASE_URL = "https://vendor-dispatch-2.preview.emergentagent.com/api"
-PHONE = "9876543210"
-OTP = "123456"
+TEST_PHONE = "9876543210"
+TEST_OTP = "123456"
 
-class TestRunner:
+class APITester:
     def __init__(self):
+        self.base_url = BASE_URL
         self.session = requests.Session()
         self.auth_token = None
-        self.vendor_id = None
-        self.total_tests = 0
-        self.passed_tests = 0
-        self.failed_tests = 0
+        self.test_results = []
         
-    def log_test(self, test_name, status, details=""):
-        self.total_tests += 1
-        if status == "PASS":
-            self.passed_tests += 1
-            print(f"✅ {test_name}: {details}")
-        else:
-            self.failed_tests += 1
-            print(f"❌ {test_name}: {details}")
+    def log_result(self, test_name: str, success: bool, details: str = ""):
+        """Log test result"""
+        result = {
+            "test": test_name,
+            "success": success,
+            "details": details,
+            "timestamp": datetime.now().isoformat()
+        }
+        self.test_results.append(result)
+        
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status}: {test_name}")
+        if details:
+            print(f"   Details: {details}")
+        
+    def make_request(self, method: str, endpoint: str, data: Dict = None, headers: Dict = None) -> Optional[Dict]:
+        """Make API request with error handling"""
+        url = f"{self.base_url}{endpoint}"
+        
+        # Add auth headers if token exists
+        if self.auth_token and headers is None:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+        elif self.auth_token and "Authorization" not in headers:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
             
-    def authenticate(self):
-        """Authenticate and get Bearer token"""
-        print("🔐 Testing Authentication Flow...")
+        try:
+            if method.upper() == "GET":
+                response = self.session.get(url, headers=headers, timeout=30)
+            elif method.upper() == "POST":
+                response = self.session.post(url, json=data, headers=headers, timeout=30)
+            elif method.upper() == "PUT":
+                response = self.session.put(url, json=data, headers=headers, timeout=30)
+            else:
+                raise ValueError(f"Unsupported method: {method}")
+                
+            print(f"{method} {endpoint} -> {response.status_code}")
+            
+            if response.status_code == 200 or response.status_code == 201:
+                return response.json()
+            else:
+                print(f"   Error: {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"   Exception: {str(e)}")
+            return None
+
+    def test_authentication(self):
+        """Test authentication flow"""
+        print("\n=== AUTHENTICATION TESTING ===")
         
-        # Send OTP
-        otp_response = self.session.post(f"{BASE_URL}/auth/send-otp", 
-            json={"phone": PHONE})
+        # Step 1: Send OTP
+        otp_data = {"phone": TEST_PHONE}
+        response = self.make_request("POST", "/auth/send-otp", otp_data)
         
-        if otp_response.status_code == 200:
-            self.log_test("Send OTP", "PASS", f"OTP sent to {PHONE}")
+        if response and "debug_otp" in response:
+            self.log_result("Send OTP", True, f"OTP sent to {TEST_PHONE}, debug_otp: {response['debug_otp']}")
         else:
-            self.log_test("Send OTP", "FAIL", f"Status: {otp_response.status_code}")
+            self.log_result("Send OTP", False, "Failed to send OTP")
             return False
-            
-        # Verify OTP
-        verify_response = self.session.post(f"{BASE_URL}/auth/verify-otp", 
-            json={"phone": PHONE, "otp": OTP})
-            
-        if verify_response.status_code == 200:
-            data = verify_response.json()
-            self.auth_token = data.get("session_token")
-            self.vendor_id = data.get("user_id")
-            self.session.headers.update({"Authorization": f"Bearer {self.auth_token}"})
-            self.log_test("Verify OTP", "PASS", f"Token received, vendor_id: {self.vendor_id}")
+        
+        # Step 2: Verify OTP
+        verify_data = {"phone": TEST_PHONE, "otp": TEST_OTP}
+        response = self.make_request("POST", "/auth/verify-otp", verify_data)
+        
+        if response and "token" in response:
+            self.auth_token = response["token"]
+            self.log_result("Verify OTP", True, f"Token received: {self.auth_token[:20]}...")
             return True
         else:
-            self.log_test("Verify OTP", "FAIL", f"Status: {verify_response.status_code}")
+            self.log_result("Verify OTP", False, "Failed to verify OTP or get token")
             return False
-            
-    def create_seed_data(self):
-        """Create seed vendor data"""
-        print("🌱 Creating seed vendor data...")
+
+    def test_seed_data(self):
+        """Test seed data creation"""
+        print("\n=== SEED DATA TESTING ===")
         
-        response = self.session.post(f"{BASE_URL}/seed/vendor")
-        
-        if response.status_code == 200:
-            data = response.json()
-            self.log_test("Create Seed Data", "PASS", f"Created: {data.get('products', 0)} products, {data.get('orders', 0)} orders")
+        response = self.make_request("POST", "/seed/vendor")
+        if response and response.get("message") == "Vendor seed data created successfully":
+            created_products = response.get("products_created", 0)
+            created_orders = response.get("orders_created", 0)
+            self.log_result("Seed Data Creation", True, 
+                          f"Created {created_products} products, {created_orders} orders")
             return True
         else:
-            self.log_test("Create Seed Data", "FAIL", f"Status: {response.status_code}, Response: {response.text}")
+            self.log_result("Seed Data Creation", False, "Failed to create seed data")
             return False
-    
-    def get_vendor_orders(self):
-        """Get vendor orders and return order IDs"""
-        print("📋 Getting vendor orders...")
+
+    def test_get_orders(self):
+        """Test getting vendor orders"""
+        print("\n=== ORDER LIST TESTING ===")
         
-        response = self.session.get(f"{BASE_URL}/vendor/orders")
-        
-        if response.status_code == 200:
-            orders = response.json()
-            order_count = len(orders)
-            self.log_test("Get Vendor Orders", "PASS", f"Retrieved {order_count} orders")
-            
-            # Return order IDs for testing
-            order_ids = []
-            if orders:
-                for order in orders:
-                    order_id = order.get("order_id")
-                    status = order.get("status")
-                    total = order.get("total_amount")
-                    if order_id:
-                        order_ids.append((order_id, status))
-                        print(f"   - Order {order_id[-8:]} | Status: {status} | Amount: ${total}")
-                        
-            return order_ids
+        response = self.make_request("GET", "/vendor/orders")
+        if response and "orders" in response:
+            orders = response["orders"]
+            self.log_result("Get Orders", True, f"Retrieved {len(orders)} orders")
+            print(f"   Orders statuses: {[order.get('status') for order in orders]}")
+            return orders
         else:
-            self.log_test("Get Vendor Orders", "FAIL", f"Status: {response.status_code}")
+            self.log_result("Get Orders", False, "Failed to retrieve orders")
             return []
 
-    def test_order_details(self, order_id):
-        """Test GET /api/vendor/orders/{order_id}/details"""
-        print(f"📄 Testing Order Details for {order_id[-8:]}...")
+    def test_order_workflow_restriction(self, orders: List[Dict]):
+        """Test the CRITICAL restriction: vendor cannot mark delivered when Carpet Genie is assigned"""
+        print("\n=== CRITICAL TEST: VENDOR RESTRICTION WITH CARPET GENIE ===")
         
-        response = self.session.get(f"{BASE_URL}/vendor/orders/{order_id}/details")
+        if not orders:
+            self.log_result("Order Workflow Restriction Test", False, "No orders available for testing")
+            return
         
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Verify required fields
-            required_fields = ["order", "status_checkpoints", "delivery_options", "next_actions", "vendor_can_deliver"]
-            missing_fields = [field for field in required_fields if field not in data]
-            
-            if missing_fields:
-                self.log_test(f"Order Details - {order_id[-8:]}", "FAIL", f"Missing fields: {missing_fields}")
-                return False
-            else:
-                order = data["order"]
-                checkpoints = data["status_checkpoints"]
-                delivery_options = data["delivery_options"] 
-                next_actions = data["next_actions"]
-                vendor_can_deliver = data["vendor_can_deliver"]
-                
-                details = f"Status: {order.get('status')}, Checkpoints: {len(checkpoints)}, Delivery options: {len(delivery_options)}, Next actions: {len(next_actions)}, Can deliver: {vendor_can_deliver}"
-                self.log_test(f"Order Details - {order_id[-8:]}", "PASS", details)
-                
-                # Print checkpoint details
-                for cp in checkpoints:
-                    status = "✅" if cp.get("completed") else "⏳"
-                    current = " (CURRENT)" if cp.get("current") else ""
-                    print(f"      {status} {cp.get('label')}{current}")
-                    
-                return True
-        else:
-            self.log_test(f"Order Details - {order_id[-8:]}", "FAIL", f"Status: {response.status_code}, Response: {response.text}")
-            return False
-
-    def test_workflow_action(self, order_id, action, expected_status):
-        """Test POST /api/vendor/orders/{order_id}/workflow/{action}"""
-        print(f"⚡ Testing Workflow Action: {action} for {order_id[-8:]}...")
-        
-        response = self.session.post(f"{BASE_URL}/vendor/orders/{order_id}/workflow/{action}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            new_status = data.get("new_status")
-            message = data.get("message")
-            
-            if new_status == expected_status:
-                self.log_test(f"Workflow {action} - {order_id[-8:]}", "PASS", f"{message} | Status: {new_status}")
-                return True
-            else:
-                self.log_test(f"Workflow {action} - {order_id[-8:]}", "FAIL", f"Expected status: {expected_status}, Got: {new_status}")
-                return False
-        else:
-            self.log_test(f"Workflow {action} - {order_id[-8:]}", "FAIL", f"Status: {response.status_code}, Response: {response.text}")
-            return False
-
-    def test_assign_delivery(self, order_id, delivery_type):
-        """Test POST /api/vendor/orders/{order_id}/assign-delivery"""
-        print(f"🚚 Testing Delivery Assignment: {delivery_type} for {order_id[-8:]}...")
-        
-        payload = {"delivery_type": delivery_type}
-        response = self.session.post(f"{BASE_URL}/vendor/orders/{order_id}/assign-delivery", 
-                                   json=payload)
-        
-        if response.status_code == 200:
-            data = response.json()
-            message = data.get("message", "")
-            assigned_agent = data.get("assigned_agent", "")
-            
-            details = f"{message}"
-            if assigned_agent:
-                details += f" | Agent: {assigned_agent}"
-                
-            self.log_test(f"Assign Delivery ({delivery_type}) - {order_id[-8:]}", "PASS", details)
-            return True
-        else:
-            self.log_test(f"Assign Delivery ({delivery_type}) - {order_id[-8:]}", "FAIL", f"Status: {response.status_code}, Response: {response.text}")
-            return False
-
-    def test_track_order(self, order_id):
-        """Test GET /api/vendor/orders/{order_id}/track"""
-        print(f"📍 Testing Order Tracking for {order_id[-8:]}...")
-        
-        response = self.session.get(f"{BASE_URL}/vendor/orders/{order_id}/track")
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Verify required fields
-            required_fields = ["order_id", "status", "delivery_type", "delivery_method", "status_history", "checkpoints"]
-            missing_fields = [field for field in required_fields if field not in data]
-            
-            if missing_fields:
-                self.log_test(f"Track Order - {order_id[-8:]}", "FAIL", f"Missing fields: {missing_fields}")
-                return False
-            else:
-                status = data.get("status")
-                delivery_type = data.get("delivery_type")
-                delivery_method = data.get("delivery_method")
-                agent_info = data.get("agent", {})
-                
-                details = f"Status: {status}, Delivery: {delivery_type} ({delivery_method})"
-                if agent_info:
-                    details += f", Agent: {agent_info.get('name', 'N/A')}"
-                    
-                self.log_test(f"Track Order - {order_id[-8:]}", "PASS", details)
-                return True
-        else:
-            self.log_test(f"Track Order - {order_id[-8:]}", "FAIL", f"Status: {response.status_code}, Response: {response.text}")
-            return False
-
-    def test_complete_workflow(self, order_id, initial_status):
-        """Test complete workflow progression"""
-        print(f"\n🔄 Testing Complete Workflow for Order {order_id[-8:]} (Initial: {initial_status})")
-        
-        current_status = initial_status
-        workflow_steps = [
-            ("accept", "confirmed"),
-            ("start_preparing", "preparing"),
-            ("mark_ready", "ready"),
-            ("out_for_delivery", "out_for_delivery"),
-            ("delivered", "delivered")
-        ]
-        
-        # Find starting point based on current status
-        status_map = {
-            "pending": 0,
-            "confirmed": 1, 
-            "preparing": 2,
-            "ready": 3,
-            "out_for_delivery": 4,
-            "delivered": 5
-        }
-        
-        start_index = status_map.get(current_status, 0)
-        
-        # Execute workflow steps
-        success_count = 0
-        for i in range(start_index, len(workflow_steps)):
-            action, expected_status = workflow_steps[i]
-            
-            if self.test_workflow_action(order_id, action, expected_status):
-                success_count += 1
-                current_status = expected_status
-                
-                # Test order details after each step
-                self.test_order_details(order_id)
-                
-                # Test assign delivery when order is ready
-                if expected_status == "ready" and i < len(workflow_steps) - 2:  # Not the last step
-                    self.test_assign_delivery(order_id, "carpet_genie")
-                
-            else:
-                print(f"   ❌ Workflow failed at step: {action}")
+        # Find a pending order to work with
+        pending_order = None
+        for order in orders:
+            if order.get("status") == "pending":
+                pending_order = order
                 break
-                
-        print(f"   ✅ Completed {success_count}/{len(workflow_steps) - start_index} workflow steps")
-        return success_count > 0
+        
+        if not pending_order:
+            self.log_result("Order Workflow Restriction Test", False, "No pending order found")
+            return
+            
+        order_id = pending_order["order_id"]
+        print(f"   Testing with order: {order_id}")
+        
+        # Step 1: Accept the order
+        print(f"   Step 1: Accept order {order_id}")
+        response = self.make_request("POST", f"/vendor/orders/{order_id}/workflow/accept")
+        if not response or response.get("status") != "confirmed":
+            self.log_result("Accept Order", False, "Failed to accept order")
+            return
+        self.log_result("Accept Order", True, "Order accepted successfully")
+        
+        # Step 2: Start preparing
+        print(f"   Step 2: Start preparing order {order_id}")
+        response = self.make_request("POST", f"/vendor/orders/{order_id}/workflow/start_preparing")
+        if not response or response.get("status") != "preparing":
+            self.log_result("Start Preparing", False, "Failed to start preparing")
+            return
+        self.log_result("Start Preparing", True, "Order preparing started")
+        
+        # Step 3: Mark ready
+        print(f"   Step 3: Mark ready order {order_id}")
+        response = self.make_request("POST", f"/vendor/orders/{order_id}/workflow/mark_ready")
+        if not response or response.get("status") != "ready":
+            self.log_result("Mark Ready", False, "Failed to mark ready")
+            return
+        self.log_result("Mark Ready", True, "Order marked as ready")
+        
+        # Step 4: Assign to Carpet Genie
+        print(f"   Step 4: Assign to Carpet Genie order {order_id}")
+        assign_data = {"delivery_type": "carpet_genie"}
+        response = self.make_request("POST", f"/vendor/orders/{order_id}/assign-delivery", assign_data)
+        if not response or response.get("status") != "awaiting_pickup":
+            self.log_result("Assign to Carpet Genie", False, "Failed to assign to Carpet Genie")
+            return
+        self.log_result("Assign to Carpet Genie", True, "Order assigned to Carpet Genie successfully")
+        
+        # CRITICAL TEST: Check order details for empty next_actions
+        print(f"   CRITICAL TEST: Checking next_actions for Carpet Genie assigned order")
+        self.test_order_details_restrictions(order_id)
+        
+        return order_id
 
-def main():
-    print("🚀 Starting QuickWish Vendor App - Order Workflow API Testing")
-    print("=" * 70)
-    
-    tester = TestRunner()
-    
-    # Step 1: Authentication
-    if not tester.authenticate():
-        print("❌ Authentication failed, cannot continue")
-        return
-    
-    # Step 2: Create seed data
-    if not tester.create_seed_data():
-        print("❌ Seed data creation failed")
-        return
+    def test_order_details_restrictions(self, order_id: str):
+        """Test that next_actions is empty when Carpet Genie is assigned"""
+        print(f"   Testing order details restrictions for {order_id}")
         
-    # Step 3: Get vendor orders
-    orders = tester.get_vendor_orders()
-    if not orders:
-        print("❌ No orders found for testing")
-        return
-    
-    print("\n" + "=" * 70)
-    print("🧪 TESTING ORDER WORKFLOW ENDPOINTS")
-    print("=" * 70)
-    
-    # Test each order
-    for order_id, status in orders:
-        print(f"\n📦 Testing Order {order_id[-8:]} (Status: {status})")
-        print("-" * 50)
+        response = self.make_request("GET", f"/vendor/orders/{order_id}/details")
+        if not response:
+            self.log_result("Order Details - Restriction Check", False, "Failed to get order details")
+            return
+            
+        order = response
+        status = order.get("status")
+        delivery_method = order.get("delivery_method")
+        delivery_type = order.get("delivery_type")
+        assigned_agent_id = order.get("assigned_agent_id")
+        next_actions = order.get("next_actions", [])
         
-        # Test order details
-        if tester.test_order_details(order_id):
+        print(f"   Order Status: {status}")
+        print(f"   Delivery Method: {delivery_method}")
+        print(f"   Delivery Type: {delivery_type}")
+        print(f"   Assigned Agent ID: {assigned_agent_id}")
+        print(f"   Next Actions: {next_actions}")
+        
+        # Check if order has Carpet Genie assigned
+        is_carpet_genie = (delivery_method == "carpet_genie" or 
+                          (delivery_type == "agent_delivery" and assigned_agent_id))
+        
+        if not is_carpet_genie:
+            self.log_result("Carpet Genie Assignment Check", False, 
+                          "Order not properly assigned to Carpet Genie")
+            return
             
-            # Test order tracking
-            tester.test_track_order(order_id)
-            
-            # Test workflow progression for pending orders
-            if status == "pending":
-                print(f"\n🔄 Testing Complete Workflow Progression...")
-                tester.test_complete_workflow(order_id, status)
-            
-            # Test delivery assignment for ready orders
-            elif status == "ready":
-                print(f"\n🚚 Testing Delivery Assignment...")
-                tester.test_assign_delivery(order_id, "self_delivery")
-                tester.test_assign_delivery(order_id, "carpet_genie")
-                
-            # Test individual workflow actions based on status
+        # For awaiting_pickup, picked_up, out_for_delivery - next_actions should be EMPTY
+        restricted_statuses = ["awaiting_pickup", "picked_up", "out_for_delivery"]
+        
+        if status in restricted_statuses:
+            if len(next_actions) == 0:
+                self.log_result("CRITICAL: Vendor Restriction Enforced", True, 
+                              f"✅ next_actions is EMPTY for status '{status}' with Carpet Genie assigned - vendor CANNOT mark delivered")
             else:
-                print(f"\n⚡ Testing Individual Workflow Actions...")
-                if status == "confirmed":
-                    tester.test_workflow_action(order_id, "start_preparing", "preparing")
-                elif status == "preparing":
-                    tester.test_workflow_action(order_id, "mark_ready", "ready")
-                elif status == "ready":
-                    tester.test_workflow_action(order_id, "out_for_delivery", "out_for_delivery")
-                elif status == "out_for_delivery":
-                    tester.test_workflow_action(order_id, "delivered", "delivered")
-    
-    # Final summary
-    print("\n" + "=" * 70)
-    print("📊 TEST SUMMARY")
-    print("=" * 70)
-    print(f"✅ Passed: {tester.passed_tests}")
-    print(f"❌ Failed: {tester.failed_tests}")
-    print(f"📊 Total: {tester.total_tests}")
-    print(f"🎯 Success Rate: {(tester.passed_tests/tester.total_tests*100):.1f}%")
-    
-    if tester.failed_tests == 0:
-        print("\n🎉 ALL TESTS PASSED! Order Workflow APIs are working perfectly.")
-    else:
-        print(f"\n⚠️  {tester.failed_tests} test(s) failed. See details above.")
+                self.log_result("CRITICAL: Vendor Restriction Enforced", False, 
+                              f"❌ next_actions is NOT empty for status '{status}' with Carpet Genie - vendor should NOT have delivery actions")
+        else:
+            self.log_result("Restriction Check Info", True, 
+                          f"Status '{status}' - would check restriction when in delivery statuses")
+
+    def test_agent_endpoints(self, order_id: str):
+        """Test agent endpoints for updating order status"""
+        print("\n=== AGENT ENDPOINT TESTING ===")
         
-    return tester.failed_tests == 0
+        # Note: These tests might fail with 401/403 without proper agent authentication
+        # But we test the endpoints to verify they exist and handle requests
+        
+        statuses = ["picked_up", "out_for_delivery", "delivered"]
+        
+        for status in statuses:
+            print(f"   Testing agent update to '{status}' for order {order_id}")
+            update_data = {
+                "status": status,
+                "notes": f"Agent marked order as {status}",
+                "location": {"lat": 12.9716, "lng": 77.5946}
+            }
+            
+            # This will likely return 401 without agent auth, but we test the endpoint
+            response = self.make_request("POST", f"/agent/orders/{order_id}/update-status", update_data)
+            
+            if response:
+                self.log_result(f"Agent Update to {status}", True, 
+                              f"Agent endpoint accepted {status} update")
+                
+                # After agent update, check that vendor still has no next_actions
+                self.test_order_details_restrictions(order_id)
+            else:
+                self.log_result(f"Agent Update to {status}", False, 
+                              f"Agent endpoint failed (expected if no agent auth) - endpoint exists but requires auth")
+
+    def test_notifications(self):
+        """Test notification endpoints"""
+        print("\n=== NOTIFICATION TESTING ===")
+        
+        # Get notifications
+        response = self.make_request("GET", "/vendor/notifications")
+        if response and "notifications" in response:
+            notifications = response["notifications"]
+            unread_count = response.get("unread_count", 0)
+            self.log_result("Get Notifications", True, 
+                          f"Retrieved {len(notifications)} notifications, {unread_count} unread")
+            
+            # Test marking notifications as read if any exist
+            if notifications:
+                first_notification_id = notifications[0].get("notification_id")
+                if first_notification_id:
+                    # Mark single notification as read
+                    response = self.make_request("PUT", f"/vendor/notifications/{first_notification_id}/read")
+                    if response:
+                        self.log_result("Mark Single Notification Read", True, "Notification marked as read")
+                    
+                    # Mark all notifications as read
+                    response = self.make_request("PUT", "/vendor/notifications/read-all")
+                    if response:
+                        self.log_result("Mark All Notifications Read", True, "All notifications marked as read")
+        else:
+            self.log_result("Get Notifications", False, "Failed to get notifications")
+
+    def run_all_tests(self):
+        """Run all tests in sequence"""
+        print("🚀 Starting QuickWish Vendor App Order Workflow API Testing")
+        print(f"Backend URL: {self.base_url}")
+        print(f"Test Phone: {TEST_PHONE}")
+        print(f"Test OTP: {TEST_OTP}")
+        
+        # Step 1: Authentication
+        if not self.test_authentication():
+            print("❌ Authentication failed - cannot proceed with other tests")
+            return
+        
+        # Step 2: Create seed data
+        if not self.test_seed_data():
+            print("❌ Seed data creation failed")
+            return
+        
+        # Step 3: Get orders
+        orders = self.test_get_orders()
+        
+        # Step 4: CRITICAL TEST - Test vendor restrictions with Carpet Genie
+        order_id = self.test_order_workflow_restriction(orders)
+        
+        # Step 5: Test agent endpoints (may fail without agent auth)
+        if order_id:
+            self.test_agent_endpoints(order_id)
+        
+        # Step 6: Test notifications
+        self.test_notifications()
+        
+        # Print summary
+        self.print_summary()
+
+    def print_summary(self):
+        """Print test summary"""
+        print("\n" + "="*70)
+        print("TEST SUMMARY")
+        print("="*70)
+        
+        passed = sum(1 for result in self.test_results if result["success"])
+        failed = sum(1 for result in self.test_results if not result["success"])
+        total = len(self.test_results)
+        
+        print(f"Total Tests: {total}")
+        print(f"Passed: {passed} ✅")
+        print(f"Failed: {failed} ❌")
+        print(f"Success Rate: {(passed/total)*100:.1f}%")
+        
+        if failed > 0:
+            print("\nFailed Tests:")
+            for result in self.test_results:
+                if not result["success"]:
+                    print(f"  ❌ {result['test']}: {result['details']}")
+        
+        print("\nCRITICAL TEST RESULTS:")
+        for result in self.test_results:
+            if "CRITICAL" in result["test"]:
+                status = "✅ PASS" if result["success"] else "❌ FAIL"
+                print(f"  {status} {result['test']}: {result['details']}")
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    tester = APITester()
+    tester.run_all_tests()
