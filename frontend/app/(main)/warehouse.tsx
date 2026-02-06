@@ -391,17 +391,35 @@ export default function WarehouseScreen() {
         </View>
       </View>
 
-      {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
+      {/* Filter Tabs - Scrollable */}
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterScrollContainer}
+        contentContainerStyle={styles.filterContainer}
+      >
         {filters.map((filter) => (
           <TouchableOpacity
             key={filter.key}
             style={[
               styles.filterTab,
-              selectedFilter === filter.key && { backgroundColor: filter.color + '15', borderColor: filter.color },
+              selectedFilter === filter.key && { 
+                backgroundColor: filter.color + '20', 
+                borderColor: filter.color,
+                borderWidth: 2,
+              },
             ]}
             onPress={() => setSelectedFilter(filter.key)}
           >
+            <Ionicons 
+              name={
+                filter.key === 'all' ? 'apps' :
+                filter.key === 'in_stock' ? 'checkmark-circle' :
+                filter.key === 'low_stock' ? 'warning' : 'close-circle'
+              } 
+              size={16} 
+              color={selectedFilter === filter.key ? filter.color : '#6B7280'} 
+            />
             <Text style={[
               styles.filterTabText,
               selectedFilter === filter.key && { color: filter.color, fontWeight: '700' },
@@ -421,7 +439,7 @@ export default function WarehouseScreen() {
             </View>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {/* Category Scroll */}
       <FlatList
