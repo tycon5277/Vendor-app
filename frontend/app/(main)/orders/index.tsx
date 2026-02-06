@@ -107,12 +107,63 @@ export default function OrdersScreen() {
 
   const handleAcceptOrder = async (order: Order) => {
     try {
-      await orderAPI.updateStatus(order.order_id, 'accepted');
-      Alert.alert('Order Accepted! 🎉', 'Start preparing the order');
+      await orderAPI.accept(order.order_id);
+      showClaymorphismAlert('success', 'Order Accepted! 🎉', 'Start preparing the order');
       loadOrders();
     } catch (error) {
-      Alert.alert('Error', 'Failed to accept order');
+      showClaymorphismAlert('error', 'Oops!', 'Failed to accept order');
     }
+  };
+
+  // Claymorphism Alert State
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertType, setAlertType] = useState<'success' | 'error' | 'warning'>('success');
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const alertAnim = useRef(new Animated.Value(0)).current;
+  const alertScale = useRef(new Animated.Value(0.8)).current;
+
+  const showClaymorphismAlert = (type: 'success' | 'error' | 'warning', title: string, message: string) => {
+    setAlertType(type);
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setAlertVisible(true);
+    
+    Animated.parallel([
+      Animated.spring(alertAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.spring(alertScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    setTimeout(() => {
+      hideClaymorphismAlert();
+    }, 3000);
+  };
+
+  const hideClaymorphismAlert = () => {
+    Animated.parallel([
+      Animated.timing(alertAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(alertScale, {
+        toValue: 0.8,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setAlertVisible(false);
+    });
   };
 
   const getStatusColor = (status: string) => {
