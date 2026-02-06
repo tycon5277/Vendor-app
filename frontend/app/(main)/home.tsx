@@ -102,22 +102,19 @@ export default function HomeScreen() {
         clearTimeout(backPressTimer.current);
       }
 
-      const newCount = backPressCount + 1;
-      setBackPressCount(newCount);
-
-      if (newCount === 2) {
-        // Show toast on second press
+      if (backPressCount === 0) {
+        // First press - show toast
+        setBackPressCount(1);
         showExitNotification();
-      } else if (newCount >= 3) {
-        // Exit app on third press
+        
+        // Reset counter after 2.5 seconds of no press
+        backPressTimer.current = setTimeout(() => {
+          setBackPressCount(0);
+        }, 2500);
+      } else {
+        // Second press - exit app
         BackHandler.exitApp();
-        return true;
       }
-
-      // Reset counter after 2 seconds of no press
-      backPressTimer.current = setTimeout(() => {
-        setBackPressCount(0);
-      }, 2000);
 
       return true; // Prevent default back behavior
     });
