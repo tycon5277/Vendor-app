@@ -137,6 +137,74 @@ class Message(BaseModel):
     content: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+# ===================== PERFORMANCE ANALYTICS MODELS =====================
+
+class ProductPerformance(BaseModel):
+    """Track individual product sales performance"""
+    performance_id: str
+    vendor_id: str
+    product_id: str
+    product_name: str
+    date: str  # YYYY-MM-DD format
+    views: int = 0
+    orders_count: int = 0
+    units_sold: int = 0
+    revenue: float = 0.0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class TimeSlotPerformance(BaseModel):
+    """Track sales by time slots for peak hour analysis"""
+    timeslot_id: str
+    vendor_id: str
+    date: str  # YYYY-MM-DD format
+    hour: int  # 0-23
+    orders_count: int = 0
+    revenue: float = 0.0
+    average_order_value: float = 0.0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class VendorPerformanceReport(BaseModel):
+    """Daily/Weekly/Monthly performance summary for premium insights"""
+    report_id: str
+    vendor_id: str
+    period_type: str  # daily, weekly, monthly
+    period_start: str
+    period_end: str
+    total_orders: int = 0
+    total_revenue: float = 0.0
+    average_order_value: float = 0.0
+    top_products: List[dict] = []  # [{product_id, name, revenue, units}]
+    peak_hours: List[dict] = []  # [{hour, orders, revenue}]
+    customer_retention_rate: float = 0.0
+    new_customers: int = 0
+    returning_customers: int = 0
+    cancellation_rate: float = 0.0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class PremiumSubscription(BaseModel):
+    """Track vendor premium subscriptions"""
+    subscription_id: str
+    vendor_id: str
+    plan_type: str  # basic, pro, enterprise
+    features: List[str] = []  # ['advanced_analytics', 'priority_support', 'marketing_tools']
+    price: float
+    billing_cycle: str  # monthly, yearly
+    status: str = "active"  # active, cancelled, expired
+    start_date: datetime
+    end_date: datetime
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class AnalyticsEvent(BaseModel):
+    """Track user interactions for analytics"""
+    event_id: str
+    vendor_id: str
+    event_type: str  # product_view, add_to_cart, order_placed, order_completed
+    product_id: Optional[str] = None
+    order_id: Optional[str] = None
+    customer_id: Optional[str] = None
+    metadata: Dict = {}
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # ===================== AUTH HELPERS =====================
 
 async def get_current_user(request: Request, session_token: Optional[str] = Cookie(default=None)) -> Optional[User]:
