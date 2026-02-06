@@ -200,6 +200,9 @@ backend:
         - working: true
           agent: "testing"
           comment: "✅ Order management working. Seed data creates sample orders, get all orders returns 3 orders, get pending orders works, accept order changes status to 'confirmed' successfully."
+        - working: true
+          agent: "testing"
+          comment: "✅ Order Accept/Reject functionality thoroughly tested. Authentication with phone 9876543210 and OTP 123456 successful. Seed data created sample orders. Accept endpoint POST /api/vendor/orders/{order_id}/accept works perfectly - changes status to 'confirmed' and updates status history. Reject endpoint POST /api/vendor/orders/{order_id}/reject works perfectly - changes status to 'rejected' with reason parameter support. Both endpoints properly validate vendor ownership and order status. Status history tracking working correctly for both operations."
 
   - task: "Chat System"
     implemented: true
