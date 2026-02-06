@@ -41,6 +41,7 @@ type FilterType = 'all' | 'in_stock' | 'low_stock' | 'out_of_stock';
 export default function WarehouseScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ filter?: string }>();
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,10 +51,7 @@ export default function WarehouseScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Get filter from navigation params (when coming from Orders page)
-  const params = router.params as { filter?: string } | undefined;
-  
-  // Set initial filter from params when screen loads
+  // Set initial filter from params when screen loads (from Orders page navigation)
   useEffect(() => {
     if (params?.filter && ['all', 'in_stock', 'low_stock', 'out_of_stock'].includes(params.filter)) {
       setSelectedFilter(params.filter as FilterType);
