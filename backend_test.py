@@ -271,6 +271,58 @@ class APITester:
                 self.log_result(f"Agent Update to {status}", False, 
                               f"Agent endpoint failed (expected if no agent auth) - endpoint exists but requires auth")
 
+    def test_auto_accept_in_orders(self, orders: List[Dict]):
+        """Test auto_accept_seconds field in orders response"""
+        print("\n=== AUTO-ACCEPT SECONDS TESTING ===")
+        
+        auto_accept_found = False
+        for order in orders:
+            if order.get("status") == "pending" and "auto_accept_seconds" in order:
+                auto_accept_seconds = order["auto_accept_seconds"]
+                print(f"   Order {order['order_id'][-8:]}: auto_accept_seconds = {auto_accept_seconds}")
+                
+                if isinstance(auto_accept_seconds, int) and 0 <= auto_accept_seconds <= 180:
+                    self.log_result("Auto-Accept Seconds Field", True, 
+                                  f"Order {order['order_id'][-8:]} has auto_accept_seconds: {auto_accept_seconds} (valid range 0-180)")
+                    auto_accept_found = True
+                else:
+                    self.log_result("Auto-Accept Seconds Field", False, 
+                                  f"Order {order['order_id'][-8:]} has invalid auto_accept_seconds: {auto_accept_seconds}")
+        
+        if not auto_accept_found:
+            self.log_result("Auto-Accept Seconds Field", False, "No pending orders with auto_accept_seconds found")
+
+    def test_pending_orders_auto_accept(self):
+        """Test GET /api/vendor/orders/pending for auto_accept_seconds"""
+        print("\n=== PENDING ORDERS AUTO-ACCEPT TESTING ===")
+        
+        response = self.make_request("GET", "/vendor/orders/pending")
+        if response and isinstance(response, list):
+            pending_orders = response
+            self.log_result("Get Pending Orders", True, f"Retrieved {len(pending_orders)} pending orders")
+            
+            auto_accept_found = False
+            for order in pending_orders:
+                if "auto_accept_seconds" in order:
+                    auto_accept_seconds = order["auto_accept_seconds"]
+                    print(f"   Pending Order {order['order_id'][-8:]}: auto_accept_seconds = {auto_accept_seconds}")
+                    
+                    if isinstance(auto_accept_seconds, int) and 0 <= auto_accept_seconds <= 180:
+                        self.log_result("Pending Orders Auto-Accept Seconds", True, 
+                                      f"Order {order['order_id'][-8:]} has valid auto_accept_seconds: {auto_accept_seconds}")
+                        auto_accept_found = True
+                    else:
+                        self.log_result("Pending Orders Auto-Accept Seconds", False, 
+                                      f"Order {order['order_id'][-8:]} has invalid auto_accept_seconds: {auto_accept_seconds}")
+            
+            if not auto_accept_found:
+                self.log_result("Pending Orders Auto-Accept Seconds", False, "No pending orders with auto_accept_seconds found")
+            
+            return pending_orders
+        else:
+            self.log_result("Get Pending Orders", False, "Failed to retrieve pending orders")
+            return []
+
     def test_notifications(self):
         """Test notification endpoints"""
         print("\n=== NOTIFICATION TESTING ===")
@@ -281,23 +333,61 @@ class APITester:
             notifications = response["notifications"]
             unread_count = response.get("unread_count", 0)
             self.log_result("Get Notifications", True, 
-                          f"Retrieved {len(notifications)} notifications, {unread_count} unread")
+                          f"Retrieved {len(notifications)} notifications, unread_count: {unread_count}")
             
-            # Test marking notifications as read if any exist
-            if notifications:
-                first_notification_id = notifications[0].get("notification_id")
-                if first_notification_id:
-                    # Mark single notification as read
-                    response = self.make_request("PUT", f"/vendor/notifications/{first_notification_id}/read")
-                    if response:
-                        self.log_result("Mark Single Notification Read", True, "Notification marked as read")
-                    
-                    # Mark all notifications as read
-                    response = self.make_request("PUT", "/vendor/notifications/read-all")
-                    if response:
-                        self.log_result("Mark All Notifications Read", True, "All notifications marked as read")
+            # Validate structure
+            if isinstance(notifications, list):
+                self.log_result("Notifications Structure", True, "Notifications returned as array")
+                
+                # Check for auto-accept notifications
+                auto_accept_notifications = [n for n in notifications if n.get("type") == "order_auto_accepted"]
+                if auto_accept_notifications:
+                    self.log_result("Auto-Accept Notifications", True, 
+                                  f"Found {len(auto_accept_notifications)} auto-accept notifications")
+                
+                # Test marking notifications as read if any exist
+                if notifications:
+                    first_notification_id = notifications[0].get("notification_id")
+                    if first_notification_id:
+                        # Mark single notification as read
+                        response = self.make_request("PUT", f"/vendor/notifications/{first_notification_id}/read")
+                        if response:
+                            self.log_result("Mark Single Notification Read", True, "Notification marked as read")
+                        
+                        # Mark all notifications as read
+                        response = self.make_request("PUT", "/vendor/notifications/read-all")
+                        if response:
+                            self.log_result("Mark All Notifications Read", True, "All notifications marked as read")
+            else:
+                self.log_result("Notifications Structure", False, "Notifications not returned as array")
         else:
             self.log_result("Get Notifications", False, "Failed to get notifications")
+
+    def test_auto_accept_at_field(self, orders: List[Dict]):
+        """Test that pending orders have auto_accept_at datetime field"""
+        print("\n=== AUTO-ACCEPT AT FIELD TESTING ===")
+        
+        auto_accept_at_found = False
+        for order in orders:
+            if order.get("status") == "pending":
+                if "auto_accept_at" in order:
+                    auto_accept_at = order["auto_accept_at"]
+                    print(f"   Order {order['order_id'][-8:]}: auto_accept_at = {auto_accept_at}")
+                    
+                    # Validate it's a datetime string
+                    if isinstance(auto_accept_at, str) and "T" in auto_accept_at:
+                        self.log_result("Auto-Accept At Field", True, 
+                                      f"Order {order['order_id'][-8:]} has auto_accept_at field: {auto_accept_at}")
+                        auto_accept_at_found = True
+                    else:
+                        self.log_result("Auto-Accept At Field", False, 
+                                      f"Order {order['order_id'][-8:]} has invalid auto_accept_at format: {auto_accept_at}")
+                else:
+                    self.log_result("Auto-Accept At Field", False, 
+                                  f"Pending order {order['order_id'][-8:]} missing auto_accept_at field")
+        
+        if not auto_accept_at_found:
+            self.log_result("Auto-Accept At Field", False, "No pending orders with auto_accept_at field found")
 
     def run_all_tests(self):
         """Run all tests in sequence"""
