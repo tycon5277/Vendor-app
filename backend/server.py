@@ -1177,30 +1177,64 @@ async def seed_vendor_data(current_user: User = Depends(require_auth)):
     
     vendor_id = current_user.user_id
     
-    # Create sample products
+    # Create sample products - comprehensive demo data
     products = [
-        {"name": "Basmati Rice (5kg)", "description": "Premium long grain aromatic rice", "price": 450, "discounted_price": 399, "category": "Groceries", "unit": "bag"},
-        {"name": "Fresh Milk (1L)", "description": "Farm fresh pasteurized milk", "price": 65, "category": "Dairy", "unit": "liter"},
-        {"name": "Bread Loaf", "description": "Soft white bread, freshly baked", "price": 45, "category": "Bakery", "unit": "piece"},
-        {"name": "Eggs (12 pcs)", "description": "Farm fresh eggs", "price": 85, "discounted_price": 75, "category": "Dairy", "unit": "dozen"},
-        {"name": "Cooking Oil (1L)", "description": "Refined sunflower oil", "price": 180, "category": "Groceries", "unit": "liter"},
-        {"name": "Sugar (1kg)", "description": "Fine grain white sugar", "price": 55, "category": "Groceries", "unit": "kg"},
-        {"name": "Tea Powder (250g)", "description": "Premium CTC tea", "price": 120, "discounted_price": 99, "category": "Beverages", "unit": "pack"},
-        {"name": "Biscuits Pack", "description": "Assorted cream biscuits", "price": 35, "category": "Snacks", "unit": "pack"},
+        # Groceries (5 items - mix of stock levels)
+        {"name": "Basmati Rice (5kg)", "description": "Premium long grain aromatic rice", "price": 450, "discounted_price": 399, "category": "Groceries", "unit": "bag", "stock_quantity": 25, "in_stock": True},
+        {"name": "Cooking Oil (1L)", "description": "Refined sunflower oil", "price": 180, "category": "Groceries", "unit": "liter", "stock_quantity": 50, "in_stock": True},
+        {"name": "Sugar (1kg)", "description": "Fine grain white sugar", "price": 55, "category": "Groceries", "unit": "kg", "stock_quantity": 8, "in_stock": True},  # Low stock
+        {"name": "Wheat Flour (10kg)", "description": "Whole wheat atta", "price": 380, "discounted_price": 350, "category": "Groceries", "unit": "bag", "stock_quantity": 0, "in_stock": False},  # Out of stock
+        {"name": "Salt (1kg)", "description": "Iodized table salt", "price": 25, "category": "Groceries", "unit": "kg", "stock_quantity": 100, "in_stock": True},
+        
+        # Dairy (4 items)
+        {"name": "Fresh Milk (1L)", "description": "Farm fresh pasteurized milk", "price": 65, "category": "Dairy", "unit": "liter", "stock_quantity": 40, "in_stock": True},
+        {"name": "Eggs (12 pcs)", "description": "Farm fresh eggs", "price": 85, "discounted_price": 75, "category": "Dairy", "unit": "dozen", "stock_quantity": 5, "in_stock": True},  # Low stock
+        {"name": "Butter (100g)", "description": "Creamy salted butter", "price": 55, "category": "Dairy", "unit": "piece", "stock_quantity": 30, "in_stock": True},
+        {"name": "Paneer (200g)", "description": "Fresh cottage cheese", "price": 90, "category": "Dairy", "unit": "piece", "stock_quantity": 0, "in_stock": False},  # Out of stock
+        
+        # Beverages (4 items)
+        {"name": "Tea Powder (250g)", "description": "Premium CTC tea", "price": 120, "discounted_price": 99, "category": "Beverages", "unit": "pack", "stock_quantity": 60, "in_stock": True},
+        {"name": "Coffee Powder (200g)", "description": "Premium filter coffee", "price": 150, "category": "Beverages", "unit": "pack", "stock_quantity": 3, "in_stock": True},  # Low stock
+        {"name": "Orange Juice (1L)", "description": "100% pure orange juice", "price": 120, "category": "Beverages", "unit": "liter", "stock_quantity": 20, "in_stock": True},
+        {"name": "Mango Lassi (250ml)", "description": "Sweet mango yogurt drink", "price": 40, "category": "Beverages", "unit": "piece", "stock_quantity": 15, "in_stock": True},
+        
+        # Snacks (4 items)
+        {"name": "Biscuits Pack", "description": "Assorted cream biscuits", "price": 35, "category": "Snacks", "unit": "pack", "stock_quantity": 80, "in_stock": True},
+        {"name": "Potato Chips (100g)", "description": "Classic salted chips", "price": 30, "discounted_price": 25, "category": "Snacks", "unit": "pack", "stock_quantity": 45, "in_stock": True},
+        {"name": "Mixed Nuts (250g)", "description": "Premium dry fruits mix", "price": 280, "category": "Snacks", "unit": "pack", "stock_quantity": 0, "in_stock": False},  # Out of stock
+        {"name": "Namkeen (200g)", "description": "Spicy Indian mixture", "price": 45, "category": "Snacks", "unit": "pack", "stock_quantity": 55, "in_stock": True},
+        
+        # Bakery (3 items)
+        {"name": "Bread Loaf", "description": "Soft white bread, freshly baked", "price": 45, "category": "Bakery", "unit": "piece", "stock_quantity": 20, "in_stock": True},
+        {"name": "Croissant (2 pcs)", "description": "Buttery French pastry", "price": 80, "discounted_price": 70, "category": "Bakery", "unit": "pack", "stock_quantity": 6, "in_stock": True},  # Low stock
+        {"name": "Cake Slice", "description": "Chocolate truffle cake", "price": 60, "category": "Bakery", "unit": "piece", "stock_quantity": 12, "in_stock": True},
+        
+        # Fruits (3 items)
+        {"name": "Bananas (6 pcs)", "description": "Fresh ripe bananas", "price": 40, "category": "Fruits", "unit": "bunch", "stock_quantity": 35, "in_stock": True},
+        {"name": "Apples (1kg)", "description": "Kashmir red apples", "price": 180, "discounted_price": 160, "category": "Fruits", "unit": "kg", "stock_quantity": 10, "in_stock": True},  # Low stock
+        {"name": "Oranges (1kg)", "description": "Nagpur oranges", "price": 90, "category": "Fruits", "unit": "kg", "stock_quantity": 0, "in_stock": False},  # Out of stock
+        
+        # Vegetables (3 items)
+        {"name": "Tomatoes (1kg)", "description": "Fresh red tomatoes", "price": 35, "category": "Vegetables", "unit": "kg", "stock_quantity": 40, "in_stock": True},
+        {"name": "Onions (1kg)", "description": "Farm fresh onions", "price": 30, "category": "Vegetables", "unit": "kg", "stock_quantity": 60, "in_stock": True},
+        {"name": "Potatoes (1kg)", "description": "Fresh potatoes", "price": 25, "discounted_price": 22, "category": "Vegetables", "unit": "kg", "stock_quantity": 9, "in_stock": True},  # Low stock
+        
+        # Frozen (2 items)
+        {"name": "Frozen Peas (500g)", "description": "Green peas, frozen", "price": 85, "category": "Frozen", "unit": "pack", "stock_quantity": 25, "in_stock": True},
+        {"name": "Ice Cream (500ml)", "description": "Vanilla ice cream tub", "price": 150, "discounted_price": 130, "category": "Frozen", "unit": "tub", "stock_quantity": 0, "in_stock": False},  # Out of stock
     ]
     
+    # Clear existing products for this vendor first
+    await db.products.delete_many({"vendor_id": vendor_id})
+    
     for p in products:
-        existing = await db.products.find_one({"vendor_id": vendor_id, "name": p["name"]})
-        if not existing:
-            product = {
-                "product_id": f"prod_{uuid.uuid4().hex[:12]}",
-                "vendor_id": vendor_id,
-                "in_stock": True,
-                "stock_quantity": 100,
-                "created_at": datetime.now(timezone.utc),
-                **p
-            }
-            await db.products.insert_one(product)
+        product = {
+            "product_id": f"prod_{uuid.uuid4().hex[:12]}",
+            "vendor_id": vendor_id,
+            "created_at": datetime.now(timezone.utc),
+            **p
+        }
+        await db.products.insert_one(product)
     
     # Create sample orders
     sample_orders = [
