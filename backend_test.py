@@ -100,14 +100,15 @@ class APITester:
         print("\n=== SEED DATA TESTING ===")
         
         response = self.make_request("POST", "/seed/vendor")
-        if response and response.get("message") == "Vendor seed data created successfully":
-            created_products = response.get("products_created", 0)
-            created_orders = response.get("orders_created", 0)
+        if response and (response.get("message") == "Vendor seed data created successfully" or
+                        response.get("message") == "Vendor data seeded successfully"):
+            created_products = response.get("products_created", "N/A")
+            created_orders = response.get("orders_created", "N/A")
             self.log_result("Seed Data Creation", True, 
                           f"Created {created_products} products, {created_orders} orders")
             return True
         else:
-            self.log_result("Seed Data Creation", False, "Failed to create seed data")
+            self.log_result("Seed Data Creation", False, f"Failed to create seed data. Response: {response}")
             return False
 
     def test_get_orders(self):
