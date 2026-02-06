@@ -15,8 +15,8 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../src/store/authStore';
-import { vendorAPI, orderAPI } from '../../src/utils/api';
-import { Analytics, Order } from '../../src/types';
+import { vendorAPI, orderAPI, productAPI } from '../../src/utils/api';
+import { Analytics, Order, Product } from '../../src/types';
 import { useAlert } from '../../src/context/AlertContext';
 
 const { width } = Dimensions.get('window');
@@ -29,19 +29,27 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
+  // Calculate inventory alerts
+  const lowStockProducts = products.filter(p => p.stock_quantity <= 10 && p.in_stock);
+  const outOfStockProducts = products.filter(p => !p.in_stock);
+  const hasInventoryAlerts = lowStockProducts.length > 0 || outOfStockProducts.length > 0;
+
   const loadData = async () => {
     try {
-      const [analyticsRes, ordersRes] = await Promise.all([
+      const [analyticsRes, ordersRes, productsRes] = await Promise.all([
         vendorAPI.getAnalytics(),
         orderAPI.getPending(),
+        productAPI.getAll(),
       ]);
       setAnalytics(analyticsRes.data);
       setPendingOrders(ordersRes.data);
+      setProducts(productsRes.data);
     } catch (error) {
       console.error('Load data error:', error);
     }
