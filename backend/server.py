@@ -89,6 +89,9 @@ class Product(BaseModel):
     unit: str = "piece"  # piece, kg, liter, etc.
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+# Auto-accept timeout in seconds (3 minutes)
+AUTO_ACCEPT_TIMEOUT_SECONDS = 180
+
 class ShopOrder(BaseModel):
     order_id: str
     user_id: str
@@ -108,6 +111,7 @@ class ShopOrder(BaseModel):
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
     special_instructions: Optional[str] = None
+    auto_accept_at: Optional[datetime] = None  # When order will auto-accept
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class EarningsRecord(BaseModel):
