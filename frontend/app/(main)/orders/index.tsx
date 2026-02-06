@@ -629,49 +629,135 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // Stock Alert
-  stockAlertContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 8,
-    gap: 8,
+  // Stock Alert Section - Redesigned
+  stockAlertSection: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  stockAlertCard: {
+  stockAlertHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  stockAlertHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    gap: 8,
   },
-  stockAlertIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  stockAlertHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  viewAllText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6366F1',
+  },
+  stockAlertCards: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  alertCardDanger: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  alertCardWarning: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  alertCardIcon: {
+    marginRight: 10,
+  },
+  alertIconCircleDanger: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#DC2626',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  stockAlertContent: {
-    flex: 1,
-    marginLeft: 12,
+  alertIconCircleWarning: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#F59E0B',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  stockAlertTitle: {
-    fontSize: 13,
-    fontWeight: '700',
+  alertCardBody: {
+    flex: 1,
+  },
+  alertCardCount: {
+    fontSize: 22,
+    fontWeight: '800',
     color: '#DC2626',
   },
-  stockAlertTitleWarning: {
-    fontSize: 13,
-    fontWeight: '700',
+  alertCardCountWarning: {
+    fontSize: 22,
+    fontWeight: '800',
     color: '#D97706',
   },
-  stockAlertText: {
+  alertCardLabel: {
     fontSize: 12,
+    fontWeight: '600',
+    color: '#991B1B',
+  },
+  alertCardLabelWarning: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400E',
+  },
+  alertCardArrow: {
+    paddingLeft: 8,
+  },
+  // Header improvements
+  headerLeft: {
+    flex: 1,
+  },
+  orderSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 6,
+  },
+  summaryDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22C55E',
+  },
+  summaryText: {
+    fontSize: 13,
     color: '#6B7280',
-    marginTop: 2,
   },
   // Tab Bar
   tabContainer: {
