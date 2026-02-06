@@ -20,9 +20,18 @@ import { Product } from '../../src/types';
 
 const { width } = Dimensions.get('window');
 
-const PRODUCT_CATEGORIES = [
-  'All', 'Groceries', 'Dairy', 'Beverages', 'Snacks', 'Bakery',
-  'Fruits', 'Vegetables', 'Meat', 'Seafood', 'Frozen', 'Other'
+// Category data with icons
+const CATEGORY_DATA = [
+  { id: 'All', label: 'All', icon: 'grid' },
+  { id: 'Groceries', label: 'Groceries', icon: 'basket' },
+  { id: 'Dairy', label: 'Dairy', icon: 'water' },
+  { id: 'Beverages', label: 'Drinks', icon: 'cafe' },
+  { id: 'Snacks', label: 'Snacks', icon: 'fast-food' },
+  { id: 'Bakery', label: 'Bakery', icon: 'pizza' },
+  { id: 'Fruits', label: 'Fruits', icon: 'nutrition' },
+  { id: 'Vegetables', label: 'Veggies', icon: 'leaf' },
+  { id: 'Frozen', label: 'Frozen', icon: 'snow' },
+  { id: 'Other', label: 'Other', icon: 'ellipsis-horizontal' },
 ];
 
 type FilterType = 'all' | 'in_stock' | 'low_stock' | 'out_of_stock';
