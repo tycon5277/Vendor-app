@@ -47,6 +47,7 @@ const UNITS = [
 export default function AddProductScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { showAlert } = useAlert();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
 
