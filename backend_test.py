@@ -526,6 +526,170 @@ class VendorAPITester:
         except Exception as e:
             self.log_test("Get Vendor Chats", False, f"Exception: {str(e)}")
             
+    def test_new_analytics_endpoints(self):
+        """Test NEW analytics endpoints for premium subscription features"""
+        print("\n=== Testing NEW Analytics Endpoints (Premium Features) ===")
+        
+        if not self.session_token:
+            self.log_test("Analytics APIs", False, "No session token available")
+            return False
+            
+        # Test 1: Product Performance Analytics
+        try:
+            response = requests.get(
+                f"{BASE_URL}/vendor/analytics/product-performance?period=week",
+                headers=self.headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                summary = data.get('summary', {})
+                self.log_test("Product Performance Analytics (Week)", True, 
+                    f"Period: {data.get('period')}, Views: {summary.get('total_views', 0)}, "
+                    f"Orders: {summary.get('total_orders', 0)}, Revenue: ₹{summary.get('total_revenue', 0)}, "
+                    f"Conversion Rate: {summary.get('conversion_rate', 0)}%")
+            else:
+                self.log_test("Product Performance Analytics (Week)", False, 
+                    f"Status: {response.status_code}, Response: {response.text}")
+                
+        except Exception as e:
+            self.log_test("Product Performance Analytics (Week)", False, f"Exception: {str(e)}")
+            
+        # Test 2: Time Performance Analytics (Peak Hours)
+        try:
+            response = requests.get(
+                f"{BASE_URL}/vendor/analytics/time-performance?period=week",
+                headers=self.headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                peak_hours = data.get('peak_hours', [])
+                best_hour = data.get('best_hour', {})
+                self.log_test("Time Performance Analytics (Week)", True, 
+                    f"Period: {data.get('period')}, Peak Hours: {len(peak_hours)}, "
+                    f"Best Hour: {best_hour.get('hour', 'N/A')}:00 ({best_hour.get('orders', 0)} orders)")
+            else:
+                self.log_test("Time Performance Analytics (Week)", False, 
+                    f"Status: {response.status_code}, Response: {response.text}")
+                
+        except Exception as e:
+            self.log_test("Time Performance Analytics (Week)", False, f"Exception: {str(e)}")
+            
+        # Test 3: Premium Insights (Before Subscription)
+        try:
+            response = requests.get(
+                f"{BASE_URL}/vendor/analytics/premium-insights",
+                headers=self.headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                is_premium = data.get('is_premium', False)
+                basic_stats = data.get('basic_stats', {})
+                premium_features = data.get('premium_features', {})
+                
+                available_features = len([f for f in premium_features.values() if f.get('available')])
+                
+                self.log_test("Premium Insights (Before Subscription)", True, 
+                    f"Is Premium: {is_premium}, Orders (30d): {basic_stats.get('orders_30d', 0)}, "
+                    f"Revenue (30d): ₹{basic_stats.get('revenue_30d', 0)}, "
+                    f"Available Features: {available_features}/{len(premium_features)}")
+            else:
+                self.log_test("Premium Insights (Before Subscription)", False, 
+                    f"Status: {response.status_code}, Response: {response.text}")
+                
+        except Exception as e:
+            self.log_test("Premium Insights (Before Subscription)", False, f"Exception: {str(e)}")
+            
+        # Test 4: Create Premium Subscription (Pro Plan)
+        try:
+            response = requests.post(
+                f"{BASE_URL}/vendor/subscribe",
+                params={"plan_type": "pro", "billing_cycle": "monthly"},
+                headers=self.headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                subscription = data.get('subscription', {})
+                self.log_test("Create Pro Subscription", True, 
+                    f"Plan: {subscription.get('plan_type')}, Price: ₹{subscription.get('price')}, "
+                    f"Status: {subscription.get('status')}, Features: {len(subscription.get('features', []))}")
+            else:
+                self.log_test("Create Pro Subscription", False, 
+                    f"Status: {response.status_code}, Response: {response.text}")
+                
+        except Exception as e:
+            self.log_test("Create Pro Subscription", False, f"Exception: {str(e)}")
+            
+        # Test 5: Premium Insights (After Subscription)
+        try:
+            response = requests.get(
+                f"{BASE_URL}/vendor/analytics/premium-insights",
+                headers=self.headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                is_premium = data.get('is_premium', False)
+                subscription = data.get('subscription', {})
+                
+                self.log_test("Premium Insights (After Subscription)", True, 
+                    f"Is Premium: {is_premium}, Plan: {subscription.get('plan_type', 'N/A')}, "
+                    f"Features: {len(subscription.get('features', []))}")
+            else:
+                self.log_test("Premium Insights (After Subscription)", False, 
+                    f"Status: {response.status_code}, Response: {response.text}")
+                
+        except Exception as e:
+            self.log_test("Premium Insights (After Subscription)", False, f"Exception: {str(e)}")
+            
+        # Test 6: Test different periods for analytics
+        for period in ["day", "month"]:
+            try:
+                response = requests.get(
+                    f"{BASE_URL}/vendor/analytics/product-performance?period={period}",
+                    headers=self.headers,
+                    timeout=10
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    self.log_test(f"Product Performance ({period})", True, 
+                        f"Period: {data.get('period')}, Data points: {len(data.get('daily_data', []))}")
+                else:
+                    self.log_test(f"Product Performance ({period})", False, 
+                        f"Status: {response.status_code}")
+            except Exception as e:
+                self.log_test(f"Product Performance ({period})", False, f"Exception: {str(e)}")
+                
+        # Test 7: Enterprise Subscription
+        try:
+            response = requests.post(
+                f"{BASE_URL}/vendor/subscribe",
+                params={"plan_type": "enterprise", "billing_cycle": "yearly"},
+                headers=self.headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                subscription = data.get('subscription', {})
+                self.log_test("Create Enterprise Subscription", True, 
+                    f"Upgraded to {subscription.get('plan_type')} plan. "
+                    f"Price: ₹{subscription.get('price')}, Billing: {subscription.get('billing_cycle')}")
+            else:
+                self.log_test("Create Enterprise Subscription", False, 
+                    f"Status: {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            self.log_test("Create Enterprise Subscription", False, f"Exception: {str(e)}")
+            
     def run_all_tests(self):
         """Run all tests in sequence"""
         print("🚀 Starting QuickWish Vendor API Tests")
