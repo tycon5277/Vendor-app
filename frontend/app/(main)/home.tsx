@@ -263,43 +263,6 @@ export default function HomeScreen() {
           <View style={{ height: 100 }} />
         </Animated.View>
       </ScrollView>
-
-      {/* Claymorphism Exit Toast */}
-      {showExitToast && (
-        <Animated.View 
-          style={[
-            styles.exitToastContainer,
-            {
-              opacity: toastAnim,
-              transform: [
-                { scale: toastScale },
-                { translateY: toastAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                })}
-              ],
-            }
-          ]}
-        >
-          <View style={styles.exitToast}>
-            <View style={styles.exitToastInner}>
-              <View style={styles.exitToastIcon}>
-                <Ionicons name="exit-outline" size={28} color="#6366F1" />
-              </View>
-              <View style={styles.exitToastContent}>
-                <Text style={styles.exitToastTitle}>Ready to leave? 👋</Text>
-                <Text style={styles.exitToastText}>Press back once more to exit</Text>
-              </View>
-              <View style={styles.exitToastBadge}>
-                <Ionicons name="arrow-back" size={16} color="#FFFFFF" />
-              </View>
-            </View>
-            <View style={styles.exitToastProgress}>
-              <Animated.View style={styles.exitToastProgressBar} />
-            </View>
-          </View>
-        </Animated.View>
-      )}
     </View>
   );
 }
