@@ -505,15 +505,32 @@ class StatusUpdate(BaseModel):
 
 @api_router.put("/vendor/status")
 async def update_vendor_status(data: StatusUpdate, current_user: User = Depends(require_vendor)):
-    """Update shop open/close status"""
+    """Update shop open/close status - syncs across all apps"""
     if data.status not in ["available", "offline"]:
         raise HTTPException(status_code=400, detail="Invalid status. Use 'available' or 'offline'")
     
     await db.users.update_one(
         {"user_id": current_user.user_id},
-        {"$set": {"partner_status": data.status}}
+        {"$set": {
+            "partner_status": data.status,
+            "status_updated_at": datetime.now(timezone.utc)
+        }}
     )
-    return {"message": f"Shop is now {'OPEN' if data.status == 'available' else 'CLOSED'}"}
+    
+    # Log status change for analytics
+    await db.analytics_events.insert_one({
+        "event_id": f"evt_{uuid.uuid4().hex[:12]}",
+        "vendor_id": current_user.user_id,
+        "event_type": "shop_status_change",
+        "metadata": {"new_status": data.status},
+        "timestamp": datetime.now(timezone.utc)
+    })
+    
+    return {
+        "message": f"Shop is now {'OPEN' if data.status == 'available' else 'CLOSED'}",
+        "status": data.status,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
 
 # ===================== PRODUCT MANAGEMENT =====================
 
