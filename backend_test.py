@@ -87,8 +87,8 @@ class APITester:
         verify_data = {"phone": TEST_PHONE, "otp": TEST_OTP}
         response = self.make_request("POST", "/auth/verify-otp", verify_data)
         
-        if response and "token" in response:
-            self.auth_token = response["token"]
+        if response and "session_token" in response:
+            self.auth_token = response["session_token"]
             self.log_result("Verify OTP", True, f"Token received: {self.auth_token[:20]}...")
             return True
         else:
