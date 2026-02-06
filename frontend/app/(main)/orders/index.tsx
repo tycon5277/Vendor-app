@@ -48,8 +48,8 @@ export default function OrdersScreen() {
 
   const filteredOrders = getFilteredOrders();
   const newOrdersCount = allOrders.filter(o => o.status === 'pending').length;
-  const activeOrdersCount = allOrders.filter(o => ['accepted', 'preparing', 'ready', 'picked_up'].includes(o.status)).length;
-  const completedOrdersCount = allOrders.filter(o => ['delivered', 'cancelled'].includes(o.status)).length;
+  const activeOrdersCount = allOrders.filter(o => ['accepted', 'confirmed', 'preparing', 'ready', 'picked_up'].includes(o.status)).length;
+  const completedOrdersCount = allOrders.filter(o => ['delivered', 'cancelled', 'rejected'].includes(o.status)).length;
 
   // Get low stock products
   const lowStockProducts = products.filter(p => p.stock_quantity <= 10 && p.in_stock);
