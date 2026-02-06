@@ -360,7 +360,7 @@ export default function OrdersScreen() {
   // Handle workflow action
   const handleWorkflowAction = async (order: Order, action: string) => {
     try {
-      await orderAPI.workflowAction(order.order_id, action);
+      await orderAPI.executeAction(order.order_id, action);
       const messages: Record<string, string> = {
         'start_preparing': 'Started preparing! 👨‍🍳',
         'mark_ready': 'Order is ready! 📦',
