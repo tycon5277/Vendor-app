@@ -1471,7 +1471,7 @@ async def get_time_performance(
         "peak_hours": peak_hours,
         "slow_hours": slow_hours,
         "best_hour": peak_hours[0] if peak_hours else None,
-        "recommendation": f"Consider increasing inventory and staff during peak hours: {', '.join([f'{h['hour']}:00' for h in peak_hours])}" if peak_hours else None
+        "recommendation": f"Consider increasing inventory and staff during peak hours: {', '.join([f\"{h['hour']}:00\" for h in peak_hours])}" if peak_hours else None
     }
 
 @api_router.get("/vendor/analytics/premium-insights")
