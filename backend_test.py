@@ -180,8 +180,8 @@ class APITester:
         print(f"   Step 4: Assign to Carpet Genie order {order_id}")
         assign_data = {"delivery_type": "carpet_genie"}
         response = self.make_request("POST", f"/vendor/orders/{order_id}/assign-delivery", assign_data)
-        if not response or response.get("status") != "awaiting_pickup":
-            self.log_result("Assign to Carpet Genie", False, "Failed to assign to Carpet Genie")
+        if not response or response.get("new_status") != "awaiting_pickup":
+            self.log_result("Assign to Carpet Genie", False, f"Failed to assign to Carpet Genie. Response: {response}")
             return
         self.log_result("Assign to Carpet Genie", True, "Order assigned to Carpet Genie successfully")
         
