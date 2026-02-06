@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 QuickWish Vendor App Backend API Testing
-Testing UPDATED Order Workflow APIs with vendor restriction when Carpet Genie is assigned
+Testing Timed Auto-Accept Feature for Orders
 """
 
 import requests
