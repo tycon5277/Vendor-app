@@ -1278,6 +1278,237 @@ async def track_order_delivery(order_id: str, current_user: User = Depends(requi
     
     return tracking_info
 
+# ===================== DELIVERY AGENT (GENIE) ENDPOINTS =====================
+# These endpoints are for the Carpet Genie delivery agents to update order status
+# The vendor app will show these updates in real-time
+
+class AgentOrderUpdate(BaseModel):
+    status: str  # picked_up, out_for_delivery, delivered
+    notes: Optional[str] = None
+    location: Optional[dict] = None  # {lat, lng} for live tracking
+
+@api_router.post("/agent/orders/{order_id}/update-status")
+async def agent_update_order_status(
+    order_id: str,
+    data: AgentOrderUpdate,
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None)
+):
+    """
+    Endpoint for delivery agents (Genie app) to update order status.
+    Only agents assigned to the order can update its status.
+    """
+    # Get current user (agent)
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.partner_type != "agent":
+        raise HTTPException(status_code=403, detail="Agent access required")
+    
+    # Find the order
+    order = await db.shop_orders.find_one({"order_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Verify agent is assigned to this order
+    if order.get("assigned_agent_id") != user.user_id:
+        raise HTTPException(status_code=403, detail="You are not assigned to this order")
+    
+    # Validate status transitions for agent
+    valid_agent_statuses = ["picked_up", "out_for_delivery", "delivered"]
+    if data.status not in valid_agent_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Agents can only set: {valid_agent_statuses}")
+    
+    # Create status entry
+    status_entry = {
+        "status": data.status,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "by": "agent",
+        "agent_id": user.user_id,
+        "agent_name": user.name,
+        "notes": data.notes
+    }
+    
+    update_data = {"status": data.status}
+    
+    # Update agent location if provided
+    if data.location:
+        update_data["agent_location"] = data.location
+    
+    # Handle delivered status - record earnings for both vendor and agent
+    if data.status == "delivered":
+        # Record vendor sale
+        vendor_earning = {
+            "earning_id": f"earn_{uuid.uuid4().hex[:12]}",
+            "partner_id": order["vendor_id"],
+            "order_id": order_id,
+            "amount": order["total_amount"],
+            "type": "sale",
+            "description": f"Order #{order_id[-8:]}",
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.earnings.insert_one(vendor_earning)
+        
+        # Record agent delivery fee
+        delivery_fee = order.get("delivery_fee", 0)
+        if delivery_fee > 0:
+            agent_earning = {
+                "earning_id": f"earn_{uuid.uuid4().hex[:12]}",
+                "partner_id": user.user_id,
+                "order_id": order_id,
+                "amount": delivery_fee,
+                "type": "delivery_fee",
+                "description": f"Delivery #{order_id[-8:]}",
+                "created_at": datetime.now(timezone.utc)
+            }
+            await db.earnings.insert_one(agent_earning)
+        
+        # Update vendor stats
+        await db.users.update_one(
+            {"user_id": order["vendor_id"]},
+            {
+                "$inc": {
+                    "partner_total_earnings": order["total_amount"],
+                    "partner_total_tasks": 1
+                }
+            }
+        )
+        
+        # Update agent stats
+        await db.users.update_one(
+            {"user_id": user.user_id},
+            {
+                "$inc": {
+                    "partner_total_earnings": delivery_fee,
+                    "partner_total_tasks": 1
+                }
+            }
+        )
+        
+        # Create notification for vendor
+        vendor_notification = {
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "user_id": order["vendor_id"],
+            "type": "order_delivered",
+            "title": "Order Delivered! 🎉",
+            "message": f"Order #{order_id[-8:]} has been delivered by {user.name or 'Carpet Genie'}",
+            "data": {"order_id": order_id},
+            "read": False,
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.notifications.insert_one(vendor_notification)
+        
+        # Create notification for customer
+        customer_notification = {
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "user_id": order["user_id"],
+            "type": "order_delivered",
+            "title": "Your order is here! 🎉",
+            "message": f"Your order from {order.get('vendor_name', 'the shop')} has been delivered",
+            "data": {"order_id": order_id},
+            "read": False,
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.notifications.insert_one(customer_notification)
+    
+    # Create notifications for status updates (picked_up, out_for_delivery)
+    elif data.status == "picked_up":
+        # Notify vendor
+        vendor_notification = {
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "user_id": order["vendor_id"],
+            "type": "order_picked_up",
+            "title": "Order Picked Up 📦",
+            "message": f"Order #{order_id[-8:]} picked up by {user.name or 'Carpet Genie'}",
+            "data": {"order_id": order_id},
+            "read": False,
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.notifications.insert_one(vendor_notification)
+        
+        # Notify customer
+        customer_notification = {
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "user_id": order["user_id"],
+            "type": "order_picked_up",
+            "title": "Order on the way! 🚴",
+            "message": f"Your order from {order.get('vendor_name', 'the shop')} is being delivered",
+            "data": {"order_id": order_id},
+            "read": False,
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.notifications.insert_one(customer_notification)
+    
+    elif data.status == "out_for_delivery":
+        customer_notification = {
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "user_id": order["user_id"],
+            "type": "out_for_delivery",
+            "title": "Almost there! 📍",
+            "message": f"Your delivery from {order.get('vendor_name', 'the shop')} is nearby",
+            "data": {"order_id": order_id},
+            "read": False,
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.notifications.insert_one(customer_notification)
+    
+    # Update the order
+    await db.shop_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": update_data,
+            "$push": {"status_history": status_entry}
+        }
+    )
+    
+    return {
+        "message": f"Order status updated to {data.status}",
+        "order_id": order_id,
+        "new_status": data.status
+    }
+
+# ===================== NOTIFICATIONS ENDPOINTS =====================
+
+@api_router.get("/vendor/notifications")
+async def get_vendor_notifications(
+    unread_only: bool = False,
+    limit: int = 50,
+    current_user: User = Depends(require_vendor)
+):
+    """Get notifications for vendor"""
+    query = {"user_id": current_user.user_id}
+    if unread_only:
+        query["read"] = False
+    
+    notifications = await db.notifications.find(query, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    unread_count = await db.notifications.count_documents({"user_id": current_user.user_id, "read": False})
+    
+    return {
+        "notifications": notifications,
+        "unread_count": unread_count
+    }
+
+@api_router.put("/vendor/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, current_user: User = Depends(require_vendor)):
+    """Mark a notification as read"""
+    result = await db.notifications.update_one(
+        {"notification_id": notification_id, "user_id": current_user.user_id},
+        {"$set": {"read": True}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return {"message": "Notification marked as read"}
+
+@api_router.put("/vendor/notifications/read-all")
+async def mark_all_notifications_read(current_user: User = Depends(require_vendor)):
+    """Mark all notifications as read"""
+    await db.notifications.update_many(
+        {"user_id": current_user.user_id, "read": False},
+        {"$set": {"read": True}}
+    )
+    return {"message": "All notifications marked as read"}
+
 # ===================== EARNINGS & ANALYTICS =====================
 
 @api_router.get("/vendor/earnings")
