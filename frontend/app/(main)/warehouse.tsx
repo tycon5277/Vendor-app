@@ -698,27 +698,32 @@ const styles = StyleSheet.create({
   },
   // Category
   categoryScroll: {
-    maxHeight: 50,
+    maxHeight: 56,
     backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   categoryContainer: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    gap: 8,
+    gap: 10,
   },
   categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
     backgroundColor: '#F3F4F6',
     borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
   },
   categoryChipActive: {
     backgroundColor: '#6366F1',
+    borderColor: '#6366F1',
   },
   categoryText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#374151',
   },
   categoryTextActive: {
     color: '#FFFFFF',
