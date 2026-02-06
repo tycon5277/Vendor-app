@@ -946,4 +946,108 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
+  // Claymorphism Alert Styles
+  alertContainer: {
+    position: 'absolute',
+    bottom: 120,
+    left: 16,
+    right: 16,
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  alertBox: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 4,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 15,
+    borderWidth: 2,
+    borderColor: 'rgba(99, 102, 241, 0.15)',
+  },
+  alertBoxSuccess: {
+    shadowColor: '#22C55E',
+    borderColor: 'rgba(34, 197, 94, 0.2)',
+  },
+  alertBoxError: {
+    shadowColor: '#EF4444',
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  alertBoxWarning: {
+    shadowColor: '#F59E0B',
+    borderColor: 'rgba(245, 158, 11, 0.2)',
+  },
+  alertInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+  },
+  alertIconBg: {
+    width: 56,
+    height: 56,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  alertIconBgSuccess: {
+    backgroundColor: '#DCFCE7',
+    shadowColor: '#22C55E',
+  },
+  alertIconBgError: {
+    backgroundColor: '#FEE2E2',
+    shadowColor: '#EF4444',
+  },
+  alertIconBgWarning: {
+    backgroundColor: '#FEF3C7',
+    shadowColor: '#F59E0B',
+  },
+  alertContent: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  alertMessage: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  alertProgressBar: {
+    height: 4,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
+    marginTop: 4,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  alertProgress: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#6366F1',
+    borderRadius: 2,
+  },
+  alertProgressSuccess: {
+    backgroundColor: '#22C55E',
+  },
+  alertProgressError: {
+    backgroundColor: '#EF4444',
+  },
+  alertProgressWarning: {
+    backgroundColor: '#F59E0B',
+  },
 });
