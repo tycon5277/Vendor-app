@@ -74,10 +74,17 @@ export const orderAPI = {
   getPending: () => api.get('/vendor/orders/pending'),
   getActive: () => api.get('/vendor/orders/active'),
   getOne: (id: string) => api.get(`/vendor/orders/${id}`),
+  getDetails: (id: string) => api.get(`/vendor/orders/${id}/details`),
   accept: (id: string) => api.post(`/vendor/orders/${id}/accept`),
   reject: (id: string, reason?: string) => api.post(`/vendor/orders/${id}/reject`, { reason }),
   updateStatus: (id: string, status: string) => api.put(`/vendor/orders/${id}/status`, { status }),
   requestAgent: (id: string) => api.post(`/vendor/orders/${id}/assign-agent`),
+  // New workflow APIs
+  executeAction: (id: string, action: string, notes?: string) => 
+    api.post(`/vendor/orders/${id}/workflow/${action}`, { notes }),
+  assignDelivery: (id: string, deliveryType: string, notes?: string) =>
+    api.post(`/vendor/orders/${id}/assign-delivery`, { delivery_type: deliveryType, notes }),
+  track: (id: string) => api.get(`/vendor/orders/${id}/track`),
 };
 
 // Chat APIs
