@@ -204,6 +204,18 @@ backend:
           agent: "testing"
           comment: "✅ Order Accept/Reject functionality thoroughly tested. Authentication with phone 9876543210 and OTP 123456 successful. Seed data created sample orders. Accept endpoint POST /api/vendor/orders/{order_id}/accept works perfectly - changes status to 'confirmed' and updates status history. Reject endpoint POST /api/vendor/orders/{order_id}/reject works perfectly - changes status to 'rejected' with reason parameter support. Both endpoints properly validate vendor ownership and order status. Status history tracking working correctly for both operations."
 
+  - task: "Analytics Endpoints (Premium Features)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ NEW Analytics endpoints fully tested and working perfectly. All 4 new premium analytics endpoints tested successfully: 1) GET /api/vendor/analytics/product-performance?period=week - returns product views, orders, revenue, conversion rate ✅ 2) GET /api/vendor/analytics/time-performance?period=week - returns peak hours analysis with best performing time slots ✅ 3) GET /api/vendor/analytics/premium-insights - returns subscription status, basic stats, premium features availability ✅ 4) POST /api/vendor/subscribe with plan_type=pro - creates premium subscription successfully ✅ All endpoints support different periods (day, week, month), subscription tiers (pro, enterprise), and proper authentication. Premium features are correctly locked/unlocked based on subscription status."
+
   - task: "Chat System"
     implemented: true
     working: true
