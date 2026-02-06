@@ -1485,7 +1485,7 @@ async def get_premium_insights(user: User = Depends(require_vendor)):
         "vendor_id": vendor_id,
         "status": "active",
         "end_date": {"$gte": now}
-    })
+    }, {"_id": 0})  # Exclude _id field
     
     is_premium = subscription is not None
     
