@@ -482,6 +482,65 @@ export default function OrdersScreen() {
           </View>
         }
       />
+
+      {/* Claymorphism Alert */}
+      {alertVisible && (
+        <Animated.View 
+          style={[
+            styles.alertContainer,
+            {
+              opacity: alertAnim,
+              transform: [
+                { scale: alertScale },
+                { translateY: alertAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                })}
+              ],
+            }
+          ]}
+        >
+          <View style={[
+            styles.alertBox,
+            alertType === 'success' && styles.alertBoxSuccess,
+            alertType === 'error' && styles.alertBoxError,
+            alertType === 'warning' && styles.alertBoxWarning,
+          ]}>
+            <View style={styles.alertInner}>
+              <View style={[
+                styles.alertIconBg,
+                alertType === 'success' && styles.alertIconBgSuccess,
+                alertType === 'error' && styles.alertIconBgError,
+                alertType === 'warning' && styles.alertIconBgWarning,
+              ]}>
+                <Ionicons 
+                  name={
+                    alertType === 'success' ? 'checkmark-circle' :
+                    alertType === 'error' ? 'close-circle' : 'warning'
+                  } 
+                  size={32} 
+                  color={
+                    alertType === 'success' ? '#22C55E' :
+                    alertType === 'error' ? '#EF4444' : '#F59E0B'
+                  } 
+                />
+              </View>
+              <View style={styles.alertContent}>
+                <Text style={styles.alertTitle}>{alertTitle}</Text>
+                <Text style={styles.alertMessage}>{alertMessage}</Text>
+              </View>
+            </View>
+            <View style={styles.alertProgressBar}>
+              <View style={[
+                styles.alertProgress,
+                alertType === 'success' && styles.alertProgressSuccess,
+                alertType === 'error' && styles.alertProgressError,
+                alertType === 'warning' && styles.alertProgressWarning,
+              ]} />
+            </View>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }
