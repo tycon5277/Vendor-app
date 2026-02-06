@@ -668,6 +668,49 @@ async def get_vendor_categories(current_user: User = Depends(require_vendor)):
 
 # ===================== ORDER MANAGEMENT =====================
 
+async def process_auto_accept_orders(vendor_id: str):
+    """Check and auto-accept orders that have exceeded the timeout"""
+    now = datetime.now(timezone.utc)
+    
+    # Find pending orders that have exceeded auto_accept_at time
+    pending_orders = await db.shop_orders.find({
+        "vendor_id": vendor_id,
+        "status": "pending",
+        "auto_accept_at": {"$lte": now}
+    }).to_list(100)
+    
+    for order in pending_orders:
+        # Auto-accept the order
+        status_entry = {
+            "status": "confirmed",
+            "timestamp": now.isoformat(),
+            "by": "system",
+            "reason": "auto_accepted"
+        }
+        
+        await db.shop_orders.update_one(
+            {"order_id": order["order_id"]},
+            {
+                "$set": {"status": "confirmed"},
+                "$push": {"status_history": status_entry}
+            }
+        )
+        
+        # Create notification for vendor
+        notification = {
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "user_id": vendor_id,
+            "type": "order_auto_accepted",
+            "title": "Order Auto-Accepted ⏰",
+            "message": f"Order #{order['order_id'][-8:]} was auto-accepted. Please start preparing!",
+            "data": {"order_id": order["order_id"]},
+            "read": False,
+            "created_at": now
+        }
+        await db.notifications.insert_one(notification)
+        
+        logger.info(f"Auto-accepted order {order['order_id']} for vendor {vendor_id}")
+
 @api_router.get("/vendor/orders")
 async def get_vendor_orders(
     status: Optional[str] = None,
@@ -675,6 +718,9 @@ async def get_vendor_orders(
     current_user: User = Depends(require_vendor)
 ):
     """Get orders for vendor"""
+    # First, process any auto-accept orders
+    await process_auto_accept_orders(current_user.user_id)
+    
     query = {"vendor_id": current_user.user_id}
     
     if status:
@@ -682,23 +728,54 @@ async def get_vendor_orders(
     
     orders = await db.shop_orders.find(query, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
     
-    # Enrich with customer info
+    now = datetime.now(timezone.utc)
+    
+    # Enrich with customer info and auto-accept countdown
     for order in orders:
         if not order.get("customer_name"):
             customer = await db.users.find_one({"user_id": order["user_id"]}, {"_id": 0, "name": 1, "phone": 1})
             if customer:
                 order["customer_name"] = customer.get("name", "Customer")
                 order["customer_phone"] = customer.get("phone")
+        
+        # Calculate seconds until auto-accept for pending orders
+        if order.get("status") == "pending" and order.get("auto_accept_at"):
+            auto_accept_at = order["auto_accept_at"]
+            if isinstance(auto_accept_at, str):
+                auto_accept_at = datetime.fromisoformat(auto_accept_at.replace('Z', '+00:00'))
+            if auto_accept_at.tzinfo is None:
+                auto_accept_at = auto_accept_at.replace(tzinfo=timezone.utc)
+            
+            seconds_remaining = (auto_accept_at - now).total_seconds()
+            order["auto_accept_seconds"] = max(0, int(seconds_remaining))
     
     return orders
 
 @api_router.get("/vendor/orders/pending")
 async def get_pending_orders(current_user: User = Depends(require_vendor)):
-    """Get new pending orders"""
+    """Get new pending orders with auto-accept countdown"""
+    # First, process any auto-accept orders
+    await process_auto_accept_orders(current_user.user_id)
+    
     orders = await db.shop_orders.find(
         {"vendor_id": current_user.user_id, "status": "pending"},
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
+    
+    now = datetime.now(timezone.utc)
+    
+    # Add auto-accept countdown
+    for order in orders:
+        if order.get("auto_accept_at"):
+            auto_accept_at = order["auto_accept_at"]
+            if isinstance(auto_accept_at, str):
+                auto_accept_at = datetime.fromisoformat(auto_accept_at.replace('Z', '+00:00'))
+            if auto_accept_at.tzinfo is None:
+                auto_accept_at = auto_accept_at.replace(tzinfo=timezone.utc)
+            
+            seconds_remaining = (auto_accept_at - now).total_seconds()
+            order["auto_accept_seconds"] = max(0, int(seconds_remaining))
+    
     return orders
 
 @api_router.get("/vendor/orders/active")
