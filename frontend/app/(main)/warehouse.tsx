@@ -1082,4 +1082,9 @@ const styles = StyleSheet.create({
   filterScrollContainer: {
     backgroundColor: '#FFFFFF',
   },
+  filterWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
 });
