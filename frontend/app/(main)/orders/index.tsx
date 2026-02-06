@@ -1023,7 +1023,13 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#FDE68A',
+    borderTopColor: '#E5E7EB',
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#A7F3D0',
   },
   rejectBtnSmall: {
     width: 44,
@@ -1047,6 +1053,54 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  // Start Preparing Button (for Confirmed orders)
+  startPreparingBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DC2626',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  startPreparingBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  // Mark Ready Button (for Preparing orders)
+  markReadyBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#059669',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  markReadyBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  // Assign Delivery Button (for Ready orders)
+  assignDeliveryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#D1FAE5',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 6,
+  },
+  assignDeliveryBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#059669',
   },
   // Empty State
   emptyState: {
