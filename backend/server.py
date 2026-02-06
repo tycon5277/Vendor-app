@@ -1001,8 +1001,19 @@ def get_delivery_options(order: dict, vendor: dict) -> list:
     return options
 
 def get_next_actions(order: dict, vendor: dict) -> list:
-    """Get available next actions based on current order status"""
+    """Get available next actions based on current order status
+    
+    IMPORTANT: Once order is assigned to Carpet Genie (agent_delivery), 
+    the vendor cannot perform delivery-related actions. Only the delivery 
+    agent can mark as picked_up, out_for_delivery, and delivered.
+    """
     status = order.get("status", "pending")
+    delivery_method = order.get("delivery_method", "")
+    delivery_type = order.get("delivery_type", "")
+    is_carpet_genie = delivery_method == "carpet_genie" or (delivery_type == "agent_delivery" and order.get("assigned_agent_id"))
+    is_self_delivery = delivery_method == "self" or delivery_type == "vendor_delivery"
+    is_self_pickup = delivery_type == "self_pickup"
+    
     actions = []
     
     if status == "pending":
@@ -1016,18 +1027,39 @@ def get_next_actions(order: dict, vendor: dict) -> list:
         actions.append({"action": "mark_ready", "label": "Mark Ready", "primary": True})
     
     elif status == "ready":
-        if order.get("delivery_type") == "self_pickup":
+        if is_self_pickup:
             actions.append({"action": "customer_picked_up", "label": "Customer Picked Up", "primary": True})
-        else:
-            if not order.get("assigned_agent_id") and not order.get("delivery_type") == "vendor_delivery":
-                actions.append({"action": "assign_delivery", "label": "Assign Delivery", "primary": True})
+        elif is_carpet_genie:
+            # Vendor already assigned to Carpet Genie - waiting for agent pickup
+            # No actions for vendor - agent will update status
+            pass
+        elif is_self_delivery:
+            # Vendor's own delivery - vendor can mark out for delivery
             actions.append({"action": "out_for_delivery", "label": "Out for Delivery", "primary": True})
+        else:
+            # Delivery not yet assigned - show assign options
+            actions.append({"action": "assign_delivery", "label": "Assign Delivery", "primary": True})
     
     elif status == "awaiting_pickup":
-        actions.append({"action": "picked_up", "label": "Picked Up by Delivery", "primary": True})
+        if is_carpet_genie:
+            # Waiting for Carpet Genie agent to pick up
+            # No actions for vendor - agent will update
+            pass
+        elif is_self_delivery:
+            # Vendor's own delivery - vendor can mark picked up
+            actions.append({"action": "picked_up", "label": "Picked Up", "primary": True})
     
     elif status == "picked_up" or status == "out_for_delivery":
-        actions.append({"action": "delivered", "label": "Mark Delivered", "primary": True})
+        if is_carpet_genie:
+            # Carpet Genie agent is delivering - no vendor actions
+            # Agent will mark as delivered from Genie app
+            pass
+        elif is_self_pickup:
+            # Self pickup - vendor can mark customer collected
+            actions.append({"action": "delivered", "label": "Customer Collected", "primary": True})
+        elif is_self_delivery:
+            # Vendor's own delivery - vendor can mark delivered
+            actions.append({"action": "delivered", "label": "Mark Delivered", "primary": True})
     
     return actions
 
