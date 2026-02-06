@@ -1442,7 +1442,7 @@ async def get_time_performance(
         start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
     
     # Get orders for the period to calculate time slots
-    orders = await db.orders.find({
+    orders = await db.shop_orders.find({
         "vendor_id": user.user_id,
         "created_at": {"$gte": datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)}
     }).to_list(1000)
