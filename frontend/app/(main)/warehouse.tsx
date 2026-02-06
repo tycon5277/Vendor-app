@@ -172,17 +172,21 @@ export default function WarehouseScreen() {
       filtered = filtered.filter(p => p.category === category);
     }
 
-    // Stock filter
+    // Stock filter - with robust checks
     switch (filter) {
       case 'in_stock':
-        filtered = filtered.filter(p => p.in_stock && p.stock_quantity > 10);
+        // Products that are in stock AND have more than 10 items
+        filtered = filtered.filter(p => p.in_stock === true && (p.stock_quantity || 0) > 10);
         break;
       case 'low_stock':
-        filtered = filtered.filter(p => p.in_stock && p.stock_quantity <= 10);
+        // Products that are in stock but have 10 or fewer items
+        filtered = filtered.filter(p => p.in_stock === true && (p.stock_quantity || 0) <= 10);
         break;
       case 'out_of_stock':
-        filtered = filtered.filter(p => !p.in_stock);
+        // Products that are marked as out of stock
+        filtered = filtered.filter(p => p.in_stock === false || p.in_stock === undefined);
         break;
+      // 'all' case - no filtering needed
     }
 
     // Search filter
