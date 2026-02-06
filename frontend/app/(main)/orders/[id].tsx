@@ -447,8 +447,8 @@ export default function OrderDetailScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Bottom Action Buttons */}
-      {nextActions.length > 0 && (
+      {/* Bottom Action Buttons OR Carpet Genie Status */}
+      {nextActions.length > 0 ? (
         <View style={[styles.bottomActions, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           {nextActions.map((action, index) => (
             <TouchableOpacity
@@ -482,6 +482,33 @@ export default function OrderDetailScreen() {
             </TouchableOpacity>
           ))}
         </View>
+      ) : (
+        /* Show Carpet Genie status when no actions available */
+        (order.delivery_method === 'carpet_genie' || 
+         (order.delivery_type === 'agent_delivery' && order.assigned_agent_id)) &&
+        ['awaiting_pickup', 'picked_up', 'out_for_delivery'].includes(order.status) && (
+          <View style={[styles.bottomStatusBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <View style={styles.carpetGenieStatusContainer}>
+              <View style={styles.carpetGenieIconContainer}>
+                <Ionicons name="bicycle" size={24} color="#22C55E" />
+              </View>
+              <View style={styles.carpetGenieStatusContent}>
+                <Text style={styles.carpetGenieStatusTitle}>
+                  {order.status === 'awaiting_pickup' && 'Waiting for Pickup'}
+                  {order.status === 'picked_up' && 'Order Picked Up'}
+                  {order.status === 'out_for_delivery' && 'On The Way'}
+                </Text>
+                <Text style={styles.carpetGenieStatusSubtitle}>
+                  {order.agent_name ? `${order.agent_name} will update the status` : 'Carpet Genie agent will update'}
+                </Text>
+              </View>
+              <View style={styles.liveIndicator}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>LIVE</Text>
+              </View>
+            </View>
+          </View>
+        )
       )}
 
       {/* Delivery Options Modal */}
