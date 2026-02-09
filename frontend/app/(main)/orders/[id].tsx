@@ -70,8 +70,25 @@ export default function OrderDetailScreen() {
   const [adjustedQty, setAdjustedQty] = useState('');
   const [showTimeline, setShowTimeline] = useState(false);
   const [selectedDeliveryOption, setSelectedDeliveryOption] = useState<'carpet_genie' | 'self_delivery' | null>(null);
+  const [pickedItems, setPickedItems] = useState<Set<string>>(new Set());
   
   const progressAnim = useRef(new Animated.Value(0)).current;
+
+  // Toggle item picked status
+  const toggleItemPicked = (productId: string) => {
+    setPickedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  // Check if all items are picked
+  const allItemsPicked = orderItems.filter(i => !i.unavailable).every(item => pickedItems.has(item.product_id));
 
   const loadOrderDetails = async () => {
     if (!params.id) return;
