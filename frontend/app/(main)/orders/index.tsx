@@ -463,7 +463,7 @@ export default function OrdersScreen() {
           </Text>
         </View>
 
-        {/* Quick Actions for Pending */}
+        {/* Quick Actions for Pending - Accept/Reject stay as direct actions */}
         {isPending && (
           <View style={styles.quickActions}>
             <TouchableOpacity 
@@ -482,33 +482,35 @@ export default function OrdersScreen() {
           </View>
         )}
 
-        {/* Quick Action for Confirmed - Start Preparing */}
+        {/* Quick Action for Confirmed - Opens order detail */}
         {isConfirmed && (
           <View style={styles.quickActions}>
             <TouchableOpacity 
               style={styles.startPreparingBtn}
-              onPress={(e) => { e.stopPropagation(); handleWorkflowAction(item, 'start_preparing'); }}
+              onPress={() => router.push(`/(main)/orders/${item.order_id}`)}
             >
               <Ionicons name="flame" size={18} color="#FFFFFF" />
               <Text style={styles.startPreparingBtnText}>Start Preparing</Text>
+              <Ionicons name="chevron-forward" size={16} color="#FFFFFF" style={{ marginLeft: 4 }} />
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Quick Action for Preparing - Mark Ready */}
+        {/* Quick Action for Preparing - Opens order detail */}
         {isPreparing && (
           <View style={styles.quickActions}>
             <TouchableOpacity 
               style={styles.markReadyBtn}
-              onPress={(e) => { e.stopPropagation(); handleWorkflowAction(item, 'mark_ready'); }}
+              onPress={() => router.push(`/(main)/orders/${item.order_id}`)}
             >
               <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
               <Text style={styles.markReadyBtnText}>Mark Ready</Text>
+              <Ionicons name="chevron-forward" size={16} color="#FFFFFF" style={{ marginLeft: 4 }} />
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Quick Action for Ready - Assign Delivery */}
+        {/* Quick Action for Ready - Opens order detail */}
         {isReady && (
           <View style={styles.quickActionsRow}>
             <TouchableOpacity 
@@ -517,6 +519,7 @@ export default function OrdersScreen() {
             >
               <Ionicons name="bicycle" size={16} color="#059669" />
               <Text style={styles.assignDeliveryBtnText}>Assign Delivery</Text>
+              <Ionicons name="chevron-forward" size={14} color="#059669" style={{ marginLeft: 4 }} />
             </TouchableOpacity>
           </View>
         )}
