@@ -85,6 +85,9 @@ export const orderAPI = {
   assignDelivery: (id: string, deliveryType: string, notes?: string) =>
     api.post(`/vendor/orders/${id}/assign-delivery`, { delivery_type: deliveryType, notes }),
   track: (id: string) => api.get(`/vendor/orders/${id}/track`),
+  // Item management
+  updateItems: (id: string, data: { items: any[], adjusted_total: number }) =>
+    api.put(`/vendor/orders/${id}/items`, data),
 };
 
 // Chat APIs
