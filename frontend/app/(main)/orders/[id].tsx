@@ -1239,6 +1239,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
   },
+  deliveryOptionBtnRecommended: {
+    borderWidth: 2,
+    borderColor: '#22C55E',
+    backgroundColor: '#F0FDF4',
+  },
+  deliveryOptionBtnSecondary: {
+    backgroundColor: '#FAFAFA',
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+  },
+  deliveryOptionTitleSecondary: {
+    color: '#6B7280',
+  },
+  recommendedBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   // Timeline Toggle
   timelineToggle: {
     flexDirection: 'row',
