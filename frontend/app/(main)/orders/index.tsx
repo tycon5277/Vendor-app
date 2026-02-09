@@ -352,35 +352,6 @@ export default function OrdersScreen() {
   };
 
   const formatCountdown = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Handle workflow action
-  const handleWorkflowAction = async (order: Order, action: string) => {
-    try {
-      await orderAPI.executeAction(order.order_id, action);
-      const messages: Record<string, string> = {
-        'start_preparing': 'Started preparing! 👨‍🍳',
-        'mark_ready': 'Order is ready! 📦',
-      };
-      showAlert({
-        type: 'success',
-        title: messages[action] || 'Updated!',
-        message: 'Order status updated',
-      });
-      loadOrders();
-    } catch (error) {
-      showAlert({
-        type: 'error',
-        title: 'Error',
-        message: 'Failed to update order',
-      });
-    }
-  };
-
-  const renderOrder = ({ item, index }: { item: Order; index: number }) => {
     const statusColor = getStatusColor(item.status);
     const isPending = item.status === 'pending';
     const isConfirmed = item.status === 'confirmed' || item.status === 'accepted';
