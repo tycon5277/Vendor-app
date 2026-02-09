@@ -57,9 +57,6 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
   const overlayAnim = useRef(new Animated.Value(0)).current;
   const iconRotation = useRef(new Animated.Value(0)).current;
   
-  // Sound ref
-  const soundRef = useRef<Audio.Sound | null>(null);
-  
   // App state ref
   const appState = useRef(AppState.currentState);
   
