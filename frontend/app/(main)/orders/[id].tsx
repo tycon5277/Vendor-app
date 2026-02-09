@@ -403,59 +403,154 @@ export default function OrderDetailScreen() {
         <View style={styles.itemsCard}>
           <View style={styles.itemsHeader}>
             <View style={styles.itemsHeaderLeft}>
-              <Text style={styles.sectionTitle}>Order Items</Text>
-              <View style={styles.itemCountBadge}>
-                <Text style={styles.itemCountText}>{orderItems.length} items</Text>
+              <Text style={styles.sectionTitle}>
+                {order.status === 'preparing' ? 'Packing List' : 'Order Items'}
+              </Text>
+              <View style={[
+                styles.itemCountBadge,
+                order.status === 'preparing' && pickedItems.size === availableItems.length && styles.itemCountBadgeComplete
+              ]}>
+                <Text style={[
+                  styles.itemCountText,
+                  order.status === 'preparing' && pickedItems.size === availableItems.length && styles.itemCountTextComplete
+                ]}>
+                  {order.status === 'preparing' 
+                    ? `${pickedItems.size}/${availableItems.length} picked`
+                    : `${orderItems.length} items`
+                  }
+                </Text>
               </View>
             </View>
-            {(order.status === 'confirmed' || order.status === 'preparing') && (
+            {order.status === 'confirmed' && (
               <View style={styles.editHint}>
                 <Ionicons name="create-outline" size={14} color="#6366F1" />
                 <Text style={styles.editHintText}>Tap item to edit</Text>
               </View>
             )}
+            {order.status === 'preparing' && (
+              <View style={styles.packingHint}>
+                <Ionicons name="checkbox" size={14} color="#22C55E" />
+                <Text style={styles.packingHintText}>Tap to confirm</Text>
+              </View>
+            )}
           </View>
 
-          {/* Available Items */}
-          {availableItems.map((item, index) => (
-            <TouchableOpacity
-              key={item.product_id}
-              style={[
-                styles.itemRow,
-                index < availableItems.length - 1 && styles.itemRowBorder
-              ]}
-              onPress={() => {
-                if (order.status === 'confirmed' || order.status === 'preparing') {
-                  openItemManagement(item);
-                }
-              }}
-              activeOpacity={order.status === 'confirmed' || order.status === 'preparing' ? 0.7 : 1}
-            >
-              <View style={styles.itemQtyBadge}>
-                <Text style={styles.itemQtyText}>
-                  {item.adjusted_quantity !== undefined ? item.adjusted_quantity : item.quantity}x
-                </Text>
-              </View>
-              <View style={styles.itemDetails}>
-                <Text style={styles.itemName}>{item.name}</Text>
-                <Text style={styles.itemPrice}>₹{item.price} each</Text>
-                {item.adjusted_quantity !== undefined && item.adjusted_quantity !== item.quantity && (
-                  <View style={styles.adjustedBadge}>
-                    <Ionicons name="pencil" size={10} color="#F59E0B" />
-                    <Text style={styles.adjustedText}>
-                      Changed from {item.quantity}
+          {/* Table Header for Preparing Status */}
+          {order.status === 'preparing' && (
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderText, { flex: 1 }]}>Item</Text>
+              <Text style={[styles.tableHeaderText, { width: 70, textAlign: 'right' }]}>Price</Text>
+              <Text style={[styles.tableHeaderText, { width: 50, textAlign: 'center' }]}>Picked</Text>
+            </View>
+          )}
+
+          {/* Available Items - Different layout for preparing */}
+          {order.status === 'preparing' ? (
+            // Packing List Layout
+            availableItems.map((item, index) => {
+              const isPicked = pickedItems.has(item.product_id);
+              return (
+                <TouchableOpacity
+                  key={item.product_id}
+                  style={[
+                    styles.packingRow,
+                    index < availableItems.length - 1 && styles.packingRowBorder,
+                    isPicked && styles.packingRowPicked
+                  ]}
+                  onPress={() => toggleItemPicked(item.product_id)}
+                  activeOpacity={0.7}
+                >
+                  {/* Item Column */}
+                  <View style={styles.packingItemCol}>
+                    <View style={styles.packingQtyBadge}>
+                      <Text style={styles.packingQtyText}>
+                        {item.adjusted_quantity !== undefined ? item.adjusted_quantity : item.quantity}x
+                      </Text>
+                    </View>
+                    <View style={styles.packingItemDetails}>
+                      <Text style={[
+                        styles.packingItemName,
+                        isPicked && styles.packingItemNamePicked
+                      ]}>
+                        {item.name}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  {/* Price Column */}
+                  <View style={styles.packingPriceCol}>
+                    <Text style={[
+                      styles.packingPrice,
+                      isPicked && styles.packingPricePicked
+                    ]}>
+                      ₹{((item.adjusted_quantity || item.quantity) * item.price).toFixed(0)}
                     </Text>
                   </View>
+                  
+                  {/* Checkbox Column */}
+                  <View style={styles.packingCheckCol}>
+                    <View style={[
+                      styles.packingCheckbox,
+                      isPicked && styles.packingCheckboxChecked
+                    ]}>
+                      {isPicked && (
+                        <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          ) : (
+            // Regular Layout for other statuses
+            availableItems.map((item, index) => (
+              <TouchableOpacity
+                key={item.product_id}
+                style={[
+                  styles.itemRow,
+                  index < availableItems.length - 1 && styles.itemRowBorder
+                ]}
+                onPress={() => {
+                  if (order.status === 'confirmed') {
+                    openItemManagement(item);
+                  }
+                }}
+                activeOpacity={order.status === 'confirmed' ? 0.7 : 1}
+              >
+                <View style={styles.itemQtyBadge}>
+                  <Text style={styles.itemQtyText}>
+                    {item.adjusted_quantity !== undefined ? item.adjusted_quantity : item.quantity}x
+                  </Text>
+                </View>
+                <View style={styles.itemDetails}>
+                  <Text style={styles.itemName}>{item.name}</Text>
+                  <Text style={styles.itemPrice}>₹{item.price} each</Text>
+                  {item.adjusted_quantity !== undefined && item.adjusted_quantity !== item.quantity && (
+                    <View style={styles.adjustedBadge}>
+                      <Ionicons name="pencil" size={10} color="#F59E0B" />
+                      <Text style={styles.adjustedText}>
+                        Changed from {item.quantity}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.itemTotal}>
+                  ₹{((item.adjusted_quantity || item.quantity) * item.price).toFixed(0)}
+                </Text>
+                {order.status === 'confirmed' && (
+                  <Ionicons name="chevron-forward" size={18} color="#D1D5DB" />
                 )}
-              </View>
-              <Text style={styles.itemTotal}>
-                ₹{((item.adjusted_quantity || item.quantity) * item.price).toFixed(0)}
-              </Text>
-              {(order.status === 'confirmed' || order.status === 'preparing') && (
-                <Ionicons name="chevron-forward" size={18} color="#D1D5DB" />
-              )}
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            ))
+          )}
+
+          {/* All Items Picked Confirmation */}
+          {order.status === 'preparing' && allItemsPicked && (
+            <View style={styles.allPickedBanner}>
+              <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+              <Text style={styles.allPickedText}>All items picked! Ready to pack.</Text>
+            </View>
+          )}
 
           {/* Unavailable Items */}
           {unavailableItems.length > 0 && (
