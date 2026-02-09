@@ -1387,6 +1387,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#22C55E',
     borderColor: '#22C55E',
   },
+  packingEditBtn: {
+    width: 40,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 8,
+  },
+  packingItemAdjusted: {
+    fontSize: 11,
+    color: '#F59E0B',
+    marginTop: 2,
+  },
   // All Picked Banner
   allPickedBanner: {
     flexDirection: 'row',
