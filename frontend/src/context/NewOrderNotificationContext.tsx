@@ -44,7 +44,10 @@ const POLL_INTERVAL = 10000; // 10 seconds
 
 export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const router = useRouter();
-  const { isAuthenticated, isVendor } = useAuthStore();
+  const { isAuthenticated, isVendor, user } = useAuthStore();
+  
+  // Check if vendor is online (available status)
+  const isVendorOnline = user?.partner_status === 'available';
   
   const [visible, setVisible] = useState(false);
   const [currentNewOrder, setCurrentNewOrder] = useState<Order | null>(null);
@@ -58,11 +61,86 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
   const overlayAnim = useRef(new Animated.Value(0)).current;
   const iconRotation = useRef(new Animated.Value(0)).current;
   
+  // Sound ref
+  const soundRef = useRef<Audio.Sound | null>(null);
+  
   // App state ref
   const appState = useRef(AppState.currentState);
   
   // Vibration pattern: [wait, vibrate, wait, vibrate...]
   const VIBRATION_PATTERN = [0, 500, 200, 500, 200, 800];
+
+  // Play notification sound
+  const playNotificationSound = useCallback(async () => {
+    try {
+      // Configure audio mode for alerts
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      });
+      
+      // Create and play a system-like notification sound using a tone
+      // Since we don't have an external sound file, we'll use web audio on web
+      // and rely on haptics/vibration on native
+      if (Platform.OS === 'web') {
+        // Use Web Audio API for web platform
+        try {
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          
+          // Create a notification-like sound pattern
+          const playTone = (freq: number, startTime: number, duration: number) => {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = freq;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, startTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+            
+            oscillator.start(startTime);
+            oscillator.stop(startTime + duration);
+          };
+          
+          // Play a pleasant notification chime (3 ascending tones)
+          const now = audioContext.currentTime;
+          playTone(523.25, now, 0.15);        // C5
+          playTone(659.25, now + 0.15, 0.15); // E5
+          playTone(783.99, now + 0.3, 0.3);   // G5
+          
+          // Second pattern after a pause
+          setTimeout(() => {
+            const now2 = audioContext.currentTime;
+            playTone(523.25, now2, 0.15);
+            playTone(659.25, now2 + 0.15, 0.15);
+            playTone(783.99, now2 + 0.3, 0.3);
+          }, 800);
+          
+        } catch (webAudioError) {
+          console.log('Web Audio not available:', webAudioError);
+        }
+      }
+    } catch (error) {
+      console.log('Sound playback setup failed:', error);
+    }
+  }, []);
+
+  // Cleanup sound
+  const cleanupSound = useCallback(async () => {
+    if (soundRef.current) {
+      try {
+        await soundRef.current.unloadAsync();
+      } catch (error) {
+        // Ignore cleanup errors
+      }
+      soundRef.current = null;
+    }
+  }, []);
 
   // Trigger haptic feedback for notification
   const triggerHapticFeedback = useCallback(async () => {
