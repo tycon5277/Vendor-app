@@ -1177,6 +1177,132 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6366F1',
   },
+  // Item Count Badge Complete State
+  itemCountBadgeComplete: {
+    backgroundColor: '#DCFCE7',
+  },
+  itemCountTextComplete: {
+    color: '#22C55E',
+  },
+  // Packing Hint
+  packingHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  packingHintText: {
+    fontSize: 12,
+    color: '#22C55E',
+  },
+  // Table Header
+  tableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 10,
+    marginBottom: 4,
+    borderBottomWidth: 2,
+    borderBottomColor: '#E5E7EB',
+  },
+  tableHeaderText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  // Packing Row
+  packingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  packingRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  packingRowPicked: {
+    backgroundColor: '#F0FDF4',
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+  },
+  packingItemCol: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  packingQtyBadge: {
+    minWidth: 32,
+    height: 28,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  packingQtyText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  packingItemDetails: {
+    flex: 1,
+  },
+  packingItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  packingItemNamePicked: {
+    color: '#22C55E',
+    textDecorationLine: 'line-through',
+  },
+  packingPriceCol: {
+    width: 70,
+    alignItems: 'flex-end',
+  },
+  packingPrice: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  packingPricePicked: {
+    color: '#22C55E',
+  },
+  packingCheckCol: {
+    width: 50,
+    alignItems: 'center',
+  },
+  packingCheckbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  packingCheckboxChecked: {
+    backgroundColor: '#22C55E',
+    borderColor: '#22C55E',
+  },
+  // All Picked Banner
+  allPickedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DCFCE7',
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 10,
+    gap: 8,
+  },
+  allPickedText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#166534',
+  },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
