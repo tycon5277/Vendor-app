@@ -277,7 +277,10 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
 
   // Check for new orders
   const checkForNewOrders = useCallback(async () => {
-    if (!isAuthenticated || !isVendor) return;
+    // Only poll if vendor is authenticated, is a vendor, AND is online
+    if (!isAuthenticated || !isVendor || !isVendorOnline) {
+      return;
+    }
     
     try {
       const response = await orderAPI.getPending();
@@ -309,7 +312,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
     } catch (error) {
       console.log('Error checking for new orders:', error);
     }
-  }, [isAuthenticated, isVendor, isInitialized, knownOrderIds, visible, showNotification]);
+  }, [isAuthenticated, isVendor, isVendorOnline, isInitialized, knownOrderIds, visible, showNotification]);
 
   // Handle app state changes
   useEffect(() => {
