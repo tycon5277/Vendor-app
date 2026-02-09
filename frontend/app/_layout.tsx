@@ -49,8 +49,10 @@ function InitialLayout() {
 export default function RootLayout() {
   return (
     <AlertProvider>
-      <StatusBar style="dark" />
-      <InitialLayout />
+      <NewOrderNotificationProvider>
+        <StatusBar style="dark" />
+        <InitialLayout />
+      </NewOrderNotificationProvider>
     </AlertProvider>
   );
 }
