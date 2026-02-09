@@ -502,6 +502,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6366F1',
   },
+  // Inventory Alerts Section at Top
+  inventorySectionTop: {
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
   // Hero Section - Clickable
   heroSection: {
     backgroundColor: '#6366F1',
