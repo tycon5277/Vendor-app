@@ -416,6 +416,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
         currentNewOrder, 
         dismissNotification,
         refreshOrders,
+        isVendorOnline,
       }}
     >
       {children}
