@@ -1313,6 +1313,51 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  deliveryOptionBtnSelected: {
+    borderColor: '#6366F1',
+    borderWidth: 2,
+    backgroundColor: '#EEF2FF',
+  },
+  radioCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  radioCircleSelected: {
+    borderColor: '#6366F1',
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#6366F1',
+  },
+  assignDeliveryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#6366F1',
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  assignDeliveryBtnDisabled: {
+    backgroundColor: '#E5E7EB',
+  },
+  assignDeliveryBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  assignDeliveryBtnTextDisabled: {
+    color: '#9CA3AF',
+  },
   // Timeline Toggle
   timelineToggle: {
     flexDirection: 'row',
