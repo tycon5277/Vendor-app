@@ -2250,6 +2250,420 @@ def get_status_message(status: str, agent_name: str = None) -> str:
     }
     return messages.get(status, status)
 
+# ===================== PAYMENT & ESCROW ENDPOINTS =====================
+
+def calculate_gateway_fee(amount: float) -> dict:
+    """Calculate payment gateway fees (Razorpay ~2% + GST)"""
+    base_fee = max(amount * (PAYMENT_CONFIG["gateway_fee_percent"] / 100), PAYMENT_CONFIG["min_gateway_fee"])
+    gst = base_fee * (PAYMENT_CONFIG["gst_on_gateway_fee"] / 100)
+    total_fee = round(base_fee + gst, 2)
+    return {
+        "base_fee": round(base_fee, 2),
+        "gst": round(gst, 2),
+        "total_fee": total_fee,
+        "net_amount": round(amount - total_fee, 2)
+    }
+
+# Create payment for an order (called from Wisher app)
+class CreatePaymentRequest(BaseModel):
+    order_id: str
+    payment_method: str = "upi"  # upi, card, netbanking
+
+@api_router.post("/payments/create")
+async def create_payment(data: CreatePaymentRequest):
+    """Initialize payment for an order - creates escrow holding"""
+    order = await db.shop_orders.find_one({"order_id": data.order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("payment_status") == "paid":
+        raise HTTPException(status_code=400, detail="Order already paid")
+    
+    now = datetime.now(timezone.utc)
+    transaction_id = f"txn_{uuid.uuid4().hex[:12]}"
+    
+    items_amount = order.get("total_amount", 0) - order.get("delivery_fee", 0)
+    delivery_fee = order.get("delivery_fee", 0)
+    total_amount = order.get("total_amount", 0)
+    
+    # Create payment transaction record
+    transaction = {
+        "transaction_id": transaction_id,
+        "order_id": data.order_id,
+        "customer_id": order["user_id"],
+        "vendor_id": order["vendor_id"],
+        "items_amount": items_amount,
+        "delivery_fee": delivery_fee,
+        "total_amount": total_amount,
+        "payment_method": data.payment_method,
+        "payment_gateway": "razorpay",
+        "status": "pending",
+        "created_at": now
+    }
+    await db.payment_transactions.insert_one(transaction)
+    
+    # TODO: Integrate with Razorpay to create actual payment order
+    # For now, return mock Razorpay order details
+    razorpay_order = {
+        "id": f"order_{uuid.uuid4().hex[:12]}",
+        "amount": int(total_amount * 100),  # Razorpay uses paise
+        "currency": "INR",
+        "receipt": transaction_id
+    }
+    
+    return {
+        "transaction_id": transaction_id,
+        "order_id": data.order_id,
+        "amount": total_amount,
+        "razorpay_order": razorpay_order,
+        "payment_method": data.payment_method
+    }
+
+# Confirm payment (webhook from Razorpay or manual confirmation)
+class ConfirmPaymentRequest(BaseModel):
+    transaction_id: str
+    gateway_payment_id: str
+    gateway_signature: Optional[str] = None
+
+@api_router.post("/payments/confirm")
+async def confirm_payment(data: ConfirmPaymentRequest):
+    """Confirm payment and create escrow holding"""
+    transaction = await db.payment_transactions.find_one({"transaction_id": data.transaction_id})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    if transaction.get("status") == "captured":
+        return {"message": "Payment already confirmed", "status": "captured"}
+    
+    now = datetime.now(timezone.utc)
+    
+    # Update transaction
+    await db.payment_transactions.update_one(
+        {"transaction_id": data.transaction_id},
+        {
+            "$set": {
+                "status": "captured",
+                "gateway_transaction_id": data.gateway_payment_id,
+                "captured_at": now
+            }
+        }
+    )
+    
+    # Create escrow holding
+    holding_id = f"hold_{uuid.uuid4().hex[:12]}"
+    escrow = {
+        "holding_id": holding_id,
+        "order_id": transaction["order_id"],
+        "transaction_id": data.transaction_id,
+        "original_items_amount": transaction["items_amount"],
+        "original_delivery_fee": transaction["delivery_fee"],
+        "original_total": transaction["total_amount"],
+        "current_items_amount": transaction["items_amount"],
+        "current_delivery_fee": transaction["delivery_fee"],
+        "current_total": transaction["total_amount"],
+        "total_refunded": 0.0,
+        "refund_history": [],
+        "vendor_settlement_amount": 0.0,
+        "vendor_settlement_status": "pending",
+        "genie_settlement_amount": 0.0,
+        "genie_settlement_status": "pending",
+        "status": "holding",
+        "created_at": now
+    }
+    await db.escrow_holdings.insert_one(escrow)
+    
+    # Update order payment status
+    await db.shop_orders.update_one(
+        {"order_id": transaction["order_id"]},
+        {
+            "$set": {
+                "payment_status": "paid",
+                "payment_transaction_id": data.transaction_id
+            }
+        }
+    )
+    
+    return {
+        "message": "Payment confirmed",
+        "holding_id": holding_id,
+        "status": "captured"
+    }
+
+# Process refund (for unavailable items, cancellations, etc.)
+class ProcessRefundRequest(BaseModel):
+    order_id: str
+    amount: float
+    reason: str  # item_unavailable, quantity_adjusted, order_cancelled, delivery_failed
+    reason_details: Optional[str] = None
+    affected_items: List[dict] = []  # [{product_id, name, quantity, amount}]
+
+@api_router.post("/payments/refund")
+async def process_refund(data: ProcessRefundRequest):
+    """Process a refund from escrow holding"""
+    # Find escrow holding
+    escrow = await db.escrow_holdings.find_one({"order_id": data.order_id})
+    if not escrow:
+        raise HTTPException(status_code=404, detail="No payment found for this order")
+    
+    if escrow.get("status") == "fully_released":
+        raise HTTPException(status_code=400, detail="Funds already released, cannot refund")
+    
+    # Check if refund amount is valid
+    available_for_refund = escrow["current_total"] - escrow.get("total_refunded", 0)
+    if data.amount > available_for_refund:
+        raise HTTPException(status_code=400, detail=f"Refund amount exceeds available balance. Max: ₹{available_for_refund}")
+    
+    now = datetime.now(timezone.utc)
+    refund_id = f"ref_{uuid.uuid4().hex[:12]}"
+    
+    # Create refund record
+    refund = {
+        "refund_id": refund_id,
+        "order_id": data.order_id,
+        "transaction_id": escrow["transaction_id"],
+        "customer_id": (await db.shop_orders.find_one({"order_id": data.order_id}))["user_id"],
+        "amount": data.amount,
+        "reason": data.reason,
+        "reason_details": data.reason_details,
+        "affected_items": data.affected_items,
+        "status": "processing",
+        "created_at": now
+    }
+    await db.refunds.insert_one(refund)
+    
+    # Update escrow holding
+    new_refund_entry = {
+        "refund_id": refund_id,
+        "amount": data.amount,
+        "reason": data.reason,
+        "timestamp": now.isoformat()
+    }
+    
+    new_total_refunded = escrow.get("total_refunded", 0) + data.amount
+    new_current_total = escrow["original_total"] - new_total_refunded
+    
+    await db.escrow_holdings.update_one(
+        {"order_id": data.order_id},
+        {
+            "$set": {
+                "current_total": new_current_total,
+                "current_items_amount": new_current_total - escrow["current_delivery_fee"],
+                "total_refunded": new_total_refunded
+            },
+            "$push": {"refund_history": new_refund_entry}
+        }
+    )
+    
+    # TODO: Process actual refund via Razorpay
+    # For now, mark as completed
+    await db.refunds.update_one(
+        {"refund_id": refund_id},
+        {"$set": {"status": "completed", "processed_at": now}}
+    )
+    
+    # Notify customer
+    order = await db.shop_orders.find_one({"order_id": data.order_id})
+    notification = {
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": order["user_id"],
+        "type": "refund_processed",
+        "title": "Refund Processed 💰",
+        "message": f"₹{data.amount} refunded for order #{data.order_id[-8:]}. Reason: {data.reason_details or data.reason}",
+        "data": {"order_id": data.order_id, "refund_id": refund_id, "amount": data.amount},
+        "read": False,
+        "created_at": now
+    }
+    await db.notifications.insert_one(notification)
+    
+    return {
+        "message": "Refund processed",
+        "refund_id": refund_id,
+        "amount": data.amount,
+        "new_order_total": new_current_total
+    }
+
+# Release funds after delivery (settlement)
+@api_router.post("/payments/settle/{order_id}")
+async def settle_order_payment(order_id: str):
+    """Release funds from escrow after delivery confirmation"""
+    order = await db.shop_orders.find_one({"order_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("status") != "delivered":
+        raise HTTPException(status_code=400, detail="Order must be delivered before settlement")
+    
+    escrow = await db.escrow_holdings.find_one({"order_id": order_id})
+    if not escrow:
+        raise HTTPException(status_code=404, detail="No escrow holding found")
+    
+    if escrow.get("status") == "fully_released":
+        return {"message": "Already settled", "status": "fully_released"}
+    
+    now = datetime.now(timezone.utc)
+    
+    # Calculate vendor settlement (items amount minus gateway fee)
+    items_amount = escrow["current_items_amount"]
+    vendor_fees = calculate_gateway_fee(items_amount)
+    vendor_net = vendor_fees["net_amount"]
+    
+    # Calculate genie settlement (delivery fee - will be settled weekly)
+    delivery_fee = escrow["current_delivery_fee"]
+    genie_id = order.get("assigned_agent_id")
+    
+    # Update escrow with settlement amounts
+    await db.escrow_holdings.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "vendor_settlement_amount": vendor_net,
+                "vendor_settlement_status": "pending",  # Will be processed in batch
+                "genie_settlement_amount": delivery_fee,
+                "genie_id": genie_id,
+                "genie_settlement_status": "pending",
+                "status": "partially_released"
+            }
+        }
+    )
+    
+    # Update vendor wallet (pending balance)
+    await db.vendor_wallets.update_one(
+        {"vendor_id": order["vendor_id"]},
+        {
+            "$inc": {"pending_balance": vendor_net},
+            "$setOnInsert": {
+                "wallet_id": f"vwallet_{uuid.uuid4().hex[:12]}",
+                "vendor_id": order["vendor_id"],
+                "available_balance": 0,
+                "total_earnings": 0,
+                "total_withdrawn": 0,
+                "created_at": now
+            }
+        },
+        upsert=True
+    )
+    
+    # Update genie wallet (pending balance for weekly settlement)
+    if genie_id:
+        await db.genie_wallets.update_one(
+            {"genie_id": genie_id},
+            {
+                "$inc": {"pending_balance": delivery_fee},
+                "$setOnInsert": {
+                    "wallet_id": f"gwallet_{uuid.uuid4().hex[:12]}",
+                    "genie_id": genie_id,
+                    "available_balance": 0,
+                    "total_earnings": 0,
+                    "total_withdrawn": 0,
+                    "created_at": now
+                }
+            },
+            upsert=True
+        )
+    
+    # Create earnings records
+    vendor_earning = {
+        "earning_id": f"earn_{uuid.uuid4().hex[:12]}",
+        "partner_id": order["vendor_id"],
+        "order_id": order_id,
+        "amount": vendor_net,
+        "type": "sale",
+        "description": f"Order #{order_id[-8:]} (after {vendor_fees['total_fee']} gateway fee)",
+        "status": "pending",
+        "created_at": now
+    }
+    await db.earnings.insert_one(vendor_earning)
+    
+    if genie_id and delivery_fee > 0:
+        genie_earning = {
+            "earning_id": f"earn_{uuid.uuid4().hex[:12]}",
+            "partner_id": genie_id,
+            "order_id": order_id,
+            "amount": delivery_fee,
+            "type": "delivery_fee",
+            "description": f"Delivery #{order_id[-8:]}",
+            "status": "pending",
+            "created_at": now
+        }
+        await db.earnings.insert_one(genie_earning)
+    
+    return {
+        "message": "Settlement initiated",
+        "order_id": order_id,
+        "vendor_settlement": {
+            "gross_amount": items_amount,
+            "gateway_fee": vendor_fees["total_fee"],
+            "net_amount": vendor_net,
+            "status": "pending"
+        },
+        "genie_settlement": {
+            "amount": delivery_fee,
+            "genie_id": genie_id,
+            "status": "pending"
+        } if genie_id else None
+    }
+
+# Get payment summary for an order
+@api_router.get("/payments/order/{order_id}")
+async def get_order_payment_summary(order_id: str):
+    """Get complete payment summary for an order"""
+    order = await db.shop_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    transaction = await db.payment_transactions.find_one({"order_id": order_id}, {"_id": 0})
+    escrow = await db.escrow_holdings.find_one({"order_id": order_id}, {"_id": 0})
+    refunds = await db.refunds.find({"order_id": order_id}, {"_id": 0}).to_list(100)
+    
+    return {
+        "order_id": order_id,
+        "payment_status": order.get("payment_status", "pending"),
+        "transaction": transaction,
+        "escrow": escrow,
+        "refunds": refunds,
+        "summary": {
+            "original_amount": escrow["original_total"] if escrow else order.get("total_amount"),
+            "current_amount": escrow["current_total"] if escrow else order.get("total_amount"),
+            "total_refunded": escrow["total_refunded"] if escrow else 0,
+            "items_amount": escrow["current_items_amount"] if escrow else (order.get("total_amount", 0) - order.get("delivery_fee", 0)),
+            "delivery_fee": order.get("delivery_fee", 0)
+        }
+    }
+
+# Get vendor wallet and earnings
+@api_router.get("/vendor/wallet")
+async def get_vendor_wallet(current_user: User = Depends(require_vendor)):
+    """Get vendor's wallet balance and recent earnings"""
+    wallet = await db.vendor_wallets.find_one({"vendor_id": current_user.user_id}, {"_id": 0})
+    
+    if not wallet:
+        wallet = {
+            "wallet_id": f"vwallet_{uuid.uuid4().hex[:12]}",
+            "vendor_id": current_user.user_id,
+            "pending_balance": 0,
+            "available_balance": 0,
+            "total_earnings": 0,
+            "total_withdrawn": 0
+        }
+    
+    # Get recent earnings
+    recent_earnings = await db.earnings.find(
+        {"partner_id": current_user.user_id},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(20).to_list(20)
+    
+    # Get pending settlements count
+    pending_settlements = await db.escrow_holdings.count_documents({
+        "vendor_id": current_user.user_id,
+        "vendor_settlement_status": "pending"
+    })
+    
+    return {
+        "wallet": wallet,
+        "recent_earnings": recent_earnings,
+        "pending_settlements": pending_settlements
+    }
+
 # ===================== NOTIFICATIONS ENDPOINTS =====================
 
 @api_router.get("/vendor/notifications")
