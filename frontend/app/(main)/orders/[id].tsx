@@ -451,16 +451,29 @@ export default function OrderDetailScreen() {
             availableItems.map((item, index) => {
               const isPicked = pickedItems.has(item.product_id);
               return (
-                <TouchableOpacity
+                <View 
                   key={item.product_id}
                   style={[
                     styles.packingRow,
                     index < availableItems.length - 1 && styles.packingRowBorder,
                     isPicked && styles.packingRowPicked
                   ]}
-                  onPress={() => toggleItemPicked(item.product_id)}
-                  activeOpacity={0.7}
                 >
+                  {/* Checkbox - Tap to mark picked */}
+                  <TouchableOpacity 
+                    style={styles.packingCheckCol}
+                    onPress={() => toggleItemPicked(item.product_id)}
+                  >
+                    <View style={[
+                      styles.packingCheckbox,
+                      isPicked && styles.packingCheckboxChecked
+                    ]}>
+                      {isPicked && (
+                        <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+
                   {/* Item Column */}
                   <View style={styles.packingItemCol}>
                     <View style={styles.packingQtyBadge}>
@@ -475,6 +488,11 @@ export default function OrderDetailScreen() {
                       ]}>
                         {item.name}
                       </Text>
+                      {item.adjusted_quantity !== undefined && item.adjusted_quantity !== item.quantity && (
+                        <Text style={styles.packingItemAdjusted}>
+                          Originally: {item.quantity}
+                        </Text>
+                      )}
                     </View>
                   </View>
                   
@@ -488,18 +506,14 @@ export default function OrderDetailScreen() {
                     </Text>
                   </View>
                   
-                  {/* Checkbox Column */}
-                  <View style={styles.packingCheckCol}>
-                    <View style={[
-                      styles.packingCheckbox,
-                      isPicked && styles.packingCheckboxChecked
-                    ]}>
-                      {isPicked && (
-                        <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                      )}
-                    </View>
-                  </View>
-                </TouchableOpacity>
+                  {/* Edit Button - For missing/partial items */}
+                  <TouchableOpacity 
+                    style={styles.packingEditBtn}
+                    onPress={() => openItemManagement(item)}
+                  >
+                    <Ionicons name="create-outline" size={18} color="#6366F1" />
+                  </TouchableOpacity>
+                </View>
               );
             })
           ) : (
