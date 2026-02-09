@@ -740,6 +740,90 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
+        {/* Genie/Agent Details Card - Shows when agent is assigned */}
+        {order.assigned_agent_id && order.delivery_method === 'carpet_genie' && (
+          <View style={styles.genieCard}>
+            <View style={styles.genieHeader}>
+              <View style={styles.genieAvatarContainer}>
+                {order.agent_photo ? (
+                  <Image 
+                    source={{ uri: order.agent_photo }} 
+                    style={styles.genieAvatar}
+                  />
+                ) : (
+                  <View style={styles.genieAvatarPlaceholder}>
+                    <Ionicons name="person" size={28} color="#22C55E" />
+                  </View>
+                )}
+                <View style={styles.genieOnlineBadge} />
+              </View>
+              <View style={styles.genieInfo}>
+                <Text style={styles.genieName}>{order.agent_name || 'Carpet Genie'}</Text>
+                <View style={styles.genieRatingRow}>
+                  <Ionicons name="star" size={14} color="#F59E0B" />
+                  <Text style={styles.genieRating}>{order.agent_rating?.toFixed(1) || '5.0'}</Text>
+                  <Text style={styles.genieVehicle}>
+                    • {order.agent_vehicle_type === 'bike' ? '🏍️ Bike' : 
+                       order.agent_vehicle_type === 'scooter' ? '🛵 Scooter' : '🚗 Car'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity 
+                style={styles.genieCallBtn}
+                onPress={() => {
+                  // TODO: Implement call functionality
+                  showAlert({
+                    type: 'info',
+                    title: 'Call Agent',
+                    message: `Call ${order.agent_name} at ${order.agent_phone}`,
+                  });
+                }}
+              >
+                <Ionicons name="call" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Agent Phone */}
+            {order.agent_phone && (
+              <View style={styles.geniePhoneRow}>
+                <Ionicons name="call-outline" size={16} color="#6B7280" />
+                <Text style={styles.geniePhone}>{order.agent_phone}</Text>
+              </View>
+            )}
+
+            {/* Vehicle Number */}
+            {order.agent_vehicle_number && (
+              <View style={styles.genieVehicleRow}>
+                <Text style={styles.genieVehicleLabel}>Vehicle:</Text>
+                <View style={styles.genieVehicleNumberBadge}>
+                  <Text style={styles.genieVehicleNumber}>{order.agent_vehicle_number}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Estimated Time */}
+            {order.estimated_delivery_time && (
+              <View style={styles.genieEtaRow}>
+                <View style={styles.genieEtaIconBg}>
+                  <Ionicons name="time" size={16} color="#6366F1" />
+                </View>
+                <View style={styles.genieEtaContent}>
+                  <Text style={styles.genieEtaLabel}>Estimated Delivery</Text>
+                  <Text style={styles.genieEtaValue}>{order.estimated_delivery_time}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Live Location Indicator */}
+            {order.agent_current_location && (
+              <View style={styles.genieLiveRow}>
+                <View style={styles.genieLiveDot} />
+                <Text style={styles.genieLiveText}>Live location tracking enabled</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Status Timeline - Collapsible */}
         <TouchableOpacity 
           style={styles.timelineToggle}
