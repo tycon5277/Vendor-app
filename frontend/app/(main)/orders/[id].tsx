@@ -69,6 +69,7 @@ export default function OrderDetailScreen() {
   const [unavailableReason, setUnavailableReason] = useState('');
   const [adjustedQty, setAdjustedQty] = useState('');
   const [showTimeline, setShowTimeline] = useState(false);
+  const [selectedDeliveryOption, setSelectedDeliveryOption] = useState<'carpet_genie' | 'self_delivery' | null>(null);
   
   const progressAnim = useRef(new Animated.Value(0)).current;
 
