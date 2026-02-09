@@ -27,6 +27,7 @@ interface NewOrderNotificationContextType {
   currentNewOrder: Order | null;
   dismissNotification: () => void;
   refreshOrders: () => void;
+  isVendorOnline: boolean;
 }
 
 const NewOrderNotificationContext = createContext<NewOrderNotificationContextType | undefined>(undefined);
