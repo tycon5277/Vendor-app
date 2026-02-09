@@ -10,10 +10,11 @@ import {
   Vibration,
   AppState,
   AppStateStatus,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Audio } from 'expo-av';
+import * as Haptics from 'expo-haptics';
 import { orderAPI } from '../utils/api';
 import { useAuthStore } from '../store/authStore';
 import { Order } from '../types';
