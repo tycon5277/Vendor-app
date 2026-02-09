@@ -385,7 +385,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
 
   // Refresh orders (called externally after order actions)
   const refreshOrders = useCallback(async () => {
-    if (!isAuthenticated || !isVendor) return;
+    if (!isAuthenticated || !isVendor || !isVendorOnline) return;
     
     try {
       const response = await orderAPI.getPending();
@@ -393,7 +393,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
     } catch (error) {
       console.log('Error refreshing orders:', error);
     }
-  }, [isAuthenticated, isVendor]);
+  }, [isAuthenticated, isVendor, isVendorOnline]);
 
   // Calculate auto-accept time
   const getAutoAcceptDisplay = () => {
