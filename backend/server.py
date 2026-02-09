@@ -1661,6 +1661,437 @@ async def agent_update_order_status(
         "new_status": data.status
     }
 
+# ===================== GENIE APP - DELIVERY MANAGEMENT =====================
+# These endpoints are for the Carpet Genie delivery app
+
+# Get available delivery requests for agents
+@api_router.get("/genie/available-deliveries")
+async def get_available_deliveries(
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None),
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    radius_km: float = 5.0
+):
+    """Get available delivery requests for agents near their location"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Get pending delivery requests
+    requests = await db.delivery_requests.find(
+        {"status": "pending"},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    
+    # TODO: Filter by distance when lat/lng provided
+    
+    return {
+        "deliveries": requests,
+        "count": len(requests)
+    }
+
+# Agent accepts a delivery request
+class AcceptDeliveryRequest(BaseModel):
+    estimated_pickup_time: Optional[int] = None  # minutes
+    estimated_delivery_time: Optional[int] = None  # minutes
+
+@api_router.post("/genie/deliveries/{order_id}/accept")
+async def agent_accept_delivery(
+    order_id: str,
+    data: AcceptDeliveryRequest,
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None)
+):
+    """Agent accepts a delivery request"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    now = datetime.now(timezone.utc)
+    
+    # Find the order
+    order = await db.shop_orders.find_one({"order_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Check if order is awaiting pickup
+    if order.get("status") != "awaiting_pickup":
+        raise HTTPException(status_code=400, detail="Order is not available for delivery")
+    
+    # Check if already assigned
+    if order.get("assigned_agent_id"):
+        raise HTTPException(status_code=400, detail="Order already assigned to another agent")
+    
+    # Get or create agent profile
+    agent_profile = await db.agent_profiles.find_one({"user_id": user.user_id})
+    if not agent_profile:
+        # Create basic agent profile
+        agent_profile = {
+            "agent_id": f"agent_{uuid.uuid4().hex[:12]}",
+            "user_id": user.user_id,
+            "name": user.name or "Genie",
+            "phone": user.phone,
+            "photo": None,
+            "vehicle_type": "bike",
+            "vehicle_number": None,
+            "rating": 5.0,
+            "total_deliveries": 0,
+            "is_online": True,
+            "current_location": None,
+            "verified": False,
+            "created_at": now
+        }
+        await db.agent_profiles.insert_one(agent_profile)
+    
+    # Calculate estimated delivery time
+    estimated_time = f"{data.estimated_delivery_time or 20}-{(data.estimated_delivery_time or 20) + 10} mins"
+    
+    # Update order with agent details
+    agent_update = {
+        "assigned_agent_id": user.user_id,
+        "agent_name": agent_profile.get("name", user.name),
+        "agent_phone": agent_profile.get("phone", user.phone),
+        "agent_photo": agent_profile.get("photo"),
+        "agent_rating": agent_profile.get("rating", 5.0),
+        "agent_vehicle_type": agent_profile.get("vehicle_type", "bike"),
+        "agent_vehicle_number": agent_profile.get("vehicle_number"),
+        "agent_accepted_at": now,
+        "estimated_delivery_time": estimated_time,
+        "delivery_method": "carpet_genie"
+    }
+    
+    status_entry = {
+        "status": "agent_assigned",
+        "timestamp": now.isoformat(),
+        "by": "agent",
+        "agent_id": user.user_id,
+        "agent_name": agent_profile.get("name", user.name)
+    }
+    
+    await db.shop_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": agent_update,
+            "$push": {"status_history": status_entry}
+        }
+    )
+    
+    # Update agent profile with current order
+    await db.agent_profiles.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"current_order_id": order_id, "is_online": True}}
+    )
+    
+    # Notify Vendor - Agent has accepted
+    vendor_notification = {
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": order["vendor_id"],
+        "type": "agent_assigned",
+        "title": "Delivery Agent Assigned! 🚴",
+        "message": f"{agent_profile.get('name', 'A Genie')} will pick up order #{order_id[-8:]}",
+        "data": {
+            "order_id": order_id,
+            "agent_name": agent_profile.get("name"),
+            "agent_phone": agent_profile.get("phone"),
+            "agent_photo": agent_profile.get("photo"),
+            "agent_vehicle": agent_profile.get("vehicle_type"),
+            "estimated_time": estimated_time
+        },
+        "read": False,
+        "created_at": now
+    }
+    await db.notifications.insert_one(vendor_notification)
+    
+    # Notify Customer (Wisher) - Agent has accepted
+    customer_notification = {
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": order["user_id"],
+        "type": "agent_assigned",
+        "title": "Delivery Partner Assigned! 🎉",
+        "message": f"{agent_profile.get('name', 'Your delivery partner')} is on the way to pick up your order",
+        "data": {
+            "order_id": order_id,
+            "agent_name": agent_profile.get("name"),
+            "agent_phone": agent_profile.get("phone"),
+            "agent_photo": agent_profile.get("photo"),
+            "agent_rating": agent_profile.get("rating"),
+            "agent_vehicle": agent_profile.get("vehicle_type"),
+            "estimated_time": estimated_time
+        },
+        "read": False,
+        "created_at": now
+    }
+    await db.notifications.insert_one(customer_notification)
+    
+    # Update delivery request status if exists
+    await db.delivery_requests.update_one(
+        {"order_id": order_id},
+        {"$set": {"status": "accepted", "assigned_agent_id": user.user_id}}
+    )
+    
+    return {
+        "message": "Delivery accepted successfully",
+        "order_id": order_id,
+        "agent_details": {
+            "agent_id": user.user_id,
+            "name": agent_profile.get("name"),
+            "phone": agent_profile.get("phone"),
+            "vehicle_type": agent_profile.get("vehicle_type"),
+            "estimated_time": estimated_time
+        }
+    }
+
+# Agent updates their location (for live tracking)
+class LocationUpdate(BaseModel):
+    lat: float
+    lng: float
+
+@api_router.post("/genie/location")
+async def update_agent_location(
+    data: LocationUpdate,
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None)
+):
+    """Agent updates their current location"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    now = datetime.now(timezone.utc)
+    location_data = {
+        "lat": data.lat,
+        "lng": data.lng,
+        "updated_at": now.isoformat()
+    }
+    
+    # Update agent profile
+    await db.agent_profiles.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"current_location": location_data, "is_online": True}}
+    )
+    
+    # If agent has an active order, update order's agent location
+    agent_profile = await db.agent_profiles.find_one({"user_id": user.user_id})
+    if agent_profile and agent_profile.get("current_order_id"):
+        await db.shop_orders.update_one(
+            {"order_id": agent_profile["current_order_id"]},
+            {"$set": {"agent_current_location": location_data}}
+        )
+    
+    return {"message": "Location updated", "location": location_data}
+
+# Get agent's current delivery
+@api_router.get("/genie/current-delivery")
+async def get_current_delivery(
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None)
+):
+    """Get agent's currently assigned delivery"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    agent_profile = await db.agent_profiles.find_one({"user_id": user.user_id})
+    if not agent_profile or not agent_profile.get("current_order_id"):
+        return {"has_delivery": False, "delivery": None}
+    
+    order = await db.shop_orders.find_one(
+        {"order_id": agent_profile["current_order_id"]},
+        {"_id": 0}
+    )
+    
+    if not order or order.get("status") == "delivered":
+        # Clear current order
+        await db.agent_profiles.update_one(
+            {"user_id": user.user_id},
+            {"$set": {"current_order_id": None}}
+        )
+        return {"has_delivery": False, "delivery": None}
+    
+    return {
+        "has_delivery": True,
+        "delivery": {
+            "order_id": order["order_id"],
+            "vendor_name": order.get("vendor_name"),
+            "customer_name": order.get("customer_name"),
+            "customer_phone": order.get("customer_phone"),
+            "delivery_address": order.get("delivery_address"),
+            "items_count": len(order.get("items", [])),
+            "total_amount": order.get("total_amount"),
+            "delivery_fee": order.get("delivery_fee"),
+            "status": order.get("status"),
+            "special_instructions": order.get("special_instructions")
+        }
+    }
+
+# Get agent profile and stats
+@api_router.get("/genie/profile")
+async def get_agent_profile(
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None)
+):
+    """Get agent's profile and stats"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    agent_profile = await db.agent_profiles.find_one({"user_id": user.user_id}, {"_id": 0})
+    
+    if not agent_profile:
+        return {
+            "profile": None,
+            "stats": {
+                "total_deliveries": 0,
+                "today_deliveries": 0,
+                "total_earnings": 0,
+                "today_earnings": 0,
+                "rating": 5.0
+            }
+        }
+    
+    # Calculate stats
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    today_earnings = await db.earnings.aggregate([
+        {
+            "$match": {
+                "partner_id": user.user_id,
+                "type": "delivery_fee",
+                "created_at": {"$gte": today_start}
+            }
+        },
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]).to_list(1)
+    
+    total_earnings = await db.earnings.aggregate([
+        {
+            "$match": {
+                "partner_id": user.user_id,
+                "type": "delivery_fee"
+            }
+        },
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]).to_list(1)
+    
+    today_deliveries = await db.shop_orders.count_documents({
+        "assigned_agent_id": user.user_id,
+        "status": "delivered",
+        "agent_accepted_at": {"$gte": today_start}
+    })
+    
+    return {
+        "profile": agent_profile,
+        "stats": {
+            "total_deliveries": agent_profile.get("total_deliveries", 0),
+            "today_deliveries": today_deliveries,
+            "total_earnings": total_earnings[0]["total"] if total_earnings else 0,
+            "today_earnings": today_earnings[0]["total"] if today_earnings else 0,
+            "rating": agent_profile.get("rating", 5.0)
+        }
+    }
+
+# Update agent profile
+class AgentProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    photo: Optional[str] = None
+    vehicle_type: Optional[str] = None
+    vehicle_number: Optional[str] = None
+    is_online: Optional[bool] = None
+
+@api_router.put("/genie/profile")
+async def update_agent_profile(
+    data: AgentProfileUpdate,
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None)
+):
+    """Update agent's profile"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    update_data = {}
+    if data.name is not None:
+        update_data["name"] = data.name
+    if data.photo is not None:
+        update_data["photo"] = data.photo
+    if data.vehicle_type is not None:
+        update_data["vehicle_type"] = data.vehicle_type
+    if data.vehicle_number is not None:
+        update_data["vehicle_number"] = data.vehicle_number
+    if data.is_online is not None:
+        update_data["is_online"] = data.is_online
+    
+    if update_data:
+        await db.agent_profiles.update_one(
+            {"user_id": user.user_id},
+            {"$set": update_data},
+            upsert=True
+        )
+    
+    return {"message": "Profile updated"}
+
+# ===================== SHARED ENDPOINTS - FOR ALL APPS =====================
+
+# Get order tracking info (for Customer/Wisher app)
+@api_router.get("/orders/{order_id}/live-tracking")
+async def get_order_live_tracking(order_id: str):
+    """Get live tracking info for an order - used by customer app"""
+    order = await db.shop_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Build tracking response
+    tracking = {
+        "order_id": order_id,
+        "status": order.get("status"),
+        "vendor_name": order.get("vendor_name"),
+        "delivery_type": order.get("delivery_type"),
+        "estimated_delivery_time": order.get("estimated_delivery_time"),
+        "agent": None,
+        "timeline": []
+    }
+    
+    # Add agent details if assigned
+    if order.get("assigned_agent_id"):
+        tracking["agent"] = {
+            "name": order.get("agent_name"),
+            "phone": order.get("agent_phone"),
+            "photo": order.get("agent_photo"),
+            "rating": order.get("agent_rating"),
+            "vehicle_type": order.get("agent_vehicle_type"),
+            "vehicle_number": order.get("agent_vehicle_number"),
+            "current_location": order.get("agent_current_location"),
+            "accepted_at": order.get("agent_accepted_at")
+        }
+    
+    # Build timeline from status history
+    for entry in order.get("status_history", []):
+        tracking["timeline"].append({
+            "status": entry.get("status"),
+            "timestamp": entry.get("timestamp"),
+            "message": get_status_message(entry.get("status"), order.get("agent_name"))
+        })
+    
+    return tracking
+
+def get_status_message(status: str, agent_name: str = None) -> str:
+    """Get human-readable message for status"""
+    messages = {
+        "pending": "Order placed, waiting for vendor",
+        "confirmed": "Order accepted by vendor",
+        "preparing": "Order is being prepared",
+        "ready": "Order is ready",
+        "awaiting_pickup": "Waiting for delivery partner",
+        "agent_assigned": f"{agent_name or 'Delivery partner'} is on the way to pick up",
+        "picked_up": f"{agent_name or 'Delivery partner'} has picked up your order",
+        "out_for_delivery": f"{agent_name or 'Delivery partner'} is on the way to you",
+        "delivered": "Order delivered!",
+        "cancelled": "Order was cancelled",
+        "rejected": "Order was rejected by vendor"
+    }
+    return messages.get(status, status)
+
 # ===================== NOTIFICATIONS ENDPOINTS =====================
 
 @api_router.get("/vendor/notifications")
