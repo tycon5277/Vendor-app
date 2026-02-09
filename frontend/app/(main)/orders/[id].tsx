@@ -10,6 +10,7 @@ import {
   Dimensions,
   Modal,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -21,6 +22,17 @@ import { format } from 'date-fns';
 
 const { width } = Dimensions.get('window');
 
+interface OrderItem {
+  product_id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  image?: string;
+  unavailable?: boolean;
+  unavailable_reason?: string;
+  adjusted_quantity?: number;
+}
+
 interface StatusCheckpoint {
   key: string;
   label: string;
@@ -29,16 +41,6 @@ interface StatusCheckpoint {
   completed: boolean;
   current: boolean;
   timestamp?: string;
-}
-
-interface DeliveryOption {
-  type: string;
-  label: string;
-  description: string;
-  available: boolean;
-  selected: boolean;
-  icon?: string;
-  color?: string;
 }
 
 interface NextAction {
@@ -55,14 +57,18 @@ export default function OrderDetailScreen() {
   const { showAlert } = useAlert();
   
   const [order, setOrder] = useState<any>(null);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [checkpoints, setCheckpoints] = useState<StatusCheckpoint[]>([]);
-  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>([]);
   const [nextActions, setNextActions] = useState<NextAction[]>([]);
   const [vendorCanDeliver, setVendorCanDeliver] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [showItemModal, setShowItemModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<OrderItem | null>(null);
+  const [unavailableReason, setUnavailableReason] = useState('');
+  const [adjustedQty, setAdjustedQty] = useState('');
+  const [showTimeline, setShowTimeline] = useState(false);
   
   const progressAnim = useRef(new Animated.Value(0)).current;
 
@@ -72,12 +78,11 @@ export default function OrderDetailScreen() {
     try {
       const response = await orderAPI.getDetails(params.id);
       setOrder(response.data.order);
+      setOrderItems(response.data.order.items || []);
       setCheckpoints(response.data.status_checkpoints);
-      setDeliveryOptions(response.data.delivery_options);
       setNextActions(response.data.next_actions);
       setVendorCanDeliver(response.data.vendor_can_deliver);
       
-      // Animate progress
       const completedCount = response.data.status_checkpoints.filter((c: StatusCheckpoint) => c.completed).length;
       const totalCount = response.data.status_checkpoints.length;
       Animated.timing(progressAnim, {
@@ -100,8 +105,6 @@ export default function OrderDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       loadOrderDetails();
-      
-      // Auto-refresh every 10 seconds for live tracking
       const interval = setInterval(loadOrderDetails, 10000);
       return () => clearInterval(interval);
     }, [params.id])
@@ -140,8 +143,6 @@ export default function OrderDetailScreen() {
     if (!params.id) return;
     
     setActionLoading(true);
-    setShowDeliveryModal(false);
-    
     try {
       const response = await orderAPI.assignDelivery(params.id, deliveryType);
       showAlert({
@@ -161,6 +162,105 @@ export default function OrderDetailScreen() {
     }
   };
 
+  // Handle item unavailability
+  const openItemManagement = (item: OrderItem) => {
+    setSelectedItem(item);
+    setUnavailableReason(item.unavailable_reason || '');
+    setAdjustedQty(item.adjusted_quantity?.toString() || item.quantity.toString());
+    setShowItemModal(true);
+  };
+
+  const handleMarkItemUnavailable = async () => {
+    if (!selectedItem || !params.id) return;
+    
+    const updatedItems = orderItems.map(item => {
+      if (item.product_id === selectedItem.product_id) {
+        return {
+          ...item,
+          unavailable: true,
+          unavailable_reason: unavailableReason || 'Item out of stock',
+        };
+      }
+      return item;
+    });
+    
+    setOrderItems(updatedItems);
+    setShowItemModal(false);
+    
+    // Calculate new total
+    const newTotal = updatedItems
+      .filter(i => !i.unavailable)
+      .reduce((sum, i) => sum + (i.price * (i.adjusted_quantity || i.quantity)), 0);
+    
+    // Call API to update order items
+    try {
+      await orderAPI.updateItems(params.id, { 
+        items: updatedItems,
+        adjusted_total: newTotal 
+      });
+      showAlert({
+        type: 'info',
+        title: 'Item Marked Unavailable',
+        message: 'Customer will be notified about this change.',
+      });
+      await loadOrderDetails();
+    } catch (error) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to update item. Please try again.',
+      });
+    }
+  };
+
+  const handleAdjustQuantity = async () => {
+    if (!selectedItem || !params.id) return;
+    
+    const newQty = parseInt(adjustedQty);
+    if (isNaN(newQty) || newQty < 0) {
+      showAlert({ type: 'error', title: 'Invalid Quantity', message: 'Please enter a valid number' });
+      return;
+    }
+    
+    const updatedItems = orderItems.map(item => {
+      if (item.product_id === selectedItem.product_id) {
+        return {
+          ...item,
+          adjusted_quantity: newQty,
+          unavailable: newQty === 0,
+          unavailable_reason: newQty === 0 ? 'Item out of stock' : undefined,
+        };
+      }
+      return item;
+    });
+    
+    setOrderItems(updatedItems);
+    setShowItemModal(false);
+    
+    const newTotal = updatedItems
+      .filter(i => !i.unavailable)
+      .reduce((sum, i) => sum + (i.price * (i.adjusted_quantity || i.quantity)), 0);
+    
+    try {
+      await orderAPI.updateItems(params.id, { 
+        items: updatedItems,
+        adjusted_total: newTotal 
+      });
+      showAlert({
+        type: 'success',
+        title: 'Quantity Adjusted',
+        message: `${selectedItem.name} quantity updated to ${newQty}`,
+      });
+      await loadOrderDetails();
+    } catch (error) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to update quantity.',
+      });
+    }
+  };
+
   const getStatusColor = (status: string) => {
     const colors: { [key: string]: string } = {
       pending: '#F59E0B',
@@ -176,6 +276,29 @@ export default function OrderDetailScreen() {
     };
     return colors[status] || '#6B7280';
   };
+
+  const getStatusLabel = (status: string) => {
+    const labels: { [key: string]: string } = {
+      pending: 'New Order',
+      confirmed: 'Accepted',
+      preparing: 'Preparing',
+      ready: 'Ready',
+      awaiting_pickup: 'Awaiting Pickup',
+      picked_up: 'Picked Up',
+      out_for_delivery: 'Out for Delivery',
+      delivered: 'Delivered',
+      cancelled: 'Cancelled',
+      rejected: 'Rejected',
+    };
+    return labels[status] || status;
+  };
+
+  // Calculate totals
+  const availableItems = orderItems.filter(i => !i.unavailable);
+  const unavailableItems = orderItems.filter(i => i.unavailable);
+  const currentTotal = availableItems.reduce((sum, i) => sum + (i.price * (i.adjusted_quantity || i.quantity)), 0);
+  const originalTotal = order?.total_amount || 0;
+  const hasChanges = unavailableItems.length > 0 || currentTotal !== originalTotal;
 
   if (loading) {
     return (
@@ -208,11 +331,11 @@ export default function OrderDetailScreen() {
           <Ionicons name="arrow-back" size={24} color="#374151" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.orderNumber}>Order #{order.order_id?.slice(-8)}</Text>
+          <Text style={styles.orderNumber}>Order #{order.order_id?.slice(-6).toUpperCase()}</Text>
           <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
             <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
             <Text style={[styles.statusText, { color: statusColor }]}>
-              {order.status?.replace(/_/g, ' ').toUpperCase()}
+              {getStatusLabel(order.status)}
             </Text>
           </View>
         </View>
@@ -228,78 +351,153 @@ export default function OrderDetailScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366F1']} />
         }
       >
-        {/* Progress Tracker */}
-        <View style={styles.progressCard}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Order Progress</Text>
-            <Text style={styles.progressPercent}>
-              {Math.round((checkpoints.filter(c => c.completed).length / checkpoints.length) * 100)}%
-            </Text>
+        {/* Customer Info Card */}
+        <View style={styles.customerCard}>
+          <View style={styles.customerRow}>
+            <View style={styles.customerAvatar}>
+              <Text style={styles.customerInitial}>
+                {(order.customer_name || 'C')[0].toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.customerInfo}>
+              <Text style={styles.customerName}>{order.customer_name || 'Customer'}</Text>
+              <Text style={styles.customerPhone}>{order.customer_phone || 'No phone'}</Text>
+            </View>
+            <TouchableOpacity style={styles.callBtn}>
+              <Ionicons name="call" size={18} color="#22C55E" />
+            </TouchableOpacity>
           </View>
-          <View style={styles.progressBarBg}>
-            <Animated.View 
-              style={[
-                styles.progressBarFill,
-                {
-                  width: progressAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ['0%', '100%'],
-                  }),
-                }
-              ]} 
-            />
-          </View>
+          {order.delivery_type !== 'self_pickup' && order.delivery_address && (
+            <View style={styles.addressRow}>
+              <Ionicons name="location" size={16} color="#6B7280" />
+              <Text style={styles.addressText}>{order.delivery_address?.address || 'No address'}</Text>
+            </View>
+          )}
+          {order.delivery_type === 'self_pickup' && (
+            <View style={styles.pickupBadge}>
+              <Ionicons name="storefront" size={14} color="#6366F1" />
+              <Text style={styles.pickupText}>Customer will pick up</Text>
+            </View>
+          )}
         </View>
 
-        {/* Status Checkpoints */}
-        <View style={styles.checkpointsCard}>
-          <Text style={styles.sectionTitle}>Status Timeline</Text>
-          
-          {checkpoints.map((checkpoint, index) => (
-            <View key={checkpoint.key} style={styles.checkpointRow}>
-              {/* Connector Line */}
-              {index > 0 && (
-                <View style={[
-                  styles.connectorLine,
-                  checkpoint.completed && styles.connectorLineCompleted
-                ]} />
-              )}
-              
-              {/* Checkpoint Circle */}
-              <View style={[
-                styles.checkpointCircle,
-                checkpoint.completed && styles.checkpointCircleCompleted,
-                checkpoint.current && styles.checkpointCircleCurrent,
-              ]}>
-                {checkpoint.completed ? (
-                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                ) : (
-                  <Ionicons 
-                    name={checkpoint.icon as any} 
-                    size={16} 
-                    color={checkpoint.current ? '#6366F1' : '#9CA3AF'} 
-                  />
-                )}
-              </View>
-              
-              {/* Checkpoint Content */}
-              <View style={styles.checkpointContent}>
-                <Text style={[
-                  styles.checkpointLabel,
-                  checkpoint.completed && styles.checkpointLabelCompleted,
-                  checkpoint.current && styles.checkpointLabelCurrent,
-                ]}>
-                  {checkpoint.label}
-                </Text>
-                <Text style={styles.checkpointDesc}>{checkpoint.description}</Text>
-                {checkpoint.timestamp && (
-                  <Text style={styles.checkpointTime}>
-                    {format(new Date(checkpoint.timestamp), 'h:mm a')}
-                  </Text>
-                )}
+        {/* ORDER ITEMS - PRIMARY SECTION */}
+        <View style={styles.itemsCard}>
+          <View style={styles.itemsHeader}>
+            <View style={styles.itemsHeaderLeft}>
+              <Text style={styles.sectionTitle}>Order Items</Text>
+              <View style={styles.itemCountBadge}>
+                <Text style={styles.itemCountText}>{orderItems.length} items</Text>
               </View>
             </View>
+            {(order.status === 'confirmed' || order.status === 'preparing') && (
+              <View style={styles.editHint}>
+                <Ionicons name="create-outline" size={14} color="#6366F1" />
+                <Text style={styles.editHintText}>Tap item to edit</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Available Items */}
+          {availableItems.map((item, index) => (
+            <TouchableOpacity
+              key={item.product_id}
+              style={[
+                styles.itemRow,
+                index < availableItems.length - 1 && styles.itemRowBorder
+              ]}
+              onPress={() => {
+                if (order.status === 'confirmed' || order.status === 'preparing') {
+                  openItemManagement(item);
+                }
+              }}
+              activeOpacity={order.status === 'confirmed' || order.status === 'preparing' ? 0.7 : 1}
+            >
+              <View style={styles.itemQtyBadge}>
+                <Text style={styles.itemQtyText}>
+                  {item.adjusted_quantity !== undefined ? item.adjusted_quantity : item.quantity}x
+                </Text>
+              </View>
+              <View style={styles.itemDetails}>
+                <Text style={styles.itemName}>{item.name}</Text>
+                <Text style={styles.itemPrice}>₹{item.price} each</Text>
+                {item.adjusted_quantity !== undefined && item.adjusted_quantity !== item.quantity && (
+                  <View style={styles.adjustedBadge}>
+                    <Ionicons name="pencil" size={10} color="#F59E0B" />
+                    <Text style={styles.adjustedText}>
+                      Changed from {item.quantity}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.itemTotal}>
+                ₹{((item.adjusted_quantity || item.quantity) * item.price).toFixed(0)}
+              </Text>
+              {(order.status === 'confirmed' || order.status === 'preparing') && (
+                <Ionicons name="chevron-forward" size={18} color="#D1D5DB" />
+              )}
+            </TouchableOpacity>
           ))}
+
+          {/* Unavailable Items */}
+          {unavailableItems.length > 0 && (
+            <View style={styles.unavailableSection}>
+              <View style={styles.unavailableHeader}>
+                <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                <Text style={styles.unavailableTitle}>Unavailable Items</Text>
+              </View>
+              {unavailableItems.map((item) => (
+                <View key={item.product_id} style={styles.unavailableItem}>
+                  <View style={styles.unavailableItemLeft}>
+                    <Text style={styles.unavailableItemName}>{item.quantity}x {item.name}</Text>
+                    <Text style={styles.unavailableReason}>
+                      {item.unavailable_reason || 'Not available'}
+                    </Text>
+                  </View>
+                  <Text style={styles.unavailablePrice}>-₹{(item.quantity * item.price).toFixed(0)}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Order Totals */}
+          <View style={styles.totalsSection}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Subtotal</Text>
+              <Text style={styles.totalValue}>₹{currentTotal.toFixed(0)}</Text>
+            </View>
+            {order.delivery_fee > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Delivery Fee</Text>
+                <Text style={styles.totalValue}>₹{order.delivery_fee}</Text>
+              </View>
+            )}
+            {hasChanges && (
+              <View style={styles.totalRow}>
+                <Text style={[styles.totalLabel, { color: '#DC2626' }]}>Adjustment</Text>
+                <Text style={[styles.totalValue, { color: '#DC2626' }]}>
+                  -₹{(originalTotal - currentTotal - (order.delivery_fee || 0)).toFixed(0)}
+                </Text>
+              </View>
+            )}
+            <View style={[styles.totalRow, styles.grandTotalRow]}>
+              <Text style={styles.grandTotalLabel}>Total</Text>
+              <Text style={styles.grandTotalValue}>
+                ₹{(currentTotal + (order.delivery_fee || 0)).toFixed(0)}
+              </Text>
+            </View>
+          </View>
+
+          {/* Special Instructions */}
+          {order.special_instructions && (
+            <View style={styles.instructionsBox}>
+              <View style={styles.instructionsHeader}>
+                <Ionicons name="document-text" size={16} color="#6366F1" />
+                <Text style={styles.instructionsTitle}>Special Instructions</Text>
+              </View>
+              <Text style={styles.instructionsText}>{order.special_instructions}</Text>
+            </View>
+          )}
         </View>
 
         {/* Delivery Assignment Section */}
@@ -311,16 +509,16 @@ export default function OrderDetailScreen() {
                 <Ionicons name="bicycle" size={24} color="#22C55E" />
               </View>
               <View style={styles.deliveryHeaderContent}>
-                <Text style={styles.deliveryTitle}>Delivery Assignment</Text>
+                <Text style={styles.deliveryTitle}>Delivery</Text>
                 <Text style={styles.deliverySubtitle}>
                   {order.assigned_agent_id 
                     ? `Assigned to ${order.agent_name || 'Carpet Genie'}`
-                    : 'Choose delivery method'}
+                    : 'Not assigned yet'}
                 </Text>
               </View>
             </View>
             
-            {!order.assigned_agent_id && order.delivery_method !== 'self' && (
+            {!order.assigned_agent_id && order.delivery_method !== 'self' && order.status === 'ready' && (
               <View style={styles.deliveryOptions}>
                 {vendorCanDeliver && (
                   <TouchableOpacity 
@@ -333,9 +531,8 @@ export default function OrderDetailScreen() {
                     </View>
                     <View style={styles.deliveryOptionContent}>
                       <Text style={styles.deliveryOptionTitle}>Own Delivery</Text>
-                      <Text style={styles.deliveryOptionSubtitle}>Use your delivery service</Text>
+                      <Text style={styles.deliveryOptionSubtitle}>Use your service</Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
                   </TouchableOpacity>
                 )}
                 
@@ -349,106 +546,86 @@ export default function OrderDetailScreen() {
                   </View>
                   <View style={styles.deliveryOptionContent}>
                     <Text style={styles.deliveryOptionTitle}>Carpet Genie</Text>
-                    <Text style={styles.deliveryOptionSubtitle}>Assign to Genie delivery</Text>
-                  </View>
-                  <View style={styles.recommendedBadge}>
-                    <Text style={styles.recommendedText}>Recommended</Text>
+                    <Text style={styles.deliveryOptionSubtitle}>Recommended</Text>
                   </View>
                 </TouchableOpacity>
-              </View>
-            )}
-
-            {(order.assigned_agent_id || order.delivery_method === 'self') && (
-              <View style={styles.agentCard}>
-                <View style={styles.agentAvatar}>
-                  <Ionicons name={order.delivery_method === 'self' ? 'car' : 'person'} size={24} color="#FFFFFF" />
-                </View>
-                <View style={styles.agentInfo}>
-                  <Text style={styles.agentName}>
-                    {order.delivery_method === 'self' ? 'Your Delivery' : (order.agent_name || 'Carpet Genie Agent')}
-                  </Text>
-                  <Text style={styles.agentPhone}>
-                    {order.delivery_method === 'self' ? 'Own delivery service' : (order.agent_phone || 'Finding agent...')}
-                  </Text>
-                </View>
-                {order.agent_phone && (
-                  <TouchableOpacity style={styles.callAgentBtn}>
-                    <Ionicons name="call" size={18} color="#22C55E" />
-                  </TouchableOpacity>
-                )}
               </View>
             )}
           </View>
         )}
 
-        {/* Order Details */}
-        <View style={styles.detailsCard}>
-          <Text style={styles.sectionTitle}>Order Details</Text>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Customer</Text>
-            <Text style={styles.detailValue}>{order.customer_name || 'Customer'}</Text>
+        {/* Status Timeline - Collapsible */}
+        <TouchableOpacity 
+          style={styles.timelineToggle}
+          onPress={() => setShowTimeline(!showTimeline)}
+        >
+          <View style={styles.timelineToggleLeft}>
+            <Ionicons name="git-branch" size={20} color="#6366F1" />
+            <Text style={styles.timelineToggleText}>Order Timeline</Text>
           </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Phone</Text>
-            <TouchableOpacity>
-              <Text style={[styles.detailValue, styles.detailValueLink]}>
-                {order.customer_phone || 'N/A'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Delivery Type</Text>
-            <Text style={styles.detailValue}>
-              {order.delivery_type === 'self_pickup' ? 'Customer Pickup' :
-               order.delivery_method === 'self' ? 'Your Delivery' :
-               order.delivery_method === 'carpet_genie' ? 'Carpet Genie' :
-               order.delivery_type === 'vendor_delivery' ? 'Your Delivery' :
-               order.delivery_type === 'agent_delivery' ? 'Carpet Genie' : 'Pending'}
+          <View style={styles.timelineProgress}>
+            <Text style={styles.timelineProgressText}>
+              {Math.round((checkpoints.filter(c => c.completed).length / checkpoints.length) * 100)}%
             </Text>
+            <Ionicons 
+              name={showTimeline ? "chevron-up" : "chevron-down"} 
+              size={20} 
+              color="#6B7280" 
+            />
           </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Total Amount</Text>
-            <Text style={[styles.detailValue, styles.detailValueAmount]}>
-              ₹{order.total_amount?.toFixed(2)}
-            </Text>
+        </TouchableOpacity>
+
+        {showTimeline && (
+          <View style={styles.checkpointsCard}>
+            {checkpoints.map((checkpoint, index) => (
+              <View key={checkpoint.key} style={styles.checkpointRow}>
+                {index > 0 && (
+                  <View style={[
+                    styles.connectorLine,
+                    checkpoint.completed && styles.connectorLineCompleted
+                  ]} />
+                )}
+                
+                <View style={[
+                  styles.checkpointCircle,
+                  checkpoint.completed && styles.checkpointCircleCompleted,
+                  checkpoint.current && styles.checkpointCircleCurrent,
+                ]}>
+                  {checkpoint.completed ? (
+                    <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                  ) : (
+                    <Ionicons 
+                      name={checkpoint.icon as any} 
+                      size={14} 
+                      color={checkpoint.current ? '#6366F1' : '#9CA3AF'} 
+                    />
+                  )}
+                </View>
+                
+                <View style={styles.checkpointContent}>
+                  <Text style={[
+                    styles.checkpointLabel,
+                    checkpoint.completed && styles.checkpointLabelCompleted,
+                    checkpoint.current && styles.checkpointLabelCurrent,
+                  ]}>
+                    {checkpoint.label}
+                  </Text>
+                  {checkpoint.timestamp && (
+                    <Text style={styles.checkpointTime}>
+                      {format(new Date(checkpoint.timestamp), 'h:mm a')}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            ))}
           </View>
-          
-          {order.special_instructions && (
-            <View style={styles.instructionsBox}>
-              <Text style={styles.instructionsLabel}>Special Instructions</Text>
-              <Text style={styles.instructionsText}>{order.special_instructions}</Text>
-            </View>
-          )}
-        </View>
+        )}
 
-        {/* Items */}
-        <View style={styles.itemsCard}>
-          <Text style={styles.sectionTitle}>Items ({order.items?.length || 0})</Text>
-          
-          {order.items?.map((item: any, index: number) => (
-            <View key={index} style={styles.itemRow}>
-              <View style={styles.itemQty}>
-                <Text style={styles.itemQtyText}>{item.quantity}x</Text>
-              </View>
-              <View style={styles.itemInfo}>
-                <Text style={styles.itemName}>{item.name}</Text>
-                {item.notes && <Text style={styles.itemNotes}>{item.notes}</Text>}
-              </View>
-              <Text style={styles.itemPrice}>₹{(item.price * item.quantity).toFixed(2)}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Extra spacing for bottom actions */}
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Bottom Action Buttons OR Carpet Genie Status */}
-      {nextActions.length > 0 ? (
+      {/* Bottom Action Buttons */}
+      {nextActions.length > 0 && (
         <View style={[styles.bottomActions, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           {nextActions.map((action, index) => (
             <TouchableOpacity
@@ -459,13 +636,7 @@ export default function OrderDetailScreen() {
                 action.destructive && styles.actionBtnDestructive,
                 index > 0 && { marginLeft: 12 },
               ]}
-              onPress={() => {
-                if (action.action === 'assign_delivery') {
-                  setShowDeliveryModal(true);
-                } else {
-                  handleAction(action.action);
-                }
-              }}
+              onPress={() => handleAction(action.action)}
               disabled={actionLoading}
             >
               {actionLoading ? (
@@ -482,82 +653,123 @@ export default function OrderDetailScreen() {
             </TouchableOpacity>
           ))}
         </View>
-      ) : (
-        /* Show Carpet Genie status when no actions available */
-        (order.delivery_method === 'carpet_genie' || 
-         (order.delivery_type === 'agent_delivery' && order.assigned_agent_id)) &&
-        ['awaiting_pickup', 'picked_up', 'out_for_delivery'].includes(order.status) && (
-          <View style={[styles.bottomStatusBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-            <View style={styles.carpetGenieStatusContainer}>
-              <View style={styles.carpetGenieIconContainer}>
-                <Ionicons name="bicycle" size={24} color="#22C55E" />
-              </View>
-              <View style={styles.carpetGenieStatusContent}>
-                <Text style={styles.carpetGenieStatusTitle}>
-                  {order.status === 'awaiting_pickup' && 'Waiting for Pickup'}
-                  {order.status === 'picked_up' && 'Order Picked Up'}
-                  {order.status === 'out_for_delivery' && 'On The Way'}
-                </Text>
-                <Text style={styles.carpetGenieStatusSubtitle}>
-                  {order.agent_name ? `${order.agent_name} will update the status` : 'Carpet Genie agent will update'}
-                </Text>
-              </View>
-              <View style={styles.liveIndicator}>
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>LIVE</Text>
-              </View>
-            </View>
-          </View>
-        )
       )}
 
-      {/* Delivery Options Modal */}
+      {/* Carpet Genie Status Bar (when assigned and in delivery) */}
+      {nextActions.length === 0 && 
+       (order.delivery_method === 'carpet_genie' || order.delivery_type === 'agent_delivery') &&
+       order.assigned_agent_id &&
+       ['awaiting_pickup', 'picked_up', 'out_for_delivery'].includes(order.status) && (
+        <View style={[styles.bottomStatusBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <View style={styles.carpetGenieStatusContainer}>
+            <View style={styles.carpetGenieIconContainer}>
+              <Ionicons name="bicycle" size={24} color="#22C55E" />
+            </View>
+            <View style={styles.carpetGenieStatusContent}>
+              <Text style={styles.carpetGenieStatusTitle}>
+                {order.status === 'awaiting_pickup' && 'Waiting for Pickup'}
+                {order.status === 'picked_up' && 'Order Picked Up'}
+                {order.status === 'out_for_delivery' && 'On The Way'}
+              </Text>
+              <Text style={styles.carpetGenieStatusSubtitle}>
+                {order.agent_name ? `${order.agent_name} is handling delivery` : 'Carpet Genie will update'}
+              </Text>
+            </View>
+            <View style={styles.liveIndicator}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Item Management Modal */}
       <Modal
-        visible={showDeliveryModal}
+        visible={showItemModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowDeliveryModal(false)}
+        onRequestClose={() => setShowItemModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHandle} />
+            
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Assign Delivery</Text>
-              <TouchableOpacity onPress={() => setShowDeliveryModal(false)}>
+              <Text style={styles.modalTitle}>Manage Item</Text>
+              <TouchableOpacity onPress={() => setShowItemModal(false)}>
                 <Ionicons name="close" size={24} color="#6B7280" />
               </TouchableOpacity>
             </View>
-            
-            <Text style={styles.modalSubtitle}>Choose how to deliver this order</Text>
-            
-            <View style={styles.modalOptions}>
-              {vendorCanDeliver && (
-                <TouchableOpacity 
-                  style={styles.modalOption}
-                  onPress={() => handleAssignDelivery('self_delivery')}
-                >
-                  <View style={[styles.modalOptionIcon, { backgroundColor: '#DBEAFE' }]}>
-                    <Ionicons name="car" size={28} color="#3B82F6" />
+
+            {selectedItem && (
+              <>
+                <View style={styles.selectedItemCard}>
+                  <Text style={styles.selectedItemName}>{selectedItem.name}</Text>
+                  <Text style={styles.selectedItemDetails}>
+                    {selectedItem.quantity} × ₹{selectedItem.price} = ₹{selectedItem.quantity * selectedItem.price}
+                  </Text>
+                </View>
+
+                {/* Adjust Quantity Section */}
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Adjust Quantity</Text>
+                  <Text style={styles.modalSectionDesc}>
+                    If partial stock is available, adjust the quantity
+                  </Text>
+                  <View style={styles.qtyInputRow}>
+                    <TouchableOpacity 
+                      style={styles.qtyBtn}
+                      onPress={() => setAdjustedQty(Math.max(0, parseInt(adjustedQty || '0') - 1).toString())}
+                    >
+                      <Ionicons name="remove" size={20} color="#6366F1" />
+                    </TouchableOpacity>
+                    <TextInput
+                      style={styles.qtyInput}
+                      value={adjustedQty}
+                      onChangeText={setAdjustedQty}
+                      keyboardType="numeric"
+                      maxLength={3}
+                    />
+                    <TouchableOpacity 
+                      style={styles.qtyBtn}
+                      onPress={() => setAdjustedQty((parseInt(adjustedQty || '0') + 1).toString())}
+                    >
+                      <Ionicons name="add" size={20} color="#6366F1" />
+                    </TouchableOpacity>
                   </View>
-                  <Text style={styles.modalOptionTitle}>Own Delivery</Text>
-                  <Text style={styles.modalOptionSubtitle}>Use your delivery service</Text>
-                </TouchableOpacity>
-              )}
-              
-              <TouchableOpacity 
-                style={[styles.modalOption, styles.modalOptionHighlighted]}
-                onPress={() => handleAssignDelivery('carpet_genie')}
-              >
-                <View style={[styles.modalOptionIcon, { backgroundColor: '#DCFCE7' }]}>
-                  <Ionicons name="bicycle" size={28} color="#22C55E" />
+                  <TouchableOpacity 
+                    style={styles.adjustQtyBtn}
+                    onPress={handleAdjustQuantity}
+                  >
+                    <Text style={styles.adjustQtyBtnText}>Update Quantity</Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.modalOptionTitle}>Carpet Genie</Text>
-                <Text style={styles.modalOptionSubtitle}>Fast & reliable delivery</Text>
-                <View style={styles.modalRecommendedBadge}>
-                  <Ionicons name="star" size={12} color="#F59E0B" />
-                  <Text style={styles.modalRecommendedText}>Recommended</Text>
+
+                {/* Mark Unavailable Section */}
+                <View style={styles.modalSection}>
+                  <Text style={[styles.modalSectionTitle, { color: '#DC2626' }]}>
+                    Mark as Unavailable
+                  </Text>
+                  <Text style={styles.modalSectionDesc}>
+                    Item is completely out of stock or cannot be fulfilled
+                  </Text>
+                  <TextInput
+                    style={styles.reasonInput}
+                    placeholder="Reason (optional): e.g., Out of stock, Damaged"
+                    placeholderTextColor="#9CA3AF"
+                    value={unavailableReason}
+                    onChangeText={setUnavailableReason}
+                  />
+                  <TouchableOpacity 
+                    style={styles.unavailableBtn}
+                    onPress={handleMarkItemUnavailable}
+                  >
+                    <Ionicons name="close-circle" size={18} color="#FFFFFF" />
+                    <Text style={styles.unavailableBtnText}>Mark Item Unavailable</Text>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -576,31 +788,30 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
+    fontSize: 14,
     color: '#6B7280',
   },
   errorContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    padding: 24,
   },
   errorTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
     color: '#374151',
     marginTop: 16,
   },
   backButton: {
-    marginTop: 20,
+    marginTop: 16,
+    paddingVertical: 10,
     paddingHorizontal: 24,
-    paddingVertical: 12,
     backgroundColor: '#6366F1',
-    borderRadius: 12,
+    borderRadius: 8,
   },
   backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
     color: '#FFFFFF',
+    fontWeight: '600',
   },
   header: {
     flexDirection: 'row',
@@ -614,12 +825,14 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 40,
     height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerContent: {
     flex: 1,
-    marginLeft: 4,
+    marginLeft: 12,
   },
   orderNumber: {
     fontSize: 18,
@@ -629,182 +842,333 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
     marginTop: 4,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     marginRight: 6,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
   refreshBtn: {
     width: 40,
     height: 40,
-    backgroundColor: '#EEF2FF',
     borderRadius: 20,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
   scrollView: {
     flex: 1,
   },
-  progressCard: {
+  // Customer Card
+  customerCard: {
     backgroundColor: '#FFFFFF',
-    margin: 16,
-    marginBottom: 8,
+    marginHorizontal: 16,
+    marginTop: 16,
     padding: 16,
     borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
   },
-  progressHeader: {
+  customerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
-  progressTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+  customerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  progressPercent: {
-    fontSize: 16,
+  customerInitial: {
+    fontSize: 18,
     fontWeight: '700',
     color: '#6366F1',
   },
-  progressBarBg: {
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 4,
-    overflow: 'hidden',
+  customerInfo: {
+    flex: 1,
+    marginLeft: 12,
   },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#6366F1',
-    borderRadius: 4,
+  customerName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
   },
-  checkpointsCard: {
+  customerPhone: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  callBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  addressText: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 13,
+    color: '#4B5563',
+    lineHeight: 18,
+  },
+  pickupBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+  pickupText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6366F1',
+  },
+  // Items Card
+  itemsCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginVertical: 8,
+    marginTop: 12,
     padding: 16,
     borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+  },
+  itemsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  itemsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 16,
   },
-  checkpointRow: {
+  itemCountBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  itemCountText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6366F1',
+  },
+  editHint: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 20,
-    position: 'relative',
+    alignItems: 'center',
+    gap: 4,
   },
-  connectorLine: {
-    position: 'absolute',
-    left: 15,
-    top: -20,
-    width: 2,
-    height: 20,
-    backgroundColor: '#E5E7EB',
+  editHintText: {
+    fontSize: 12,
+    color: '#6366F1',
   },
-  connectorLineCompleted: {
-    backgroundColor: '#22C55E',
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
   },
-  checkpointCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  itemRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  itemQtyBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
   },
-  checkpointCircleCompleted: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+  itemQtyText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#374151',
   },
-  checkpointCircleCurrent: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#6366F1',
-    borderWidth: 3,
-  },
-  checkpointContent: {
+  itemDetails: {
     flex: 1,
     marginLeft: 12,
   },
-  checkpointLabel: {
+  itemName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: '#111827',
   },
-  checkpointLabelCompleted: {
-    color: '#374151',
-  },
-  checkpointLabelCurrent: {
-    color: '#6366F1',
-    fontWeight: '700',
-  },
-  checkpointDesc: {
+  itemPrice: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#6B7280',
     marginTop: 2,
   },
-  checkpointTime: {
-    fontSize: 11,
-    color: '#22C55E',
-    fontWeight: '600',
+  adjustedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     marginTop: 4,
   },
+  adjustedText: {
+    fontSize: 11,
+    color: '#F59E0B',
+    fontWeight: '500',
+  },
+  itemTotal: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+    marginRight: 8,
+  },
+  // Unavailable Section
+  unavailableSection: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+  },
+  unavailableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  unavailableTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  unavailableItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#FECACA',
+  },
+  unavailableItemLeft: {
+    flex: 1,
+  },
+  unavailableItemName: {
+    fontSize: 13,
+    color: '#991B1B',
+    textDecorationLine: 'line-through',
+  },
+  unavailableReason: {
+    fontSize: 11,
+    color: '#DC2626',
+    marginTop: 2,
+  },
+  unavailablePrice: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
+  // Totals
+  totalsSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  totalLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  totalValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  grandTotalRow: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  grandTotalLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  grandTotalValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  // Instructions
+  instructionsBox: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+  },
+  instructionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  instructionsTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0369A1',
+  },
+  instructionsText: {
+    fontSize: 13,
+    color: '#0C4A6E',
+    lineHeight: 18,
+  },
+  // Delivery Card
   deliveryCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginVertical: 8,
+    marginTop: 12,
     padding: 16,
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#22C55E',
-    shadowColor: '#22C55E',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
   },
   deliveryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
   },
   deliveryIconBg: {
     width: 48,
     height: 48,
-    backgroundColor: '#DCFCE7',
     borderRadius: 14,
+    backgroundColor: '#DCFCE7',
     justifyContent: 'center',
     alignItems: 'center',
   },
   deliveryHeaderContent: {
-    flex: 1,
     marginLeft: 12,
   },
   deliveryTitle: {
@@ -818,20 +1182,21 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   deliveryOptions: {
+    marginTop: 16,
     gap: 10,
   },
   deliveryOptionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
     backgroundColor: '#F9FAFB',
+    padding: 14,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
   deliveryOptionBtnGenie: {
+    borderColor: '#22C55E',
     backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
   },
   deliveryOptionIcon: {
     width: 40,
@@ -852,160 +1217,109 @@ const styles = StyleSheet.create({
   deliveryOptionSubtitle: {
     fontSize: 12,
     color: '#6B7280',
-    marginTop: 2,
   },
-  recommendedBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  recommendedText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#D97706',
-  },
-  agentCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    backgroundColor: '#F0FDF4',
-    borderRadius: 12,
-  },
-  agentAvatar: {
-    width: 44,
-    height: 44,
-    backgroundColor: '#22C55E',
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  agentInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  agentName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  agentPhone: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  callAgentBtn: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#DCFCE7',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  detailsCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    padding: 16,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  detailRow: {
+  // Timeline Toggle
+  timelineToggle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  detailLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  detailValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  detailValueLink: {
-    color: '#6366F1',
-  },
-  detailValueAmount: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#22C55E',
-  },
-  instructionsBox: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 10,
-  },
-  instructionsLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#92400E',
-    marginBottom: 4,
-  },
-  instructionsText: {
-    fontSize: 14,
-    color: '#78350F',
-  },
-  itemsCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginVertical: 8,
+    marginTop: 12,
     padding: 16,
     borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
   },
-  itemRow: {
+  timelineToggleLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    gap: 10,
   },
-  itemQty: {
-    width: 36,
-    height: 36,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  itemQtyText: {
+  timelineToggleText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
+    color: '#374151',
+  },
+  timelineProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  timelineProgressText: {
+    fontSize: 13,
+    fontWeight: '600',
     color: '#6366F1',
   },
-  itemInfo: {
+  // Checkpoints
+  checkpointsCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 4,
+    padding: 16,
+    paddingTop: 0,
+    borderRadius: 16,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+  },
+  checkpointRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    position: 'relative',
+    paddingTop: 16,
+  },
+  connectorLine: {
+    position: 'absolute',
+    left: 13,
+    top: 0,
+    width: 2,
+    height: 16,
+    backgroundColor: '#E5E7EB',
+  },
+  connectorLineCompleted: {
+    backgroundColor: '#22C55E',
+  },
+  checkpointCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  checkpointCircleCompleted: {
+    backgroundColor: '#22C55E',
+    borderColor: '#22C55E',
+  },
+  checkpointCircleCurrent: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#6366F1',
+  },
+  checkpointContent: {
     flex: 1,
     marginLeft: 12,
+    paddingBottom: 8,
   },
-  itemName: {
+  checkpointLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: '500',
+    color: '#9CA3AF',
   },
-  itemNotes: {
+  checkpointLabelCompleted: {
+    color: '#374151',
+    fontWeight: '600',
+  },
+  checkpointLabelCurrent: {
+    color: '#6366F1',
+    fontWeight: '700',
+  },
+  checkpointTime: {
     fontSize: 12,
-    color: '#6B7280',
+    color: '#9CA3AF',
     marginTop: 2,
   },
-  itemPrice: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-  },
+  // Bottom Actions
   bottomActions: {
     position: 'absolute',
     bottom: 0,
@@ -1016,19 +1330,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
   },
   actionBtn: {
     flex: 1,
     paddingVertical: 16,
-    borderRadius: 14,
-    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
   },
   actionBtnPrimary: {
     backgroundColor: '#6366F1',
@@ -1037,7 +1346,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEE2E2',
   },
   actionBtnText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#374151',
   },
@@ -1047,82 +1356,7 @@ const styles = StyleSheet.create({
   actionBtnTextDestructive: {
     color: '#DC2626',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    paddingBottom: 40,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 20,
-  },
-  modalOptions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modalOption: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-  },
-  modalOptionHighlighted: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#22C55E',
-  },
-  modalOptionIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  modalOptionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  modalOptionSubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  modalRecommendedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 4,
-  },
-  modalRecommendedText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#F59E0B',
-  },
-  // Carpet Genie Status Bar Styles
+  // Carpet Genie Status Bar
   bottomStatusBar: {
     position: 'absolute',
     bottom: 0,
@@ -1132,11 +1366,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
   },
   carpetGenieStatusContainer: {
     flexDirection: 'row',
@@ -1188,5 +1417,125 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#22C55E',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    maxHeight: '80%',
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  selectedItemCard: {
+    backgroundColor: '#F3F4F6',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  selectedItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  selectedItemDetails: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  modalSection: {
+    marginBottom: 24,
+  },
+  modalSectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  modalSectionDesc: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  qtyInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  qtyBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  qtyInput: {
+    flex: 1,
+    height: 44,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  adjustQtyBtn: {
+    backgroundColor: '#6366F1',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  adjustQtyBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  reasonInput: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 14,
+    color: '#111827',
+    marginBottom: 12,
+  },
+  unavailableBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DC2626',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  unavailableBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
