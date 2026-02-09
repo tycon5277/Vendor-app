@@ -441,6 +441,140 @@ PAYMENT_CONFIG = {
     "gst_on_gateway_fee": 18.0,  # 18% GST on gateway fee
 }
 
+# ===================== DELIVERY FEE & PAYOUT CALCULATION HELPERS =====================
+# These functions are INTERNAL - results shown to users are sanitized
+
+import math
+
+def calculate_distance_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Calculate distance between two points using Haversine formula"""
+    R = 6371  # Earth's radius in km
+    
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lng = math.radians(lng2 - lng1)
+    
+    a = math.sin(delta_lat/2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lng/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    
+    return round(R * c, 2)
+
+def calculate_customer_delivery_fee(distance_km: float) -> dict:
+    """
+    Calculate what customer pays for delivery.
+    Returns only the fee amount - internal breakdown is NOT exposed.
+    """
+    config = DELIVERY_CONFIG
+    
+    if config["use_zone_based"]:
+        # Zone-based calculation
+        for zone, fee in config["zone_fees"].items():
+            min_km, max_km = map(float, zone.split("-"))
+            if min_km <= distance_km < max_km:
+                return {"delivery_fee": fee}
+        # Beyond max zone
+        return {"delivery_fee": config["max_delivery_fee"]}
+    else:
+        # Dynamic calculation
+        base_fee = config["base_delivery_fee"]
+        extra_km = max(0, distance_km - config["base_distance_km"])
+        extra_fee = extra_km * config["per_km_fee"]
+        total_fee = min(base_fee + extra_fee, config["max_delivery_fee"])
+        
+        return {"delivery_fee": round(total_fee, 0)}
+
+def calculate_genie_payout_internal(total_distance_km: float) -> dict:
+    """
+    Calculate what Genie receives - THIS IS INTERNAL/ADMIN ONLY.
+    Never expose this breakdown to users.
+    """
+    config = DELIVERY_CONFIG
+    
+    # Fuel cost estimate
+    fuel_cost = total_distance_km * config["genie_fuel_rate_per_km"]
+    
+    # Base pay
+    base_pay = config["genie_base_pay"]
+    
+    # Distance-based pay
+    distance_pay = total_distance_km * config["genie_per_km_pay"]
+    
+    # App work bonus
+    app_bonus = config["genie_app_work_bonus"]
+    
+    # Calculate total
+    calculated_payout = fuel_cost + base_pay + distance_pay + app_bonus
+    
+    # Apply minimum guarantee
+    final_payout = max(calculated_payout, config["genie_minimum_payout"])
+    
+    return {
+        "payout": round(final_payout, 2),
+        # Internal breakdown for admin analytics
+        "_internal_breakdown": {
+            "fuel_cost": round(fuel_cost, 2),
+            "base_pay": base_pay,
+            "distance_pay": round(distance_pay, 2),
+            "app_bonus": app_bonus,
+            "calculated_total": round(calculated_payout, 2),
+            "minimum_applied": calculated_payout < config["genie_minimum_payout"],
+            "final_payout": round(final_payout, 2)
+        }
+    }
+
+def calculate_platform_margin_internal(customer_fee: float, genie_payout: float) -> dict:
+    """
+    Calculate platform margin - ADMIN ONLY, never expose to users.
+    """
+    margin = customer_fee - genie_payout
+    margin_percent = (margin / customer_fee * 100) if customer_fee > 0 else 0
+    
+    return {
+        "margin": round(margin, 2),
+        "margin_percent": round(margin_percent, 2),
+        "customer_fee": customer_fee,
+        "genie_payout": genie_payout
+    }
+
+async def get_nearby_genies(vendor_lat: float, vendor_lng: float, max_distance_km: float = None) -> List[dict]:
+    """
+    Get list of online Genies sorted by distance from vendor.
+    """
+    if max_distance_km is None:
+        max_distance_km = DELIVERY_CONFIG["max_genie_distance_km"]
+    
+    # Get all online Genies with location
+    online_genies = await db.agent_profiles.find({
+        "is_online": True,
+        "current_order_id": None,  # Not currently on a delivery
+        "current_location": {"$ne": None}
+    }).to_list(100)
+    
+    genies_with_distance = []
+    for genie in online_genies:
+        loc = genie.get("current_location", {})
+        if loc.get("lat") and loc.get("lng"):
+            distance = calculate_distance_km(
+                vendor_lat, vendor_lng,
+                loc["lat"], loc["lng"]
+            )
+            if distance <= max_distance_km:
+                genies_with_distance.append({
+                    "genie_id": genie["user_id"],
+                    "name": genie.get("name"),
+                    "phone": genie.get("phone"),
+                    "distance_km": distance,
+                    "rating": genie.get("rating", 5.0),
+                    "total_deliveries": genie.get("total_deliveries", 0),
+                    "location": loc
+                })
+    
+    # Sort by distance (closest first)
+    genies_with_distance.sort(key=lambda x: x["distance_km"])
+    
+    return genies_with_distance
+
 class ChatRoom(BaseModel):
     room_id: str
     wish_id: Optional[str] = None
