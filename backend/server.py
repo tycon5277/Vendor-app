@@ -1441,7 +1441,7 @@ async def update_order_items(
     data: ItemUpdateRequest,
     current_user: User = Depends(require_vendor)
 ):
-    """Update order items (mark unavailable, adjust quantities)"""
+    """Update order items (mark unavailable, adjust quantities) and auto-process refunds"""
     order = await db.shop_orders.find_one(
         {"order_id": order_id, "vendor_id": current_user.user_id}
     )
@@ -1452,9 +1452,16 @@ async def update_order_items(
     if order.get("status") not in ["confirmed", "preparing"]:
         raise HTTPException(status_code=400, detail="Items can only be modified for confirmed or preparing orders")
     
-    # Calculate unavailable items for notification
+    now = datetime.now(timezone.utc)
+    
+    # Calculate unavailable items for notification and refund
     unavailable_items = [item for item in data.items if item.get("unavailable")]
     adjusted_items = [item for item in data.items if item.get("adjusted_quantity") is not None and item.get("adjusted_quantity") != item.get("quantity")]
+    
+    # Calculate refund amount
+    original_total = order.get("total_amount", 0) - order.get("delivery_fee", 0)
+    new_items_total = data.adjusted_total - order.get("delivery_fee", 0)
+    refund_amount = original_total - new_items_total
     
     # Update order
     update_data = {
@@ -1468,24 +1475,95 @@ async def update_order_items(
         {"$set": update_data}
     )
     
-    # Create notification for customer if items were changed
+    # Process automatic refund if payment was already made
+    refund_processed = False
+    if refund_amount > 0 and order.get("payment_status") == "paid":
+        # Find escrow holding
+        escrow = await db.escrow_holdings.find_one({"order_id": order_id})
+        if escrow:
+            # Create affected items list for refund record
+            affected_items = []
+            for item in unavailable_items:
+                affected_items.append({
+                    "product_id": item.get("product_id"),
+                    "name": item.get("name"),
+                    "quantity": item.get("quantity"),
+                    "amount": item.get("price", 0) * item.get("quantity", 1)
+                })
+            for item in adjusted_items:
+                original_qty = item.get("quantity", 0)
+                new_qty = item.get("adjusted_quantity", 0)
+                if new_qty < original_qty:
+                    diff_amount = item.get("price", 0) * (original_qty - new_qty)
+                    affected_items.append({
+                        "product_id": item.get("product_id"),
+                        "name": item.get("name"),
+                        "quantity_diff": original_qty - new_qty,
+                        "amount": diff_amount
+                    })
+            
+            # Create refund record
+            refund_id = f"ref_{uuid.uuid4().hex[:12]}"
+            refund = {
+                "refund_id": refund_id,
+                "order_id": order_id,
+                "transaction_id": escrow.get("transaction_id"),
+                "customer_id": order["user_id"],
+                "amount": refund_amount,
+                "reason": "item_unavailable" if unavailable_items else "quantity_adjusted",
+                "reason_details": f"Items adjusted by vendor",
+                "affected_items": affected_items,
+                "status": "completed",  # Auto-completed for now
+                "created_at": now,
+                "processed_at": now
+            }
+            await db.refunds.insert_one(refund)
+            
+            # Update escrow holding
+            new_refund_entry = {
+                "refund_id": refund_id,
+                "amount": refund_amount,
+                "reason": "items_adjusted",
+                "timestamp": now.isoformat()
+            }
+            
+            new_total_refunded = escrow.get("total_refunded", 0) + refund_amount
+            
+            await db.escrow_holdings.update_one(
+                {"order_id": order_id},
+                {
+                    "$set": {
+                        "current_total": data.adjusted_total,
+                        "current_items_amount": new_items_total,
+                        "total_refunded": new_total_refunded
+                    },
+                    "$push": {"refund_history": new_refund_entry}
+                }
+            )
+            
+            refund_processed = True
+    
+    # Create notification for customer
     if unavailable_items or adjusted_items:
         notification_message = ""
+        if refund_amount > 0:
+            notification_message = f"₹{refund_amount:.0f} refunded. "
+        
         if unavailable_items:
             names = ", ".join([i.get("name", "Item") for i in unavailable_items[:2]])
-            notification_message = f"{len(unavailable_items)} item(s) unavailable: {names}"
+            notification_message += f"{len(unavailable_items)} item(s) unavailable: {names}"
         elif adjusted_items:
-            notification_message = f"Quantity adjusted for {len(adjusted_items)} item(s)"
+            notification_message += f"Quantity adjusted for {len(adjusted_items)} item(s)"
         
         customer_notification = {
             "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
             "user_id": order["user_id"],
             "type": "order_items_updated",
-            "title": "Order Updated",
+            "title": "Order Updated" + (" - Refund Processed 💰" if refund_processed else ""),
             "message": notification_message,
-            "data": {"order_id": order_id},
+            "data": {"order_id": order_id, "refund_amount": refund_amount if refund_processed else 0},
             "read": False,
-            "created_at": datetime.now(timezone.utc)
+            "created_at": now
         }
         await db.notifications.insert_one(customer_notification)
     
@@ -1494,7 +1572,9 @@ async def update_order_items(
         "order_id": order_id,
         "adjusted_total": data.adjusted_total,
         "unavailable_count": len(unavailable_items),
-        "adjusted_count": len(adjusted_items)
+        "adjusted_count": len(adjusted_items),
+        "refund_amount": refund_amount if refund_processed else 0,
+        "refund_processed": refund_processed
     }
 
 @api_router.post("/vendor/orders/{order_id}/assign-delivery")
