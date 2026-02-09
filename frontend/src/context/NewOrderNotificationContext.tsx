@@ -255,7 +255,6 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
     
     return () => {
       clearInterval(intervalId);
-      cleanupSound();
     };
   }, [isAuthenticated, isVendor, checkForNewOrders]);
 
