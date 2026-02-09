@@ -572,9 +572,6 @@ export default function OrderDetailScreen() {
                 </TouchableOpacity>
               </View>
             )}
-                </TouchableOpacity>
-              </View>
-            )}
           </View>
         )}
 
