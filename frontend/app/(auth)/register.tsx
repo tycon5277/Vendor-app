@@ -839,53 +839,91 @@ export default function RegisterScreen() {
             </TouchableOpacity>
             <View style={styles.mapModalTitleContainer}>
               <Text style={styles.mapModalTitle}>Pin Your Location</Text>
-              <Text style={styles.mapModalSubtitle}>Drag the marker to exact spot</Text>
+              <Text style={styles.mapModalSubtitle}>Tap on map to place marker</Text>
             </View>
             <View style={{ width: 44 }} />
           </View>
 
-          {/* Map */}
+          {/* WebView Map */}
           {tempMapLocation && (
-            <MapView
-              ref={mapRef}
+            <WebView
               style={styles.fullMap}
-              initialRegion={{
-                latitude: tempMapLocation.lat,
-                longitude: tempMapLocation.lng,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
+              originWhitelist={['*']}
+              onMessage={(event) => {
+                try {
+                  const data = JSON.parse(event.nativeEvent.data);
+                  if (data.lat && data.lng) {
+                    setTempMapLocation({ lat: data.lat, lng: data.lng });
+                  }
+                } catch (e) {}
               }}
-              showsUserLocation={true}
-              showsMyLocationButton={true}
-            >
-              <Marker
-                coordinate={{
-                  latitude: tempMapLocation.lat,
-                  longitude: tempMapLocation.lng,
-                }}
-                draggable
-                onDragEnd={(e) => {
-                  setTempMapLocation({
-                    lat: e.nativeEvent.coordinate.latitude,
-                    lng: e.nativeEvent.coordinate.longitude,
-                  });
-                }}
-              >
-                <View style={styles.draggableMarker}>
-                  <View style={styles.markerPinTop}>
-                    <Ionicons name="storefront" size={24} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.markerPinBottom} />
-                </View>
-              </Marker>
-            </MapView>
+              source={{
+                html: `
+                  <!DOCTYPE html>
+                  <html>
+                  <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                    <style>
+                      * { margin: 0; padding: 0; box-sizing: border-box; }
+                      html, body, #map { width: 100%; height: 100%; }
+                      .custom-marker {
+                        background: #6366F1;
+                        border-radius: 50%;
+                        width: 40px;
+                        height: 40px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border: 3px solid white;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                      }
+                      .custom-marker svg { fill: white; width: 20px; height: 20px; }
+                    </style>
+                  </head>
+                  <body>
+                    <div id="map"></div>
+                    <script>
+                      var map = L.map('map').setView([${tempMapLocation.lat}, ${tempMapLocation.lng}], 16);
+                      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '© OpenStreetMap'
+                      }).addTo(map);
+                      
+                      var markerIcon = L.divIcon({
+                        className: 'custom-marker-container',
+                        html: '<div class="custom-marker"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>',
+                        iconSize: [40, 40],
+                        iconAnchor: [20, 40]
+                      });
+                      
+                      var marker = L.marker([${tempMapLocation.lat}, ${tempMapLocation.lng}], { 
+                        icon: markerIcon,
+                        draggable: true 
+                      }).addTo(map);
+                      
+                      marker.on('dragend', function(e) {
+                        var pos = e.target.getLatLng();
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ lat: pos.lat, lng: pos.lng }));
+                      });
+                      
+                      map.on('click', function(e) {
+                        marker.setLatLng(e.latlng);
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ lat: e.latlng.lat, lng: e.latlng.lng }));
+                      });
+                    </script>
+                  </body>
+                  </html>
+                `
+              }}
+            />
           )}
 
           {/* Instructions */}
           <View style={styles.mapInstructions}>
             <Ionicons name="hand-left" size={20} color="#6366F1" />
             <Text style={styles.mapInstructionText}>
-              Drag the pin to mark your exact shop location
+              Tap on map or drag marker to set location
             </Text>
           </View>
 
