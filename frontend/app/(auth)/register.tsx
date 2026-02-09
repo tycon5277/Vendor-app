@@ -512,7 +512,7 @@ export default function RegisterScreen() {
           <Text style={styles.locationButtonSubtitle}>
             {formData.shop_location
               ? `Lat: ${formData.shop_location.lat.toFixed(4)}, Lng: ${formData.shop_location.lng.toFixed(4)}`
-              : 'Tap to capture your shop location'}
+              : 'Tap to detect your shop location'}
           </Text>
         </View>
         {formData.shop_location ? (
@@ -521,6 +521,58 @@ export default function RegisterScreen() {
           <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
         )}
       </TouchableOpacity>
+
+      {/* Map Preview Tile */}
+      <View style={styles.mapPreviewContainer}>
+        <Text style={styles.mapPreviewLabel}>
+          {formData.shop_location ? 'Pin your exact location' : 'Or select manually on map'}
+        </Text>
+        <TouchableOpacity 
+          style={styles.mapPreviewTile}
+          onPress={openMapForManualSelection}
+          activeOpacity={0.9}
+        >
+          {formData.shop_location ? (
+            <MapView
+              style={styles.mapPreview}
+              region={{
+                latitude: formData.shop_location.lat,
+                longitude: formData.shop_location.lng,
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005,
+              }}
+              scrollEnabled={false}
+              zoomEnabled={false}
+              rotateEnabled={false}
+              pitchEnabled={false}
+            >
+              <Marker
+                coordinate={{
+                  latitude: formData.shop_location.lat,
+                  longitude: formData.shop_location.lng,
+                }}
+              >
+                <View style={styles.mapMarker}>
+                  <Ionicons name="storefront" size={20} color="#FFFFFF" />
+                </View>
+              </Marker>
+            </MapView>
+          ) : (
+            <View style={styles.mapPlaceholder}>
+              <Ionicons name="map-outline" size={48} color="#D1D5DB" />
+              <Text style={styles.mapPlaceholderText}>Tap to select location on map</Text>
+            </View>
+          )}
+          <View style={styles.mapOverlay}>
+            <View style={styles.mapEditBadge}>
+              <Ionicons name="pencil" size={14} color="#FFFFFF" />
+              <Text style={styles.mapEditText}>
+                {formData.shop_location ? 'Adjust Pin' : 'Select Location'}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
 
       {/* Operating Hours */}
       <View style={styles.operatingHoursSection}>
