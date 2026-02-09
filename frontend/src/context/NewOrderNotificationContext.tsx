@@ -318,8 +318,10 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        // App came to foreground - check for orders
-        checkForNewOrders();
+        // App came to foreground - check for orders only if online
+        if (isVendorOnline) {
+          checkForNewOrders();
+        }
       }
       appState.current = nextAppState;
     });
@@ -327,7 +329,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
     return () => {
       subscription.remove();
     };
-  }, [checkForNewOrders]);
+  }, [checkForNewOrders, isVendorOnline]);
 
   // Polling for new orders
   useEffect(() => {
