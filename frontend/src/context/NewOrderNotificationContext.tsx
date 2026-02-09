@@ -167,7 +167,6 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
   // Hide notification modal
   const hideNotification = useCallback(() => {
     Vibration.cancel();
-    cleanupSound();
     
     Animated.parallel([
       Animated.timing(scaleAnim, {
