@@ -838,6 +838,102 @@ export default function RegisterScreen() {
         {step === 3 && renderStep3()}
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Full Screen Map Modal with Draggable Pin */}
+      <Modal
+        visible={showMapModal}
+        animationType="slide"
+        onRequestClose={() => setShowMapModal(false)}
+      >
+        <View style={styles.mapModalContainer}>
+          {/* Header */}
+          <View style={[styles.mapModalHeader, { paddingTop: insets.top + 10 }]}>
+            <TouchableOpacity 
+              style={styles.mapModalBackBtn}
+              onPress={() => setShowMapModal(false)}
+            >
+              <Ionicons name="close" size={24} color="#374151" />
+            </TouchableOpacity>
+            <View style={styles.mapModalTitleContainer}>
+              <Text style={styles.mapModalTitle}>Pin Your Location</Text>
+              <Text style={styles.mapModalSubtitle}>Drag the marker to exact spot</Text>
+            </View>
+            <View style={{ width: 44 }} />
+          </View>
+
+          {/* Map */}
+          {tempMapLocation && (
+            <MapView
+              ref={mapRef}
+              style={styles.fullMap}
+              initialRegion={{
+                latitude: tempMapLocation.lat,
+                longitude: tempMapLocation.lng,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }}
+              showsUserLocation={true}
+              showsMyLocationButton={true}
+            >
+              <Marker
+                coordinate={{
+                  latitude: tempMapLocation.lat,
+                  longitude: tempMapLocation.lng,
+                }}
+                draggable
+                onDragEnd={(e) => {
+                  setTempMapLocation({
+                    lat: e.nativeEvent.coordinate.latitude,
+                    lng: e.nativeEvent.coordinate.longitude,
+                  });
+                }}
+              >
+                <View style={styles.draggableMarker}>
+                  <View style={styles.markerPinTop}>
+                    <Ionicons name="storefront" size={24} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.markerPinBottom} />
+                </View>
+              </Marker>
+            </MapView>
+          )}
+
+          {/* Instructions */}
+          <View style={styles.mapInstructions}>
+            <Ionicons name="hand-left" size={20} color="#6366F1" />
+            <Text style={styles.mapInstructionText}>
+              Drag the pin to mark your exact shop location
+            </Text>
+          </View>
+
+          {/* Coordinates Display */}
+          {tempMapLocation && (
+            <View style={styles.coordinatesDisplay}>
+              <Text style={styles.coordinatesLabel}>Selected Coordinates</Text>
+              <Text style={styles.coordinatesValue}>
+                {tempMapLocation.lat.toFixed(6)}, {tempMapLocation.lng.toFixed(6)}
+              </Text>
+            </View>
+          )}
+
+          {/* Confirm Button */}
+          <View style={[styles.mapModalFooter, { paddingBottom: insets.bottom + 16 }]}>
+            <TouchableOpacity 
+              style={styles.mapModalCancelBtn}
+              onPress={() => setShowMapModal(false)}
+            >
+              <Text style={styles.mapModalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.mapModalConfirmBtn}
+              onPress={confirmMapLocation}
+            >
+              <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+              <Text style={styles.mapModalConfirmText}>Confirm Location</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
