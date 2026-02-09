@@ -195,7 +195,6 @@ export default function RegisterScreen() {
   const [showClosingTimePicker, setShowClosingTimePicker] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
   const [tempMapLocation, setTempMapLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const mapRef = useRef<MapView>(null);
 
   const [formData, setFormData] = useState({
     name: user?.name || '',
