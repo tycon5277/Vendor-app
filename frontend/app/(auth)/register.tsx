@@ -239,22 +239,50 @@ export default function RegisterScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required');
+        showAlert({
+          type: 'error',
+          title: 'Permission Denied',
+          message: 'Location permission is required to capture your shop location.',
+        });
         return;
       }
 
       const location = await Location.getCurrentPositionAsync({});
+      const coords = {
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+      };
+      setTempMapLocation(coords);
+      setShowMapModal(true);
+    } catch (error) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to get location. Please try again.',
+      });
+    }
+  };
+
+  const openMapForManualSelection = async () => {
+    // Default to Bangalore if no location is set
+    const defaultLocation = formData.shop_location || { lat: 12.9716, lng: 77.5946 };
+    setTempMapLocation(defaultLocation);
+    setShowMapModal(true);
+  };
+
+  const confirmMapLocation = () => {
+    if (tempMapLocation) {
       setFormData((prev) => ({
         ...prev,
-        shop_location: {
-          lat: location.coords.latitude,
-          lng: location.coords.longitude,
-        },
+        shop_location: tempMapLocation,
       }));
-      Alert.alert('Success', 'Location captured successfully!');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to get location');
+      showAlert({
+        type: 'success',
+        title: 'Location Saved! 📍',
+        message: 'Your shop location has been pinned on the map.',
+      });
     }
+    setShowMapModal(false);
   };
 
   const pickImage = async () => {
