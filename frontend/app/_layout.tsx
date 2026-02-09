@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../src/store/authStore';
 import { LoadingScreen } from '../src/components/LoadingScreen';
 import { AlertProvider } from '../src/context/AlertContext';
+import { NewOrderNotificationProvider } from '../src/context/NewOrderNotificationContext';
 
 function InitialLayout() {
   const { isLoading, isAuthenticated, isVendor, loadStoredAuth } = useAuthStore();
