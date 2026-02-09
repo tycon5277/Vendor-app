@@ -319,6 +319,121 @@ class SettlementRecord(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     processed_at: Optional[datetime] = None
 
+# ===================== DELIVERY FEE & ASSIGNMENT CONFIGURATION =====================
+# These are admin-configurable settings (hidden from users)
+
+DELIVERY_CONFIG = {
+    # Fee Structure (what customer pays)
+    "base_delivery_fee": 35.0,  # Minimum delivery fee
+    "per_km_fee": 5.0,  # Additional per km beyond base distance
+    "base_distance_km": 2.0,  # Distance included in base fee
+    "max_delivery_fee": 80.0,  # Cap on delivery fee
+    
+    # Zone-based fees (alternative to dynamic)
+    "zone_fees": {
+        "0-3": 35.0,
+        "3-5": 45.0,
+        "5-8": 55.0,
+        "8-12": 70.0,
+    },
+    "use_zone_based": False,  # If True, use zones; if False, use dynamic calculation
+    
+    # Genie Payout Structure (what Genie receives - HIDDEN from everyone)
+    "genie_base_pay": 10.0,  # Base pay per delivery
+    "genie_per_km_pay": 3.0,  # Per km pay
+    "genie_fuel_rate_per_km": 1.5,  # Estimated fuel cost per km (₹100/L ÷ 70km/L ≈ ₹1.43)
+    "genie_minimum_payout": 20.0,  # Minimum guaranteed payout
+    "genie_app_work_bonus": 5.0,  # Additional for using app
+    
+    # Assignment Settings
+    "assignment_timeout_seconds": 30,  # Time before moving to next Genie
+    "max_assignment_attempts": 5,  # Max Genies to try before creating open request
+    "max_genie_distance_km": 5.0,  # Max distance to consider a Genie
+    
+    # Fuel Configuration (for internal calculations)
+    "petrol_price_per_liter": 100.0,
+    "avg_mileage_km_per_liter": 70.0,
+}
+
+class DeliveryFeeCalculation(BaseModel):
+    """Tracks delivery fee calculations for admin reporting"""
+    calculation_id: str
+    order_id: str
+    
+    # Distance data
+    vendor_location: dict  # {lat, lng}
+    customer_location: dict  # {lat, lng}
+    genie_location: Optional[dict] = None  # {lat, lng} - when assigned
+    
+    # Calculated distances
+    vendor_to_customer_km: float
+    genie_to_vendor_km: Optional[float] = None
+    total_genie_travel_km: Optional[float] = None
+    
+    # Customer-facing (what they see)
+    customer_delivery_fee: float
+    
+    # Internal calculations (HIDDEN from all users)
+    genie_payout: float = 0.0
+    platform_margin: float = 0.0
+    fuel_cost_estimate: float = 0.0
+    
+    # Breakdown for admin
+    payout_breakdown: dict = {}  # Detailed breakdown
+    
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class DeliveryAssignmentLog(BaseModel):
+    """Tracks the assignment process for admin analytics"""
+    log_id: str
+    order_id: str
+    vendor_id: str
+    
+    # Assignment attempts
+    attempts: List[dict] = []  # [{genie_id, distance_km, notified_at, response, response_at}]
+    
+    # Final assignment
+    assigned_genie_id: Optional[str] = None
+    assignment_method: str = "proximity"  # proximity, manual, open_pool
+    
+    # Timing
+    assignment_started_at: datetime
+    assignment_completed_at: Optional[datetime] = None
+    total_assignment_time_seconds: Optional[float] = None
+    
+    # Status
+    status: str = "in_progress"  # in_progress, assigned, failed, expired
+    failure_reason: Optional[str] = None
+    
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class DeliveryAnalytics(BaseModel):
+    """Aggregated delivery analytics for admin dashboard"""
+    analytics_id: str
+    period: str  # daily, weekly, monthly
+    period_date: str  # YYYY-MM-DD or YYYY-WW
+    
+    # Volume metrics
+    total_deliveries: int = 0
+    successful_deliveries: int = 0
+    failed_deliveries: int = 0
+    
+    # Financial metrics (admin only)
+    total_customer_fees_collected: float = 0.0
+    total_genie_payouts: float = 0.0
+    total_platform_margin: float = 0.0
+    
+    # Performance metrics
+    avg_assignment_time_seconds: float = 0.0
+    avg_delivery_time_minutes: float = 0.0
+    avg_distance_km: float = 0.0
+    
+    # Genie metrics
+    active_genies: int = 0
+    avg_deliveries_per_genie: float = 0.0
+    
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # Payment Gateway Fee Configuration
 PAYMENT_CONFIG = {
     "gateway_fee_percent": 2.0,  # 2% Razorpay fee
