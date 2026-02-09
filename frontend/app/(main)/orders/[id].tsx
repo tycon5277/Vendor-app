@@ -439,9 +439,10 @@ export default function OrderDetailScreen() {
           {/* Table Header for Preparing Status */}
           {order.status === 'preparing' && (
             <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderText, { width: 50, textAlign: 'center' }]}>Done</Text>
               <Text style={[styles.tableHeaderText, { flex: 1 }]}>Item</Text>
               <Text style={[styles.tableHeaderText, { width: 70, textAlign: 'right' }]}>Price</Text>
-              <Text style={[styles.tableHeaderText, { width: 50, textAlign: 'center' }]}>Picked</Text>
+              <Text style={[styles.tableHeaderText, { width: 40, textAlign: 'center' }]}>Edit</Text>
             </View>
           )}
 
