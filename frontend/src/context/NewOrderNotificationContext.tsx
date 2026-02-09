@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { Audio } from 'expo-av';
 import { orderAPI } from '../utils/api';
 import { useAuthStore } from '../store/authStore';
 import { Order } from '../types';
