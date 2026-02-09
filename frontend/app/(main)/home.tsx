@@ -383,52 +383,6 @@ export default function HomeScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
-                        <Text style={styles.alertMoreText}>+{outOfStockProducts.length - 2} more</Text>
-                      )}
-                    </View>
-                  </View>
-                  <View style={styles.alertArrow}>
-                    <Ionicons name="chevron-forward" size={20} color="#DC2626" />
-                  </View>
-                </TouchableOpacity>
-              )}
-
-              {/* Low Stock Alert */}
-              {lowStockProducts.length > 0 && (
-                <TouchableOpacity 
-                  style={styles.alertCard}
-                  onPress={() => router.push({ 
-                    pathname: '/(main)/warehouse', 
-                    params: { filter: 'low_stock' } 
-                  })}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.alertIconBg, { backgroundColor: '#FEF3C7' }]}>
-                    <Ionicons name="alert-circle" size={24} color="#D97706" />
-                  </View>
-                  <View style={styles.alertContent}>
-                    <Text style={[styles.alertTitle, { color: '#92400E' }]}>Low Stock</Text>
-                    <Text style={styles.alertSubtitle}>
-                      {lowStockProducts.length} product{lowStockProducts.length > 1 ? 's' : ''} running low
-                    </Text>
-                    <View style={styles.alertProductList}>
-                      {lowStockProducts.slice(0, 2).map((p, i) => (
-                        <Text key={i} style={styles.alertProductName}>
-                          • {p.name} ({p.stock_quantity} left)
-                        </Text>
-                      ))}
-                      {lowStockProducts.length > 2 && (
-                        <Text style={styles.alertMoreText}>+{lowStockProducts.length - 2} more</Text>
-                      )}
-                    </View>
-                  </View>
-                  <View style={styles.alertArrow}>
-                    <Ionicons name="chevron-forward" size={20} color="#D97706" />
-                  </View>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
 
           <View style={{ height: 100 }} />
         </Animated.View>
