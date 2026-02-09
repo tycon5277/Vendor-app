@@ -514,64 +514,116 @@ export default function OrderDetailScreen() {
                 <Text style={styles.deliverySubtitle}>
                   {order.assigned_agent_id 
                     ? `Assigned to ${order.agent_name || 'Carpet Genie'}`
-                    : 'Not assigned yet'}
+                    : 'Select delivery method'}
                 </Text>
               </View>
             </View>
             
             {!order.assigned_agent_id && order.delivery_method !== 'self' && order.status === 'ready' && (
-              <View style={styles.deliveryOptions}>
-                {/* Carpet Genie - Always shown, Recommended if vendor doesn't have own delivery */}
+              <>
+                <View style={styles.deliveryOptions}>
+                  {/* Carpet Genie Option */}
+                  <TouchableOpacity 
+                    style={[
+                      styles.deliveryOptionBtn, 
+                      styles.deliveryOptionBtnGenie,
+                      !vendorCanDeliver && styles.deliveryOptionBtnRecommended,
+                      selectedDeliveryOption === 'carpet_genie' && styles.deliveryOptionBtnSelected
+                    ]}
+                    onPress={() => setSelectedDeliveryOption('carpet_genie')}
+                    disabled={actionLoading}
+                  >
+                    <View style={[
+                      styles.radioCircle,
+                      selectedDeliveryOption === 'carpet_genie' && styles.radioCircleSelected
+                    ]}>
+                      {selectedDeliveryOption === 'carpet_genie' && (
+                        <View style={styles.radioInner} />
+                      )}
+                    </View>
+                    <View style={[styles.deliveryOptionIcon, { backgroundColor: '#DCFCE7' }]}>
+                      <Ionicons name="bicycle" size={20} color="#22C55E" />
+                    </View>
+                    <View style={styles.deliveryOptionContent}>
+                      <Text style={styles.deliveryOptionTitle}>Carpet Genie</Text>
+                      <Text style={styles.deliveryOptionSubtitle}>
+                        {!vendorCanDeliver ? 'Recommended for you' : 'Partner delivery'}
+                      </Text>
+                    </View>
+                    {!vendorCanDeliver && (
+                      <View style={styles.recommendedBadge}>
+                        <Ionicons name="star" size={12} color="#F59E0B" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Shop Delivery Option */}
+                  <TouchableOpacity 
+                    style={[
+                      styles.deliveryOptionBtn,
+                      !vendorCanDeliver && styles.deliveryOptionBtnSecondary,
+                      selectedDeliveryOption === 'self_delivery' && styles.deliveryOptionBtnSelected
+                    ]}
+                    onPress={() => setSelectedDeliveryOption('self_delivery')}
+                    disabled={actionLoading}
+                  >
+                    <View style={[
+                      styles.radioCircle,
+                      selectedDeliveryOption === 'self_delivery' && styles.radioCircleSelected
+                    ]}>
+                      {selectedDeliveryOption === 'self_delivery' && (
+                        <View style={styles.radioInner} />
+                      )}
+                    </View>
+                    <View style={[styles.deliveryOptionIcon, { backgroundColor: vendorCanDeliver ? '#DBEAFE' : '#F3F4F6' }]}>
+                      <Ionicons name="car" size={20} color={vendorCanDeliver ? '#3B82F6' : '#6B7280'} />
+                    </View>
+                    <View style={styles.deliveryOptionContent}>
+                      <Text style={[
+                        styles.deliveryOptionTitle,
+                        !vendorCanDeliver && styles.deliveryOptionTitleSecondary
+                      ]}>
+                        {vendorCanDeliver ? 'Own Delivery' : 'Shop Delivery'}
+                      </Text>
+                      <Text style={styles.deliveryOptionSubtitle}>
+                        {vendorCanDeliver ? 'Use your service' : 'Deliver it yourself'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Assign Delivery Button */}
                 <TouchableOpacity 
                   style={[
-                    styles.deliveryOptionBtn, 
-                    styles.deliveryOptionBtnGenie,
-                    !vendorCanDeliver && styles.deliveryOptionBtnRecommended
+                    styles.assignDeliveryBtn,
+                    !selectedDeliveryOption && styles.assignDeliveryBtnDisabled
                   ]}
-                  onPress={() => handleAssignDelivery('carpet_genie')}
-                  disabled={actionLoading}
+                  onPress={() => {
+                    if (selectedDeliveryOption) {
+                      handleAssignDelivery(selectedDeliveryOption);
+                    }
+                  }}
+                  disabled={!selectedDeliveryOption || actionLoading}
                 >
-                  <View style={[styles.deliveryOptionIcon, { backgroundColor: '#DCFCE7' }]}>
-                    <Ionicons name="bicycle" size={20} color="#22C55E" />
-                  </View>
-                  <View style={styles.deliveryOptionContent}>
-                    <Text style={styles.deliveryOptionTitle}>Carpet Genie</Text>
-                    <Text style={styles.deliveryOptionSubtitle}>
-                      {!vendorCanDeliver ? 'Recommended for you' : 'Partner delivery'}
-                    </Text>
-                  </View>
-                  {!vendorCanDeliver && (
-                    <View style={styles.recommendedBadge}>
-                      <Ionicons name="star" size={12} color="#F59E0B" />
-                    </View>
+                  {actionLoading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons 
+                        name="checkmark-circle" 
+                        size={20} 
+                        color={selectedDeliveryOption ? '#FFFFFF' : '#9CA3AF'} 
+                      />
+                      <Text style={[
+                        styles.assignDeliveryBtnText,
+                        !selectedDeliveryOption && styles.assignDeliveryBtnTextDisabled
+                      ]}>
+                        Assign Delivery
+                      </Text>
+                    </>
                   )}
                 </TouchableOpacity>
-
-                {/* Shop Delivery - Always shown, Secondary if vendor doesn't have own delivery */}
-                <TouchableOpacity 
-                  style={[
-                    styles.deliveryOptionBtn,
-                    !vendorCanDeliver && styles.deliveryOptionBtnSecondary
-                  ]}
-                  onPress={() => handleAssignDelivery('self_delivery')}
-                  disabled={actionLoading}
-                >
-                  <View style={[styles.deliveryOptionIcon, { backgroundColor: vendorCanDeliver ? '#DBEAFE' : '#F3F4F6' }]}>
-                    <Ionicons name="car" size={20} color={vendorCanDeliver ? '#3B82F6' : '#6B7280'} />
-                  </View>
-                  <View style={styles.deliveryOptionContent}>
-                    <Text style={[
-                      styles.deliveryOptionTitle,
-                      !vendorCanDeliver && styles.deliveryOptionTitleSecondary
-                    ]}>
-                      {vendorCanDeliver ? 'Own Delivery' : 'Shop Delivery'}
-                    </Text>
-                    <Text style={styles.deliveryOptionSubtitle}>
-                      {vendorCanDeliver ? 'Use your service' : 'Deliver it yourself'}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
+              </>
             )}
           </View>
         )}
