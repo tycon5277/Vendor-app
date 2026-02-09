@@ -533,30 +533,13 @@ export default function RegisterScreen() {
           activeOpacity={0.9}
         >
           {formData.shop_location ? (
-            <MapView
-              style={styles.mapPreview}
-              region={{
-                latitude: formData.shop_location.lat,
-                longitude: formData.shop_location.lng,
-                latitudeDelta: 0.005,
-                longitudeDelta: 0.005,
+            <Image
+              source={{
+                uri: `https://maps.googleapis.com/maps/api/staticmap?center=${formData.shop_location.lat},${formData.shop_location.lng}&zoom=16&size=400x200&markers=color:purple%7C${formData.shop_location.lat},${formData.shop_location.lng}&key=AIzaSyBDaeWicvigtP9xPv919E-RNoxfvC-Hrqg`
               }}
-              scrollEnabled={false}
-              zoomEnabled={false}
-              rotateEnabled={false}
-              pitchEnabled={false}
-            >
-              <Marker
-                coordinate={{
-                  latitude: formData.shop_location.lat,
-                  longitude: formData.shop_location.lng,
-                }}
-              >
-                <View style={styles.mapMarker}>
-                  <Ionicons name="storefront" size={20} color="#FFFFFF" />
-                </View>
-              </Marker>
-            </MapView>
+              style={styles.mapPreview}
+              resizeMode="cover"
+            />
           ) : (
             <View style={styles.mapPlaceholder}>
               <Ionicons name="map-outline" size={48} color="#D1D5DB" />
