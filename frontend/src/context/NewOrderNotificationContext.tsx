@@ -331,7 +331,10 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
 
   // Polling for new orders
   useEffect(() => {
-    if (!isAuthenticated || !isVendor) return;
+    // Only poll when vendor is authenticated, is a vendor, AND is online
+    if (!isAuthenticated || !isVendor || !isVendorOnline) {
+      return;
+    }
     
     // Initial check
     checkForNewOrders();
@@ -341,8 +344,9 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
     
     return () => {
       clearInterval(intervalId);
+      cleanupSound();
     };
-  }, [isAuthenticated, isVendor, checkForNewOrders]);
+  }, [isAuthenticated, isVendor, isVendorOnline, checkForNewOrders, cleanupSound]);
 
   // Handle view order
   const handleViewOrder = useCallback(() => {
