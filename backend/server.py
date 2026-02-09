@@ -1832,7 +1832,11 @@ async def assign_delivery_partner(
     data: DeliveryAssignment,
     current_user: User = Depends(require_vendor)
 ):
-    """Assign delivery to self or Carpet Genie"""
+    """
+    Assign delivery to self or Carpet Genie.
+    For Carpet Genie: Uses proximity-based assignment algorithm.
+    All internal calculations are tracked but hidden from users.
+    """
     order = await db.shop_orders.find_one(
         {"order_id": order_id, "vendor_id": current_user.user_id}
     )
@@ -1842,58 +1846,196 @@ async def assign_delivery_partner(
     if order.get("status") not in ["ready", "confirmed", "preparing"]:
         raise HTTPException(status_code=400, detail="Order must be ready or in preparation to assign delivery")
     
+    now = datetime.now(timezone.utc)
     update_data = {}
     status_entry = {
         "status": "delivery_assigned",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now.isoformat(),
         "by": "vendor",
         "delivery_type": data.delivery_type,
         "notes": data.notes
     }
     
+    # Get vendor and customer locations for distance calculations
+    vendor = await db.users.find_one({"user_id": current_user.user_id})
+    vendor_location = vendor.get("shop_location", {}) if vendor else {}
+    customer_location = order.get("delivery_address", {})
+    
     if data.delivery_type == "self_delivery":
+        # Vendor's own delivery - no platform involvement
         update_data["delivery_type"] = "vendor_delivery"
         update_data["delivery_method"] = "self"
         message = "Order assigned to your own delivery"
         
     elif data.delivery_type == "carpet_genie":
-        # Find available Carpet Genie agents
-        available_agents = await db.users.find({
-            "partner_type": "agent",
-            "agent_type": "mobile",
-            "partner_status": "available"
-        }, {"_id": 0, "user_id": 1, "name": 1, "phone": 1}).to_list(10)
+        # === CARPET GENIE ASSIGNMENT WITH PROXIMITY ALGORITHM ===
         
-        if available_agents:
-            # Auto-assign first available agent (in real app, would use proximity)
-            agent = available_agents[0]
+        # Create assignment log for admin tracking
+        log_id = f"alog_{uuid.uuid4().hex[:12]}"
+        assignment_log = {
+            "log_id": log_id,
+            "order_id": order_id,
+            "vendor_id": current_user.user_id,
+            "attempts": [],
+            "assignment_method": "proximity",
+            "assignment_started_at": now,
+            "status": "in_progress",
+            "created_at": now
+        }
+        
+        # Calculate distances
+        vendor_lat = vendor_location.get("lat", 12.9716)  # Default to Bangalore
+        vendor_lng = vendor_location.get("lng", 77.5946)
+        customer_lat = customer_location.get("lat", 12.9716)
+        customer_lng = customer_location.get("lng", 77.5946)
+        
+        vendor_to_customer_km = calculate_distance_km(
+            vendor_lat, vendor_lng,
+            customer_lat, customer_lng
+        )
+        
+        # Calculate delivery fee (what customer pays - already set on order)
+        customer_delivery_fee = order.get("delivery_fee", 0)
+        if customer_delivery_fee == 0:
+            # Calculate if not already set
+            fee_result = calculate_customer_delivery_fee(vendor_to_customer_km)
+            customer_delivery_fee = fee_result["delivery_fee"]
+        
+        # Get nearby Genies sorted by distance
+        nearby_genies = await get_nearby_genies(vendor_lat, vendor_lng)
+        
+        assigned_genie = None
+        genie_to_vendor_km = 0
+        
+        if nearby_genies:
+            # For now, auto-assign closest available Genie
+            # In production, this would send notifications and wait for acceptance
+            closest_genie = nearby_genies[0]
+            genie_to_vendor_km = closest_genie["distance_km"]
+            
+            # Log the attempt
+            assignment_log["attempts"].append({
+                "genie_id": closest_genie["genie_id"],
+                "genie_name": closest_genie["name"],
+                "distance_km": genie_to_vendor_km,
+                "notified_at": now.isoformat(),
+                "response": "auto_assigned",  # In production: "pending", "accepted", "rejected", "timeout"
+                "response_at": now.isoformat()
+            })
+            
+            assigned_genie = closest_genie
+        
+        # Calculate total Genie travel distance
+        total_genie_travel_km = genie_to_vendor_km + vendor_to_customer_km
+        
+        # Calculate Genie payout (INTERNAL - never expose to users)
+        genie_payout_result = calculate_genie_payout_internal(total_genie_travel_km)
+        genie_payout = genie_payout_result["payout"]
+        
+        # Calculate platform margin (INTERNAL - admin only)
+        margin_result = calculate_platform_margin_internal(customer_delivery_fee, genie_payout)
+        
+        # Create delivery fee calculation record for admin
+        calc_id = f"calc_{uuid.uuid4().hex[:12]}"
+        fee_calculation = {
+            "calculation_id": calc_id,
+            "order_id": order_id,
+            "vendor_location": {"lat": vendor_lat, "lng": vendor_lng},
+            "customer_location": {"lat": customer_lat, "lng": customer_lng},
+            "genie_location": assigned_genie["location"] if assigned_genie else None,
+            "vendor_to_customer_km": vendor_to_customer_km,
+            "genie_to_vendor_km": genie_to_vendor_km,
+            "total_genie_travel_km": total_genie_travel_km,
+            "customer_delivery_fee": customer_delivery_fee,
+            "genie_payout": genie_payout,
+            "platform_margin": margin_result["margin"],
+            "payout_breakdown": genie_payout_result["_internal_breakdown"],
+            "created_at": now
+        }
+        await db.delivery_fee_calculations.insert_one(fee_calculation)
+        
+        if assigned_genie:
+            # Get or create agent profile for full details
+            agent_profile = await db.agent_profiles.find_one({"user_id": assigned_genie["genie_id"]})
+            
             update_data["delivery_type"] = "agent_delivery"
-            update_data["assigned_agent_id"] = agent["user_id"]
-            update_data["agent_name"] = agent.get("name", "Carpet Genie")
-            update_data["agent_phone"] = agent.get("phone")
+            update_data["assigned_agent_id"] = assigned_genie["genie_id"]
+            update_data["agent_name"] = assigned_genie.get("name", "Carpet Genie")
+            update_data["agent_phone"] = assigned_genie.get("phone")
+            update_data["agent_rating"] = assigned_genie.get("rating", 5.0)
+            update_data["agent_vehicle_type"] = agent_profile.get("vehicle_type", "bike") if agent_profile else "bike"
             update_data["delivery_method"] = "carpet_genie"
-            status_entry["agent_id"] = agent["user_id"]
-            status_entry["agent_name"] = agent.get("name")
-            message = f"Order assigned to Carpet Genie ({agent.get('name', 'Agent')})"
+            
+            # Store internal tracking data (hidden from user-facing APIs)
+            update_data["_internal_delivery_data"] = {
+                "genie_payout": genie_payout,
+                "platform_margin": margin_result["margin"],
+                "calculation_id": calc_id,
+                "assignment_log_id": log_id
+            }
+            
+            status_entry["agent_id"] = assigned_genie["genie_id"]
+            status_entry["agent_name"] = assigned_genie.get("name")
+            
+            # Update agent profile
+            await db.agent_profiles.update_one(
+                {"user_id": assigned_genie["genie_id"]},
+                {"$set": {"current_order_id": order_id}}
+            )
+            
+            # Update assignment log
+            assignment_log["assigned_genie_id"] = assigned_genie["genie_id"]
+            assignment_log["assignment_completed_at"] = now
+            assignment_log["total_assignment_time_seconds"] = 0  # Instant for auto-assign
+            assignment_log["status"] = "assigned"
+            
+            message = f"Order assigned to Carpet Genie"  # Don't expose agent name to vendor
+            
+            # Notify customer that delivery partner is assigned
+            customer_notification = {
+                "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+                "user_id": order["user_id"],
+                "type": "delivery_assigned",
+                "title": "Delivery Partner Assigned! 🚴",
+                "message": "A delivery partner has been assigned to your order",
+                "data": {"order_id": order_id},
+                "read": False,
+                "created_at": now
+            }
+            await db.notifications.insert_one(customer_notification)
         else:
-            # Create a pending delivery request
+            # No Genies available - create pending delivery request
             update_data["delivery_type"] = "agent_delivery"
             update_data["delivery_method"] = "carpet_genie"
             update_data["delivery_status"] = "finding_agent"
             
-            # Create delivery request in a separate collection for Genie app to pick up
+            # Create delivery request for Genie app
             delivery_request = {
                 "request_id": f"dlv_{uuid.uuid4().hex[:12]}",
                 "order_id": order_id,
                 "vendor_id": current_user.user_id,
                 "vendor_name": order.get("vendor_name"),
-                "pickup_address": order.get("vendor_address"),
-                "delivery_address": order.get("delivery_address"),
+                "vendor_location": {"lat": vendor_lat, "lng": vendor_lng},
+                "customer_location": {"lat": customer_lat, "lng": customer_lng},
+                "customer_name": order.get("customer_name"),
+                "items_count": len(order.get("items", [])),
+                "order_amount": order.get("total_amount"),
+                "delivery_fee": customer_delivery_fee,
+                "distance_km": vendor_to_customer_km,
                 "status": "pending",
-                "created_at": datetime.now(timezone.utc)
+                "created_at": now,
+                "expires_at": now + timedelta(minutes=30)
             }
             await db.delivery_requests.insert_one(delivery_request)
-            message = "Delivery request sent to Carpet Genie. Finding available agents..."
+            
+            assignment_log["status"] = "pending"
+            assignment_log["failure_reason"] = "no_nearby_genies"
+            
+            message = "Looking for delivery partners..."
+        
+        # Save assignment log
+        await db.delivery_assignment_logs.insert_one(assignment_log)
+        
     else:
         raise HTTPException(status_code=400, detail="Invalid delivery type")
     
