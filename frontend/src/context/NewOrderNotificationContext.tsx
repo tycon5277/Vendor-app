@@ -63,41 +63,31 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
   // Vibration pattern: [wait, vibrate, wait, vibrate...]
   const VIBRATION_PATTERN = [0, 500, 200, 500, 200, 800];
 
-  // Load notification sound
-  const playNotificationSound = async () => {
+  // Trigger haptic feedback for notification
+  const triggerHapticFeedback = useCallback(async () => {
     try {
-      // Use system default alert sound
-      const { sound } = await Audio.Sound.createAsync(
-        require('../../assets/sounds/notification.mp3'),
-        { shouldPlay: true, volume: 1.0 }
-      );
-      soundRef.current = sound;
-      await sound.playAsync();
+      // Heavy impact for new order notification
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      // Follow up with more haptics for emphasis
+      setTimeout(async () => {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      }, 300);
+      setTimeout(async () => {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      }, 600);
     } catch (error) {
-      // Fallback: just use vibration if sound fails
-      console.log('Sound playback failed, using vibration only');
+      // Fallback to vibration on platforms that don't support haptics
+      console.log('Haptics not available, using vibration');
     }
-  };
-
-  // Cleanup sound
-  const cleanupSound = async () => {
-    if (soundRef.current) {
-      try {
-        await soundRef.current.unloadAsync();
-      } catch (error) {
-        // Ignore cleanup errors
-      }
-      soundRef.current = null;
-    }
-  };
+  }, []);
 
   // Trigger notification effects
   const triggerNotificationEffects = useCallback(() => {
     // Vibration
     Vibration.vibrate(VIBRATION_PATTERN);
     
-    // Sound
-    playNotificationSound();
+    // Haptic feedback
+    triggerHapticFeedback();
     
     // Start pulse animation
     const pulseLoop = Animated.loop(
@@ -142,7 +132,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
       pulseLoop.stop();
       iconShake.stop();
     };
-  }, []);
+  }, [triggerHapticFeedback]);
 
   // Show notification modal
   const showNotification = useCallback((order: Order) => {
