@@ -168,6 +168,9 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
     // Haptic feedback
     triggerHapticFeedback();
     
+    // Play notification sound
+    playNotificationSound();
+    
     // Start pulse animation
     const pulseLoop = Animated.loop(
       Animated.sequence([
@@ -211,7 +214,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
       pulseLoop.stop();
       iconShake.stop();
     };
-  }, [triggerHapticFeedback]);
+  }, [triggerHapticFeedback, playNotificationSound]);
 
   // Show notification modal
   const showNotification = useCallback((order: Order) => {
