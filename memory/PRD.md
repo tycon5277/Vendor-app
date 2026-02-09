@@ -56,11 +56,14 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
 
 ### New Order Notification (Completed - Feb 2026)
 - Full-screen modal notification when new orders arrive
+- **Sound notification** using Web Audio API (3-tone ascending chime: C5 → E5 → G5)
 - Haptic feedback (vibration) for attention
 - Shows order details (ID, customer, items, amount)
 - Auto-accept countdown timer display
 - "Accept Order" and "View Details" actions
 - Polls backend every 10 seconds for new orders
+- **Online/Offline awareness**: Only polls when vendor is online (partner_status = 'available')
+- Shop status toggle on "My Shop" page controls whether vendor receives notifications
 
 ## API Endpoints
 
