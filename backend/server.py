@@ -166,7 +166,165 @@ class EarningsRecord(BaseModel):
     amount: float
     type: str  # sale, delivery_fee
     description: str
+    status: str = "pending"  # pending, settled, cancelled
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# ===================== PAYMENT & WALLET MODELS =====================
+
+class PaymentTransaction(BaseModel):
+    """Records all payment transactions"""
+    transaction_id: str
+    order_id: str
+    customer_id: str
+    vendor_id: str
+    
+    # Amounts
+    items_amount: float  # Total of items
+    delivery_fee: float  # Delivery fee
+    total_amount: float  # items_amount + delivery_fee
+    
+    # Payment details
+    payment_method: str  # razorpay, upi, card, netbanking
+    payment_gateway: str = "razorpay"
+    gateway_transaction_id: Optional[str] = None
+    gateway_order_id: Optional[str] = None
+    
+    # Status tracking
+    status: str = "pending"  # pending, captured, held, refunded, failed
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    captured_at: Optional[datetime] = None
+    
+class EscrowHolding(BaseModel):
+    """Funds held by platform until order completion"""
+    holding_id: str
+    order_id: str
+    transaction_id: str
+    
+    # Original amounts
+    original_items_amount: float
+    original_delivery_fee: float
+    original_total: float
+    
+    # Current amounts (after adjustments)
+    current_items_amount: float
+    current_delivery_fee: float
+    current_total: float
+    
+    # Refunds
+    total_refunded: float = 0.0
+    refund_history: List[dict] = []  # [{amount, reason, timestamp}]
+    
+    # Settlements
+    vendor_settlement_amount: float = 0.0
+    vendor_settlement_status: str = "pending"  # pending, processing, completed
+    vendor_settled_at: Optional[datetime] = None
+    
+    genie_settlement_amount: float = 0.0
+    genie_settlement_status: str = "pending"
+    genie_id: Optional[str] = None
+    genie_settled_at: Optional[datetime] = None
+    
+    # Status
+    status: str = "holding"  # holding, partially_released, fully_released, refunded
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class RefundRecord(BaseModel):
+    """Tracks all refunds"""
+    refund_id: str
+    order_id: str
+    transaction_id: str
+    customer_id: str
+    
+    # Refund details
+    amount: float
+    reason: str  # item_unavailable, quantity_adjusted, order_cancelled, delivery_failed
+    reason_details: Optional[str] = None
+    
+    # Items affected (if partial refund)
+    affected_items: List[dict] = []  # [{product_id, name, quantity, amount}]
+    
+    # Processing
+    status: str = "pending"  # pending, processing, completed, failed
+    gateway_refund_id: Optional[str] = None
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    processed_at: Optional[datetime] = None
+
+class VendorWallet(BaseModel):
+    """Vendor's wallet for tracking earnings and settlements"""
+    wallet_id: str
+    vendor_id: str
+    
+    # Balances
+    pending_balance: float = 0.0  # Awaiting delivery confirmation
+    available_balance: float = 0.0  # Ready for settlement
+    total_earnings: float = 0.0  # Lifetime earnings
+    total_withdrawn: float = 0.0  # Total settled to bank
+    
+    # Bank details for settlement
+    bank_account_number: Optional[str] = None
+    bank_ifsc: Optional[str] = None
+    bank_account_name: Optional[str] = None
+    upi_id: Optional[str] = None
+    razorpay_account_id: Optional[str] = None
+    
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class GenieWallet(BaseModel):
+    """Genie's wallet for tracking delivery earnings"""
+    wallet_id: str
+    genie_id: str
+    
+    # Balances
+    pending_balance: float = 0.0  # Current week's earnings
+    available_balance: float = 0.0  # Ready for weekly payout
+    total_earnings: float = 0.0
+    total_withdrawn: float = 0.0
+    
+    # Bank details
+    bank_account_number: Optional[str] = None
+    bank_ifsc: Optional[str] = None
+    bank_account_name: Optional[str] = None
+    upi_id: Optional[str] = None
+    
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SettlementRecord(BaseModel):
+    """Records payouts to vendors and genies"""
+    settlement_id: str
+    recipient_id: str
+    recipient_type: str  # vendor, genie
+    
+    # Amount details
+    gross_amount: float  # Before fees
+    gateway_fee: float  # Payment gateway fee (~2%)
+    net_amount: float  # After fees - actual payout
+    
+    # Orders included
+    order_ids: List[str] = []
+    
+    # Processing
+    status: str = "pending"  # pending, processing, completed, failed
+    payment_method: str = "bank_transfer"  # bank_transfer, upi
+    gateway_payout_id: Optional[str] = None
+    
+    # Timestamps
+    period_start: Optional[datetime] = None
+    period_end: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    processed_at: Optional[datetime] = None
+
+# Payment Gateway Fee Configuration
+PAYMENT_CONFIG = {
+    "gateway_fee_percent": 2.0,  # 2% Razorpay fee
+    "min_gateway_fee": 1.0,  # Minimum ₹1
+    "gst_on_gateway_fee": 18.0,  # 18% GST on gateway fee
+}
 
 class ChatRoom(BaseModel):
     room_id: str
