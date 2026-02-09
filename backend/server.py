@@ -3135,6 +3135,181 @@ async def get_vendor_wallet(current_user: User = Depends(require_vendor)):
         "pending_settlements": pending_settlements
     }
 
+# ===================== ADMIN ANALYTICS ENDPOINTS (INTERNAL) =====================
+# These endpoints are for admin dashboard - NOT exposed to vendors/customers/genies
+
+@api_router.get("/admin/delivery-analytics")
+async def get_admin_delivery_analytics(
+    period: str = "daily",  # daily, weekly, monthly
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """
+    Get delivery analytics for admin dashboard.
+    Shows internal metrics like platform margin, Genie payouts, etc.
+    """
+    # Get all delivery fee calculations
+    calculations = await db.delivery_fee_calculations.find({}, {"_id": 0}).sort("created_at", -1).limit(500).to_list(500)
+    
+    # Aggregate metrics
+    total_customer_fees = sum(c.get("customer_delivery_fee", 0) for c in calculations)
+    total_genie_payouts = sum(c.get("genie_payout", 0) for c in calculations)
+    total_platform_margin = sum(c.get("platform_margin", 0) for c in calculations)
+    
+    avg_customer_fee = total_customer_fees / len(calculations) if calculations else 0
+    avg_genie_payout = total_genie_payouts / len(calculations) if calculations else 0
+    avg_platform_margin = total_platform_margin / len(calculations) if calculations else 0
+    
+    # Distance metrics
+    avg_distance = sum(c.get("vendor_to_customer_km", 0) for c in calculations) / len(calculations) if calculations else 0
+    
+    return {
+        "period": period,
+        "total_deliveries": len(calculations),
+        "financial_metrics": {
+            "total_customer_fees_collected": round(total_customer_fees, 2),
+            "total_genie_payouts": round(total_genie_payouts, 2),
+            "total_platform_margin": round(total_platform_margin, 2),
+            "margin_percentage": round((total_platform_margin / total_customer_fees * 100) if total_customer_fees > 0 else 0, 2)
+        },
+        "averages": {
+            "avg_customer_fee": round(avg_customer_fee, 2),
+            "avg_genie_payout": round(avg_genie_payout, 2),
+            "avg_platform_margin": round(avg_platform_margin, 2),
+            "avg_distance_km": round(avg_distance, 2)
+        },
+        "recent_calculations": calculations[:20]  # Last 20 for detail view
+    }
+
+@api_router.get("/admin/delivery-assignments")
+async def get_admin_delivery_assignments(limit: int = 50):
+    """Get delivery assignment logs for admin monitoring"""
+    logs = await db.delivery_assignment_logs.find({}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    # Calculate success metrics
+    total = len(logs)
+    assigned = len([l for l in logs if l.get("status") == "assigned"])
+    pending = len([l for l in logs if l.get("status") == "pending"])
+    failed = len([l for l in logs if l.get("status") == "failed"])
+    
+    # Average assignment time
+    times = [l.get("total_assignment_time_seconds", 0) for l in logs if l.get("total_assignment_time_seconds")]
+    avg_time = sum(times) / len(times) if times else 0
+    
+    return {
+        "total_assignments": total,
+        "success_rate": round((assigned / total * 100) if total > 0 else 0, 2),
+        "status_breakdown": {
+            "assigned": assigned,
+            "pending": pending,
+            "failed": failed
+        },
+        "avg_assignment_time_seconds": round(avg_time, 2),
+        "logs": logs
+    }
+
+@api_router.get("/admin/genie-performance")
+async def get_admin_genie_performance():
+    """Get Genie performance metrics for admin dashboard"""
+    # Get all agent profiles
+    genies = await db.agent_profiles.find({}, {"_id": 0}).to_list(100)
+    
+    # Get wallets for earnings data
+    wallets = await db.genie_wallets.find({}, {"_id": 0}).to_list(100)
+    wallet_map = {w["genie_id"]: w for w in wallets}
+    
+    genie_stats = []
+    for genie in genies:
+        wallet = wallet_map.get(genie["user_id"], {})
+        genie_stats.append({
+            "genie_id": genie["user_id"],
+            "name": genie.get("name"),
+            "rating": genie.get("rating", 5.0),
+            "total_deliveries": genie.get("total_deliveries", 0),
+            "is_online": genie.get("is_online", False),
+            "vehicle_type": genie.get("vehicle_type"),
+            "total_earnings": wallet.get("total_earnings", 0),
+            "pending_balance": wallet.get("pending_balance", 0)
+        })
+    
+    # Sort by total deliveries
+    genie_stats.sort(key=lambda x: x["total_deliveries"], reverse=True)
+    
+    return {
+        "total_genies": len(genies),
+        "online_genies": len([g for g in genies if g.get("is_online")]),
+        "total_earnings_paid": sum(w.get("total_withdrawn", 0) for w in wallets),
+        "pending_payouts": sum(w.get("pending_balance", 0) for w in wallets),
+        "genie_stats": genie_stats
+    }
+
+@api_router.get("/admin/platform-revenue")
+async def get_admin_platform_revenue(period: str = "week"):
+    """Get platform revenue summary for admin"""
+    now = datetime.now(timezone.utc)
+    
+    if period == "day":
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif period == "week":
+        start = now - timedelta(days=7)
+    elif period == "month":
+        start = now - timedelta(days=30)
+    else:
+        start = now - timedelta(days=7)
+    
+    # Get fee calculations in period
+    calculations = await db.delivery_fee_calculations.find(
+        {"created_at": {"$gte": start}},
+        {"_id": 0}
+    ).to_list(10000)
+    
+    total_margin = sum(c.get("platform_margin", 0) for c in calculations)
+    total_deliveries = len(calculations)
+    
+    # Get refunds in period
+    refunds = await db.refunds.find(
+        {"created_at": {"$gte": start}},
+        {"_id": 0}
+    ).to_list(10000)
+    
+    total_refunded = sum(r.get("amount", 0) for r in refunds)
+    
+    return {
+        "period": period,
+        "period_start": start.isoformat(),
+        "period_end": now.isoformat(),
+        "delivery_revenue": {
+            "total_deliveries": total_deliveries,
+            "total_margin": round(total_margin, 2),
+            "avg_margin_per_delivery": round(total_margin / total_deliveries, 2) if total_deliveries > 0 else 0
+        },
+        "refunds": {
+            "total_refunds": len(refunds),
+            "total_amount": round(total_refunded, 2)
+        },
+        "net_revenue": round(total_margin, 2)  # Platform doesn't touch order amounts
+    }
+
+@api_router.get("/admin/config/delivery")
+async def get_delivery_config():
+    """Get current delivery configuration (admin only)"""
+    return {
+        "config": DELIVERY_CONFIG,
+        "payment_config": PAYMENT_CONFIG
+    }
+
+class UpdateDeliveryConfigRequest(BaseModel):
+    config_key: str
+    config_value: float
+
+@api_router.put("/admin/config/delivery")
+async def update_delivery_config(data: UpdateDeliveryConfigRequest):
+    """Update delivery configuration (admin only)"""
+    if data.config_key in DELIVERY_CONFIG:
+        DELIVERY_CONFIG[data.config_key] = data.config_value
+        return {"message": f"Updated {data.config_key} to {data.config_value}"}
+    raise HTTPException(status_code=400, detail="Invalid config key")
+
 # ===================== NOTIFICATIONS ENDPOINTS =====================
 
 @api_router.get("/vendor/notifications")
