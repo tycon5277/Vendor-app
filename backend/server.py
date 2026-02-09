@@ -102,9 +102,18 @@ class ShopOrder(BaseModel):
     delivery_address: dict
     delivery_type: str  # self_pickup, vendor_delivery, agent_delivery
     delivery_fee: float = 0.0
+    # Agent/Genie details - populated when agent accepts
     assigned_agent_id: Optional[str] = None
     agent_name: Optional[str] = None
     agent_phone: Optional[str] = None
+    agent_photo: Optional[str] = None
+    agent_rating: Optional[float] = None
+    agent_vehicle_type: Optional[str] = None  # bike, scooter, car
+    agent_vehicle_number: Optional[str] = None
+    agent_current_location: Optional[dict] = None  # {lat, lng, updated_at}
+    agent_accepted_at: Optional[datetime] = None
+    estimated_delivery_time: Optional[str] = None  # e.g., "15-20 mins"
+    # Order status
     status: str = "pending"
     status_history: List[dict] = []
     payment_status: str = "pending"
@@ -112,6 +121,42 @@ class ShopOrder(BaseModel):
     customer_phone: Optional[str] = None
     special_instructions: Optional[str] = None
     auto_accept_at: Optional[datetime] = None  # When order will auto-accept
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# Delivery Request Model - for pending delivery assignments
+class DeliveryRequest(BaseModel):
+    request_id: str
+    order_id: str
+    vendor_id: str
+    vendor_name: str
+    vendor_location: dict  # {lat, lng, address}
+    customer_location: dict  # {lat, lng, address}
+    customer_name: str
+    customer_phone: Optional[str] = None
+    items_count: int
+    order_amount: float
+    delivery_fee: float
+    distance_km: Optional[float] = None
+    status: str = "pending"  # pending, accepted, rejected, expired
+    assigned_agent_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    expires_at: Optional[datetime] = None  # Auto-expire if no agent accepts
+
+# Agent/Genie Profile Model
+class AgentProfile(BaseModel):
+    agent_id: str
+    user_id: str  # Links to User
+    name: str
+    phone: str
+    photo: Optional[str] = None
+    vehicle_type: str  # bike, scooter, car
+    vehicle_number: Optional[str] = None
+    rating: float = 5.0
+    total_deliveries: int = 0
+    is_online: bool = False
+    current_location: Optional[dict] = None  # {lat, lng}
+    current_order_id: Optional[str] = None  # Currently assigned order
+    verified: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class EarningsRecord(BaseModel):
