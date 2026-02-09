@@ -352,6 +352,12 @@ export default function OrdersScreen() {
   };
 
   const formatCountdown = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const renderOrder = ({ item, index }: { item: Order; index: number }) => {
     const statusColor = getStatusColor(item.status);
     const isPending = item.status === 'pending';
     const isConfirmed = item.status === 'confirmed' || item.status === 'accepted';
