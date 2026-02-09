@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,15 +11,20 @@ import {
   Modal,
   Platform,
   Animated,
+  Dimensions,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { vendorAPI } from '../../src/utils/api';
 import { useAuthStore } from '../../src/store/authStore';
 import { useAlert } from '../../src/context/AlertContext';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Shop types with icons
 const SHOP_TYPES = [
