@@ -78,47 +78,6 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
   // App state ref
   const appState = useRef(AppState.currentState);
 
-  // Request notification permission
-  const requestNotificationPermission = useCallback(async (): Promise<boolean> => {
-    try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        console.log('Notification permission not granted');
-        return false;
-      }
-      
-      return true;
-    } catch (error) {
-      console.log('Error requesting notification permission:', error);
-      return false;
-    }
-  }, []);
-
-  // Send push notification
-  const sendPushNotification = useCallback(async (order: Order) => {
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '🔔 New Order Received!',
-          body: `Order #${order.order_id.slice(-8).toUpperCase()} - ₹${order.total_amount?.toLocaleString() || 0}`,
-          data: { orderId: order.order_id },
-          sound: true,
-          priority: Notifications.AndroidNotificationPriority.MAX,
-        },
-        trigger: null, // Immediately
-      });
-    } catch (error) {
-      console.log('Error sending push notification:', error);
-    }
-  }, []);
-
   // Play loud notification sound
   const playLoudSound = useCallback(async () => {
     try {
