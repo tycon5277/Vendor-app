@@ -185,8 +185,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
       setAutoAcceptCountdown(order.auto_accept_seconds);
     }
     
-    // Send push notification for background awareness
-    sendPushNotification(order);
+    // Note: Push notifications removed - not supported in Expo Go SDK 53+
     
     // Animate in with spring effect
     Animated.parallel([
