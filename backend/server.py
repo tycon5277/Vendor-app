@@ -3916,6 +3916,89 @@ async def seed_demo_order(current_user: User = Depends(require_auth)):
     }
 
 
+@api_router.post("/seed/simulate-genie-action/{order_id}")
+async def simulate_genie_action(order_id: str, action: str, current_user: User = Depends(require_auth)):
+    """
+    Simulate Genie Rajan performing delivery actions for demo/testing purposes.
+    Actions: picked_up, out_for_delivery, delivered
+    """
+    if current_user.partner_type != "vendor":
+        raise HTTPException(status_code=400, detail="Vendor access required")
+    
+    # Find the order
+    order = await db.shop_orders.find_one({"order_id": order_id, "vendor_id": current_user.user_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Verify Genie is assigned
+    if not order.get("assigned_agent_id"):
+        raise HTTPException(status_code=400, detail="No Genie assigned to this order. Use 'Assign Carpet Genie' first.")
+    
+    valid_actions = ["picked_up", "out_for_delivery", "delivered"]
+    if action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"Invalid action. Use one of: {valid_actions}")
+    
+    now = datetime.now(timezone.utc)
+    agent_name = order.get("agent_name", "Rajan")
+    
+    # Create status entry
+    status_entry = {
+        "status": action,
+        "timestamp": now.isoformat(),
+        "by": "agent",
+        "agent_id": order["assigned_agent_id"],
+        "agent_name": agent_name,
+        "notes": f"[DEMO] Simulated action by Genie {agent_name}"
+    }
+    
+    update_data = {"status": action}
+    
+    # If delivered, record earnings
+    if action == "delivered":
+        # Record vendor sale
+        vendor_earning = {
+            "earning_id": f"earn_{uuid.uuid4().hex[:12]}",
+            "partner_id": order["vendor_id"],
+            "order_id": order_id,
+            "amount": order["total_amount"],
+            "type": "sale",
+            "description": f"Order #{order_id[-8:]}",
+            "created_at": now
+        }
+        await db.earnings.insert_one(vendor_earning)
+        
+        # Update vendor stats
+        await db.users.update_one(
+            {"user_id": order["vendor_id"]},
+            {"$inc": {"partner_total_earnings": order["total_amount"], "partner_total_tasks": 1}}
+        )
+        
+        # Free up the Genie
+        await db.agent_profiles.update_one(
+            {"user_id": order["assigned_agent_id"]},
+            {"$set": {"current_order_id": None}}
+        )
+    
+    # Update order
+    await db.shop_orders.update_one(
+        {"order_id": order_id},
+        {"$set": update_data, "$push": {"status_history": status_entry}}
+    )
+    
+    action_messages = {
+        "picked_up": f"Genie {agent_name} has picked up the order!",
+        "out_for_delivery": f"Genie {agent_name} is on the way to the customer!",
+        "delivered": f"Order delivered successfully by Genie {agent_name}!"
+    }
+    
+    return {
+        "message": action_messages[action],
+        "order_id": order_id,
+        "new_status": action,
+        "agent_name": agent_name
+    }
+
+
 # ===================== PERFORMANCE ANALYTICS ENDPOINTS =====================
 
 @api_router.post("/vendor/analytics/track-event")
