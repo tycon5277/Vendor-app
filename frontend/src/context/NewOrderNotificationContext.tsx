@@ -498,46 +498,51 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
         onRequestClose={dismissNotification}
       >
         <Animated.View style={[styles.overlay, { opacity: overlayAnim }]}>
-          <Animated.View 
-            style={[
-              styles.container,
-              {
-                transform: [
-                  { scale: scaleAnim },
-                  { translateY: cardSlideAnim },
-                ],
-              }
-            ]}
+          <ScrollView 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
           >
-            {/* Claymorphism Card */}
-            <View style={styles.clayCard}>
-              {/* Animated glow ring */}
-              <Animated.View 
-                style={[
-                  styles.glowRing,
-                  { opacity: glowOpacity }
-                ]}
-              />
-              
-              {/* Bell icon container with animation */}
-              <Animated.View 
-                style={[
-                  styles.bellContainer,
-                  { transform: [{ rotate: bellRotate }, { scale: pulseAnim }] }
-                ]}
-              >
-                <View style={styles.bellInner}>
-                  <Ionicons name="notifications" size={44} color="#FF6B35" />
+            <Animated.View 
+              style={[
+                styles.container,
+                {
+                  transform: [
+                    { scale: scaleAnim },
+                    { translateY: cardSlideAnim },
+                  ],
+                }
+              ]}
+            >
+              {/* Claymorphism Card */}
+              <View style={styles.clayCard}>
+                {/* Animated glow ring */}
+                <Animated.View 
+                  style={[
+                    styles.glowRing,
+                    { opacity: glowOpacity }
+                  ]}
+                />
+                
+                {/* Bell icon container with animation */}
+                <Animated.View 
+                  style={[
+                    styles.bellContainer,
+                    { transform: [{ rotate: bellRotate }, { scale: pulseAnim }] }
+                  ]}
+                >
+                  <View style={styles.bellInner}>
+                    <Ionicons name="notifications" size={32} color="#FF6B35" />
+                  </View>
+                </Animated.View>
+                
+                {/* Title Section */}
+                <View style={styles.titleSection}>
+                  <Text style={styles.newBadge}>NEW</Text>
+                  <Text style={styles.title}>Order Received!</Text>
+                  <Text style={styles.subtitle}>A customer is waiting for your response</Text>
                 </View>
-              </Animated.View>
-              
-              {/* Title Section */}
-              <View style={styles.titleSection}>
-                <Text style={styles.newBadge}>NEW</Text>
-                <Text style={styles.title}>Order Received!</Text>
-                <Text style={styles.subtitle}>A customer is waiting for your response</Text>
-              </View>
-              
+                
               {/* Order Details Card - Claymorphism Inner Card */}
               <View style={styles.orderDetailsCard}>
                 {/* Order ID */}
