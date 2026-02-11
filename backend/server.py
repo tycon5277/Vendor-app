@@ -3833,6 +3833,45 @@ async def seed_demo_order(current_user: User = Depends(require_auth)):
     now = datetime.now(timezone.utc)
     order_id = f"order_{uuid.uuid4().hex[:8]}"
     
+    # Create or update Rajan as the demo Genie (delivery agent)
+    rajan_user_id = "demo_genie_rajan"
+    await db.users.update_one(
+        {"user_id": rajan_user_id},
+        {"$set": {
+            "user_id": rajan_user_id,
+            "name": "Rajan",
+            "phone": "+91 99887 76655",
+            "partner_type": "carpet_genie",
+            "partner_status": "available",
+            "created_at": now
+        }},
+        upsert=True
+    )
+    
+    # Create or update Rajan's agent profile - place him near the vendor's location
+    vendor_loc = current_user.vendor_shop_location or {"lat": 12.9716, "lng": 77.5946}
+    await db.agent_profiles.update_one(
+        {"user_id": rajan_user_id},
+        {"$set": {
+            "user_id": rajan_user_id,
+            "name": "Rajan",
+            "phone": "+91 99887 76655",
+            "vehicle_type": "scooter",
+            "vehicle_number": "KA 01 AB 1234",
+            "is_online": True,
+            "current_order_id": None,
+            "current_location": {
+                "lat": vendor_loc["lat"] + 0.002,  # ~200m away from vendor
+                "lng": vendor_loc["lng"] + 0.001
+            },
+            "rating": 4.8,
+            "total_deliveries": 156,
+            "created_at": now,
+            "updated_at": now
+        }},
+        upsert=True
+    )
+    
     # Create demo order from Asha
     demo_order = {
         "order_id": order_id,
@@ -3872,7 +3911,8 @@ async def seed_demo_order(current_user: User = Depends(require_auth)):
         "order_id": order_id,
         "customer_name": "Asha",
         "total_amount": 694,
-        "note": "The order notification should appear if you are online. You can test the full flow: Accept → Prepare → Ready → Assign Genie (Rajan will be assigned)"
+        "genie_ready": "Rajan is ready and will be auto-assigned when you select Carpet Genie delivery",
+        "note": "The order notification should appear if you are online. Test the full flow: Accept → Prepare → Ready → Assign Genie (Rajan)"
     }
 
 
