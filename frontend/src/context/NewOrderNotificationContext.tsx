@@ -608,7 +608,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
                   activeOpacity={0.8}
                   testID="view-order-btn"
                 >
-                  <Ionicons name="eye-outline" size={22} color="#6366F1" />
+                  <Ionicons name="eye-outline" size={18} color="#6366F1" />
                   <Text style={styles.viewButtonText}>View Details</Text>
                 </TouchableOpacity>
                 
@@ -618,7 +618,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
                   activeOpacity={0.8}
                   testID="accept-order-btn"
                 >
-                  <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                  <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
                   <Text style={styles.acceptButtonText}>Accept</Text>
                 </TouchableOpacity>
               </View>
