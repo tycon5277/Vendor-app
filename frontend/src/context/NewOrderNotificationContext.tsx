@@ -43,15 +43,6 @@ export const useNewOrderNotification = () => {
   return context;
 };
 
-// Configure notifications
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
-
 // Polling interval in milliseconds
 const POLL_INTERVAL = 10000; // 10 seconds
 
