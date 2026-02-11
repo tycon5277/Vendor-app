@@ -1945,68 +1945,6 @@ const styles = StyleSheet.create({
   actionBtnTextDestructive: {
     color: '#DC2626',
   },
-  // Carpet Genie Status Bar
-  bottomStatusBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  carpetGenieStatusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: '#22C55E',
-  },
-  carpetGenieIconContainer: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#DCFCE7',
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  carpetGenieStatusContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  carpetGenieStatusTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#166534',
-  },
-  carpetGenieStatusSubtitle: {
-    fontSize: 13,
-    color: '#15803D',
-    marginTop: 2,
-  },
-  liveIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 6,
-  },
-  liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#22C55E',
-  },
-  liveText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#22C55E',
-  },
   // Modal Styles
   modalOverlay: {
     flex: 1,
