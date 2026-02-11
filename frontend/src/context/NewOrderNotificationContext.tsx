@@ -514,50 +514,210 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
                 }
               ]}
             >
-              {/* Claymorphism Card */}
+              {/* Compact Card */}
               <View style={styles.clayCard}>
-                {/* Animated glow ring */}
-                <Animated.View 
-                  style={[
-                    styles.glowRing,
-                    { opacity: glowOpacity }
-                  ]}
-                />
-                
-                {/* Bell icon container with animation */}
-                <Animated.View 
-                  style={[
-                    styles.bellContainer,
-                    { transform: [{ rotate: bellRotate }, { scale: pulseAnim }] }
-                  ]}
-                >
-                  <View style={styles.bellInner}>
-                    <Ionicons name="notifications" size={32} color="#FF6B35" />
-                  </View>
-                </Animated.View>
-                
-                {/* Title Section */}
-                <View style={styles.titleSection}>
-                  <Text style={styles.newBadge}>NEW</Text>
-                  <Text style={styles.title}>Order Received!</Text>
-                  <Text style={styles.subtitle}>A customer is waiting for your response</Text>
-                </View>
-                
-              {/* Order Details Card - Claymorphism Inner Card */}
-              <View style={styles.orderDetailsCard}>
-                {/* Order ID */}
-                <View style={styles.orderIdRow}>
-                  <View style={styles.orderIdBadge}>
-                    <Text style={styles.orderIdText}>
-                      #{currentNewOrder?.order_id.slice(-8).toUpperCase()}
-                    </Text>
+                {/* Header with bell and title inline */}
+                <View style={styles.headerRow}>
+                  <Animated.View 
+                    style={[
+                      styles.bellContainer,
+                      { transform: [{ rotate: bellRotate }] }
+                    ]}
+                  >
+                    <Ionicons name="notifications" size={24} color="#FF6B35" />
+                  </Animated.View>
+                  <View style={styles.headerText}>
+                    <Text style={styles.newBadge}>NEW ORDER</Text>
+                    <Text style={styles.orderId}>#{currentNewOrder?.order_id.slice(-6).toUpperCase()}</Text>
                   </View>
                 </View>
                 
-                {/* Customer Info */}
-                <View style={styles.infoRow}>
-                  <View style={styles.infoIcon}>
-                    <Ionicons name="person" size={16} color="#6366F1" />
+                {/* Order Info - Compact */}
+                <View style={styles.orderInfo}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Customer</Text>
+                    <Text style={styles.infoValue}>{currentNewOrder?.customer_name || 'Customer'}</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Items</Text>
+                    <Text style={styles.infoValue}>{currentNewOrder?.items?.length || 0}</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Total</Text>
+                    <Text style={styles.totalValue}>₹{currentNewOrder?.total_amount || 0}</Text>
+                  </View>
+                </View>
+                
+                {/* Timer */}
+                {formatCountdown() && (
+                  <View style={styles.timerRow}>
+                    <Ionicons name="timer-outline" size={14} color="#D97706" />
+                    <Text style={styles.timerText}>Auto-accepts in {formatCountdown()}</Text>
+                  </View>
+                )}
+                
+                {/* Buttons */}
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity
+                    style={styles.viewButton}
+                    onPress={handleViewOrder}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.viewButtonText}>View</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.acceptButton}
+                    onPress={handleAcceptOrder}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.acceptButtonText}>Accept</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <TouchableOpacity onPress={dismissNotification} style={styles.dismissBtn}>
+                  <Text style={styles.dismissText}>Dismiss</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </ScrollView>
+        </Animated.View>
+      </Modal>
+    </NewOrderNotificationContext.Provider>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  container: {
+    width: '100%',
+    maxWidth: 300,
+  },
+  clayCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  bellContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF7ED',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerText: {
+    flex: 1,
+  },
+  newBadge: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FF6B35',
+    letterSpacing: 0.5,
+  },
+  orderId: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  orderInfo: {
+    flexDirection: 'row',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+  },
+  infoItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  infoLabel: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  totalValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#22C55E',
+  },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  timerText: {
+    fontSize: 12,
+    color: '#D97706',
+    fontWeight: '600',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  viewButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  viewButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  acceptButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+  },
+  acceptButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  dismissBtn: {
+    alignItems: 'center',
+    paddingTop: 12,
+  },
+  dismissText: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+});
+
+export default NewOrderNotificationProvider;
                   </View>
                   <View style={styles.infoContent}>
                     <Text style={styles.infoLabel}>Customer</Text>
