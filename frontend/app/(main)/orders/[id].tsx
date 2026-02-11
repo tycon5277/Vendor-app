@@ -932,33 +932,7 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
-      {/* Carpet Genie Status Bar (when assigned and in delivery) */}
-      {nextActions.length === 0 && 
-       (order.delivery_method === 'carpet_genie' || order.delivery_type === 'agent_delivery') &&
-       order.assigned_agent_id &&
-       ['awaiting_pickup', 'picked_up', 'out_for_delivery'].includes(order.status) && (
-        <View style={[styles.bottomStatusBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <View style={styles.carpetGenieStatusContainer}>
-            <View style={styles.carpetGenieIconContainer}>
-              <Ionicons name="bicycle" size={24} color="#22C55E" />
-            </View>
-            <View style={styles.carpetGenieStatusContent}>
-              <Text style={styles.carpetGenieStatusTitle}>
-                {order.status === 'awaiting_pickup' && 'Waiting for Pickup'}
-                {order.status === 'picked_up' && 'Order Picked Up'}
-                {order.status === 'out_for_delivery' && 'On The Way'}
-              </Text>
-              <Text style={styles.carpetGenieStatusSubtitle}>
-                {order.agent_name ? `${order.agent_name} is handling delivery` : 'Carpet Genie will update'}
-              </Text>
-            </View>
-            <View style={styles.liveIndicator}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>LIVE</Text>
-            </View>
-          </View>
-        </View>
-      )}
+      {/* Carpet Genie Status Bar - REMOVED - now inline in the scroll view */}
 
       {/* Item Management Modal */}
       <Modal
