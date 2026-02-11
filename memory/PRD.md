@@ -54,16 +54,23 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
    - Vendor and Genie wallets for settlements
    - Refund processing for unavailable items
 
-### New Order Notification (Completed - Feb 2026)
-- Full-screen modal notification when new orders arrive
-- **Sound notification** using Web Audio API (3-tone ascending chime: C5 → E5 → G5)
-- Haptic feedback (vibration) for attention
-- Shows order details (ID, customer, items, amount)
-- Auto-accept countdown timer display
-- "Accept Order" and "View Details" actions
-- Polls backend every 10 seconds for new orders
-- **Online/Offline awareness**: Only polls when vendor is online (partner_status = 'available')
-- Shop status toggle on "My Shop" page controls whether vendor receives notifications
+### New Order Notification (Completed & Redesigned - Feb 2026)
+- **Claymorphism UI Design**: Light background, soft shadows, premium card appearance
+  - Bell icon with shake animation
+  - "NEW" badge
+  - Order details in nested card with icons
+  - Total amount prominently displayed in green
+  - Timer with countdown styling
+- **Loud Sound & Vibration**: 
+  - Web Audio API sound (urgent 3-tone pattern: A5→C6→E6 repeated)
+  - Strong vibration pattern (800ms bursts on Android)
+  - Repeating alert every 2 seconds until dismissed
+- **Push Notifications**: expo-notifications integration for background alerts
+- **Smart Polling**: 
+  - Polls every 10 seconds when vendor is online
+  - Only shows popup for truly NEW orders (not existing ones at startup)
+  - Online/offline status check via partner_status
+- **Actions**: "View Details" and "Accept" buttons with haptic feedback
 
 ## API Endpoints
 
