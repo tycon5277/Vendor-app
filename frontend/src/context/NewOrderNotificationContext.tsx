@@ -618,7 +618,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
                   activeOpacity={0.8}
                   testID="accept-order-btn"
                 >
-                  <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />
+                  <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
                   <Text style={styles.acceptButtonText}>Accept</Text>
                 </TouchableOpacity>
               </View>
@@ -633,6 +633,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
               </TouchableOpacity>
             </View>
           </Animated.View>
+          </ScrollView>
         </Animated.View>
       </Modal>
     </NewOrderNotificationContext.Provider>
@@ -643,18 +644,22 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingVertical: 40,
+    paddingHorizontal: 16,
   },
   container: {
-    width: width - 40,
-    maxWidth: 400,
+    width: '100%',
+    maxWidth: 340,
   },
   clayCard: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 32,
-    padding: 28,
+    borderRadius: 24,
+    padding: 20,
     alignItems: 'center',
     // Claymorphism shadow
     shadowColor: '#64748B',
