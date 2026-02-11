@@ -54,6 +54,7 @@ export const vendorAPI = {
   getEarnings: (period: string) => api.get(`/vendor/earnings?period=${period}`),
   getQRData: () => api.get('/vendor/qr-data'),
   seedData: () => api.post('/seed/vendor'),
+  createDemoOrder: () => api.post('/seed/demo-order'),
 };
 
 // Product APIs
