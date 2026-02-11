@@ -76,6 +76,15 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
 ### Bug Fixes (Feb 11, 2026)
 1. **expo-notifications Crash Fix**: Removed expo-notifications integration since it's not supported in Expo Go with SDK 53+. The app was crashing on launch due to this incompatibility.
 2. **Orders Page TypeError Fix**: Added defensive null checks for `item.items` array in orders list rendering. The app was crashing with "Cannot read property 'map' of undefined" when order items were undefined.
+3. **Demo Order Collection Fix**: Fixed critical bug where demo orders were inserted into `db.orders` collection instead of `db.shop_orders`. This caused demo orders to not appear in the vendor orders list.
+
+### Demo Order Feature (Completed - Feb 11, 2026)
+- **"Test Order Flow" Button** on home screen: Creates a pre-configured demo order
+  - Customer: "Asha" with realistic Indian address
+  - Items: Basmati Rice, Fresh Milk, Eggs, Bread (₹694 total)
+  - Delivery Genie: "Rajan" - automatically created and positioned near vendor
+  - Order appears in pending orders list with auto-accept countdown (3 minutes)
+  - Full order lifecycle can be tested: Accept → Prepare → Ready → Assign Genie → Deliver
 
 ## API Endpoints
 
