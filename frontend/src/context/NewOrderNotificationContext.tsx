@@ -370,13 +370,30 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
 
   // Check for new orders
   const checkForNewOrders = useCallback(async () => {
-    if (!isAuthenticated || !isVendor || !isVendorOnline) {
+    // Debug logging
+    console.log('Checking for new orders:', { 
+      isAuthenticated, 
+      isVendor, 
+      isVendorOnline,
+      partnerStatus: user?.partner_status 
+    });
+    
+    if (!isAuthenticated || !isVendor) {
+      console.log('Not authenticated or not vendor, skipping...');
+      return;
+    }
+    
+    // Allow notifications if vendor is online OR if status is not explicitly offline
+    const shouldPoll = isVendorOnline || user?.partner_status !== 'offline';
+    if (!shouldPoll) {
+      console.log('Vendor is offline, skipping...');
       return;
     }
     
     try {
       const response = await orderAPI.getPending();
       const pendingOrders: Order[] = response.data;
+      console.log('Pending orders:', pendingOrders.length, 'Known:', knownOrderIds.size);
       
       if (!isInitialized) {
         setKnownOrderIds(new Set(pendingOrders.map(o => o.order_id)));
