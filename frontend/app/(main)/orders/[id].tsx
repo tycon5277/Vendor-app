@@ -855,6 +855,53 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
+        {/* Demo: Simulate Genie Actions - Shows when agent is assigned and order not delivered */}
+        {order.assigned_agent_id && 
+         order.status !== 'delivered' && 
+         order.status !== 'cancelled' && (
+          <View style={styles.demoGenieCard}>
+            <View style={styles.demoGenieHeader}>
+              <Ionicons name="flask" size={16} color="#8B5CF6" />
+              <Text style={styles.demoGenieTitle}>Test Mode: Simulate Genie Actions</Text>
+            </View>
+            <Text style={styles.demoGenieSubtitle}>
+              Simulate what happens when Genie {order.agent_name || 'Rajan'} performs delivery steps
+            </Text>
+            <View style={styles.demoGenieButtons}>
+              {order.status === 'awaiting_pickup' && (
+                <TouchableOpacity 
+                  style={[styles.demoGenieBtn, styles.demoGenieBtnPickup]}
+                  onPress={() => handleSimulateGenieAction('picked_up')}
+                  disabled={actionLoading}
+                >
+                  <Ionicons name="hand-left" size={16} color="#FFFFFF" />
+                  <Text style={styles.demoGenieBtnText}>Picked Up</Text>
+                </TouchableOpacity>
+              )}
+              {(order.status === 'awaiting_pickup' || order.status === 'picked_up') && (
+                <TouchableOpacity 
+                  style={[styles.demoGenieBtn, styles.demoGenieBtnOnWay]}
+                  onPress={() => handleSimulateGenieAction('out_for_delivery')}
+                  disabled={actionLoading}
+                >
+                  <Ionicons name="navigate" size={16} color="#FFFFFF" />
+                  <Text style={styles.demoGenieBtnText}>On The Way</Text>
+                </TouchableOpacity>
+              )}
+              {['awaiting_pickup', 'picked_up', 'out_for_delivery'].includes(order.status) && (
+                <TouchableOpacity 
+                  style={[styles.demoGenieBtn, styles.demoGenieBtnDelivered]}
+                  onPress={() => handleSimulateGenieAction('delivered')}
+                  disabled={actionLoading}
+                >
+                  <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+                  <Text style={styles.demoGenieBtnText}>Delivered</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* Status Timeline - Collapsible */}
         <TouchableOpacity 
           style={styles.timelineToggle}
