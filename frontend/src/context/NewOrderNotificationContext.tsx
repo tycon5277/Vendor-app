@@ -396,6 +396,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
       console.log('Pending orders:', pendingOrders.length, 'Known:', knownOrderIds.size);
       
       if (!isInitialized) {
+        console.log('First load - initializing known orders');
         setKnownOrderIds(new Set(pendingOrders.map(o => o.order_id)));
         setIsInitialized(true);
         return;
@@ -405,7 +406,10 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
         order => !knownOrderIds.has(order.order_id)
       );
       
+      console.log('New orders detected:', newOrders.length);
+      
       if (newOrders.length > 0 && !visible) {
+        console.log('Showing notification for order:', newOrders[0].order_id);
         showNotification(newOrders[0]);
         
         setKnownOrderIds(prev => {
