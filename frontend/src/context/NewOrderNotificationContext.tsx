@@ -274,7 +274,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
     
     // Start alert sound and vibration loop
     startAlertLoop();
-  }, [sendPushNotification, startAlertLoop]);
+  }, [startAlertLoop]);
 
   // Countdown timer for auto-accept
   useEffect(() => {
