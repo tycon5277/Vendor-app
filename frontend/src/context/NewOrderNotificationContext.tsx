@@ -557,7 +557,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
                 {/* Customer Info */}
                 <View style={styles.infoRow}>
                   <View style={styles.infoIcon}>
-                    <Ionicons name="person" size={18} color="#6366F1" />
+                    <Ionicons name="person" size={16} color="#6366F1" />
                   </View>
                   <View style={styles.infoContent}>
                     <Text style={styles.infoLabel}>Customer</Text>
@@ -568,7 +568,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
                 {/* Items */}
                 <View style={styles.infoRow}>
                   <View style={styles.infoIcon}>
-                    <Ionicons name="basket" size={18} color="#6366F1" />
+                    <Ionicons name="basket" size={16} color="#6366F1" />
                   </View>
                   <View style={styles.infoContent}>
                     <Text style={styles.infoLabel}>Items</Text>
@@ -579,7 +579,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
                 {/* Total Amount - Highlighted */}
                 <View style={styles.totalRow}>
                   <View style={styles.totalLeft}>
-                    <Ionicons name="wallet" size={22} color="#22C55E" />
+                    <Ionicons name="wallet" size={18} color="#22C55E" />
                     <Text style={styles.totalLabel}>Total Amount</Text>
                   </View>
                   <Text style={styles.totalValue}>
@@ -592,7 +592,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
               {formatCountdown() && (
                 <View style={styles.timerContainer}>
                   <View style={styles.timerIcon}>
-                    <Ionicons name="timer" size={20} color="#F59E0B" />
+                    <Ionicons name="timer" size={16} color="#F59E0B" />
                   </View>
                   <Text style={styles.timerText}>
                     Auto-accepts in <Text style={styles.timerCountdown}>{formatCountdown()}</Text>
