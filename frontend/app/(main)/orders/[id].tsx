@@ -768,26 +768,23 @@ export default function OrderDetailScreen() {
                   />
                 ) : (
                   <View style={styles.genieAvatarPlaceholder}>
-                    <Ionicons name="person" size={28} color="#22C55E" />
+                    <Ionicons name="person" size={24} color="#22C55E" />
                   </View>
                 )}
-                <View style={styles.genieOnlineBadge} />
               </View>
               <View style={styles.genieInfo}>
                 <Text style={styles.genieName}>{order.agent_name || 'Carpet Genie'}</Text>
                 <View style={styles.genieRatingRow}>
-                  <Ionicons name="star" size={14} color="#F59E0B" />
-                  <Text style={styles.genieRating}>{order.agent_rating?.toFixed(1) || '5.0'}</Text>
+                  <Ionicons name="star" size={12} color="#F59E0B" />
+                  <Text style={styles.genieRating}>{order.agent_rating?.toFixed(1) || '4.8'}</Text>
                   <Text style={styles.genieVehicle}>
-                    • {order.agent_vehicle_type === 'bike' ? '🏍️ Bike' : 
-                       order.agent_vehicle_type === 'scooter' ? '🛵 Scooter' : '🚗 Car'}
+                    • {order.agent_vehicle_type === 'bike' ? '🏍️ Bike' : '🛵 Scooter'}
                   </Text>
                 </View>
               </View>
               <TouchableOpacity 
                 style={styles.genieCallBtn}
                 onPress={() => {
-                  // TODO: Implement call functionality
                   showAlert({
                     type: 'info',
                     title: 'Call Agent',
@@ -795,48 +792,42 @@ export default function OrderDetailScreen() {
                   });
                 }}
               >
-                <Ionicons name="call" size={20} color="#FFFFFF" />
+                <Ionicons name="call" size={18} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
 
             {/* Agent Phone */}
             {order.agent_phone && (
               <View style={styles.geniePhoneRow}>
-                <Ionicons name="call-outline" size={16} color="#6B7280" />
+                <Ionicons name="call-outline" size={14} color="#6B7280" />
                 <Text style={styles.geniePhone}>{order.agent_phone}</Text>
               </View>
             )}
+          </View>
+        )}
 
-            {/* Vehicle Number */}
-            {order.agent_vehicle_number && (
-              <View style={styles.genieVehicleRow}>
-                <Text style={styles.genieVehicleLabel}>Vehicle:</Text>
-                <View style={styles.genieVehicleNumberBadge}>
-                  <Text style={styles.genieVehicleNumber}>{order.agent_vehicle_number}</Text>
-                </View>
-              </View>
-            )}
-
-            {/* Estimated Time */}
-            {order.estimated_delivery_time && (
-              <View style={styles.genieEtaRow}>
-                <View style={styles.genieEtaIconBg}>
-                  <Ionicons name="time" size={16} color="#6366F1" />
-                </View>
-                <View style={styles.genieEtaContent}>
-                  <Text style={styles.genieEtaLabel}>Estimated Delivery</Text>
-                  <Text style={styles.genieEtaValue}>{order.estimated_delivery_time}</Text>
-                </View>
-              </View>
-            )}
-
-            {/* Live Location Indicator */}
-            {order.agent_current_location && (
-              <View style={styles.genieLiveRow}>
-                <View style={styles.genieLiveDot} />
-                <Text style={styles.genieLiveText}>Live location tracking enabled</Text>
-              </View>
-            )}
+        {/* Live Delivery Status - Shows when in delivery */}
+        {(order.delivery_method === 'carpet_genie' || order.delivery_type === 'agent_delivery') &&
+         order.assigned_agent_id &&
+         ['awaiting_pickup', 'picked_up', 'out_for_delivery'].includes(order.status) && (
+          <View style={styles.liveStatusCard}>
+            <View style={styles.liveStatusIcon}>
+              <Ionicons name="bicycle" size={20} color="#22C55E" />
+            </View>
+            <View style={styles.liveStatusContent}>
+              <Text style={styles.liveStatusTitle}>
+                {order.status === 'awaiting_pickup' && 'Waiting for Pickup'}
+                {order.status === 'picked_up' && 'Order Picked Up'}
+                {order.status === 'out_for_delivery' && 'On The Way'}
+              </Text>
+              <Text style={styles.liveStatusSubtitle}>
+                {order.agent_name || 'Genie'} is handling delivery
+              </Text>
+            </View>
+            <View style={styles.liveBadge}>
+              <View style={styles.liveBadgeDot} />
+              <Text style={styles.liveBadgeText}>LIVE</Text>
+            </View>
           </View>
         )}
 
@@ -846,7 +837,7 @@ export default function OrderDetailScreen() {
           onPress={() => setShowTimeline(!showTimeline)}
         >
           <View style={styles.timelineToggleLeft}>
-            <Ionicons name="git-branch" size={20} color="#6366F1" />
+            <Ionicons name="git-branch" size={18} color="#6366F1" />
             <Text style={styles.timelineToggleText}>Order Timeline</Text>
           </View>
           <View style={styles.timelineProgress}>
@@ -855,7 +846,7 @@ export default function OrderDetailScreen() {
             </Text>
             <Ionicons 
               name={showTimeline ? "chevron-up" : "chevron-down"} 
-              size={20} 
+              size={18} 
               color="#6B7280" 
             />
           </View>
