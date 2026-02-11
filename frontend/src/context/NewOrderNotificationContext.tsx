@@ -388,11 +388,6 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
     };
   }, [checkForNewOrders, isVendorOnline]);
 
-  // Request notification permission on mount
-  useEffect(() => {
-    requestNotificationPermission();
-  }, [requestNotificationPermission]);
-
   // Polling for new orders
   useEffect(() => {
     console.log('Polling effect - isAuthenticated:', isAuthenticated, 'isVendor:', isVendor, 'isVendorOnline:', isVendorOnline, 'partnerStatus:', user?.partner_status);
