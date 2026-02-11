@@ -435,8 +435,8 @@ export default function OrdersScreen() {
         {/* Items Preview */}
         <View style={styles.itemsPreview}>
           <Text style={styles.itemsText}>
-            {item.items.length} items • {item.items.slice(0, 2).map(i => i.name).join(', ')}
-            {item.items.length > 2 ? ` +${item.items.length - 2} more` : ''}
+            {(item.items?.length || 0)} items • {(item.items || []).slice(0, 2).map(i => i.name).join(', ')}
+            {(item.items?.length || 0) > 2 ? ` +${item.items.length - 2} more` : ''}
           </Text>
         </View>
 
