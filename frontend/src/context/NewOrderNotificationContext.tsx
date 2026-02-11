@@ -446,10 +446,21 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
 
   // Polling for new orders
   useEffect(() => {
-    if (!isAuthenticated || !isVendor || !isVendorOnline) {
+    console.log('Polling effect - isAuthenticated:', isAuthenticated, 'isVendor:', isVendor, 'isVendorOnline:', isVendorOnline, 'partnerStatus:', user?.partner_status);
+    
+    if (!isAuthenticated || !isVendor) {
+      console.log('Not authenticated or not vendor - skipping poll setup');
       return;
     }
     
+    // Poll if vendor is online OR if status is not explicitly set to offline
+    const shouldPoll = isVendorOnline || (user?.partner_status !== 'offline');
+    if (!shouldPoll) {
+      console.log('Vendor is offline - skipping poll setup');
+      return;
+    }
+    
+    console.log('Setting up order polling...');
     checkForNewOrders();
     const intervalId = setInterval(checkForNewOrders, POLL_INTERVAL);
     
@@ -457,7 +468,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
       clearInterval(intervalId);
       cleanupSound();
     };
-  }, [isAuthenticated, isVendor, isVendorOnline, checkForNewOrders, cleanupSound]);
+  }, [isAuthenticated, isVendor, isVendorOnline, user?.partner_status, checkForNewOrders, cleanupSound]);
 
   // Handle view order
   const handleViewOrder = useCallback(() => {
