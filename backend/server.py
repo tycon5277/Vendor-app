@@ -3820,6 +3820,62 @@ async def seed_vendor_data(current_user: User = Depends(require_auth)):
     
     return {"message": "Vendor data seeded successfully"}
 
+
+@api_router.post("/seed/demo-order")
+async def seed_demo_order(current_user: User = Depends(require_auth)):
+    """Create a demo pending order from customer Asha for testing the full flow"""
+    vendor_id = current_user.user_id
+    
+    # Check if user is a vendor
+    if current_user.partner_type != "vendor":
+        raise HTTPException(status_code=400, detail="You must be registered as a vendor first. Call /api/seed/vendor first.")
+    
+    now = datetime.now(timezone.utc)
+    order_id = f"order_{uuid.uuid4().hex[:8]}"
+    
+    # Create demo order from Asha
+    demo_order = {
+        "order_id": order_id,
+        "user_id": "demo_customer_asha",
+        "vendor_id": vendor_id,
+        "vendor_name": current_user.vendor_shop_name or "Fresh Mart Grocery",
+        "items": [
+            {"product_id": "demo_p1", "name": "Basmati Rice (5kg)", "price": 399, "quantity": 1, "image": None},
+            {"product_id": "demo_p2", "name": "Fresh Milk (1L)", "price": 65, "quantity": 2, "image": None},
+            {"product_id": "demo_p3", "name": "Eggs (12 pcs)", "price": 75, "quantity": 1, "image": None},
+            {"product_id": "demo_p4", "name": "Bread Loaf", "price": 45, "quantity": 2, "image": None}
+        ],
+        "total_amount": 694,
+        "delivery_address": {
+            "address": "Flat 401, Green Valley Apartments, Sector 12, Near City Mall",
+            "lat": 12.9720,
+            "lng": 77.5950,
+            "landmark": "Near City Mall"
+        },
+        "delivery_type": "agent_delivery",
+        "delivery_fee": 35,
+        "status": "pending",
+        "status_history": [{"status": "pending", "timestamp": now.isoformat()}],
+        "payment_status": "paid",
+        "payment_method": "UPI",
+        "customer_name": "Asha",
+        "customer_phone": "+91 98765 12345",
+        "special_instructions": "Please deliver before 7 PM",
+        "auto_accept_at": now + timedelta(seconds=AUTO_ACCEPT_TIMEOUT_SECONDS),
+        "created_at": now
+    }
+    
+    await db.orders.insert_one(demo_order)
+    
+    return {
+        "message": "Demo order created successfully!",
+        "order_id": order_id,
+        "customer_name": "Asha",
+        "total_amount": 694,
+        "note": "The order notification should appear if you are online. You can test the full flow: Accept → Prepare → Ready → Assign Genie (Rajan will be assigned)"
+    }
+
+
 # ===================== PERFORMANCE ANALYTICS ENDPOINTS =====================
 
 @api_router.post("/vendor/analytics/track-event")
