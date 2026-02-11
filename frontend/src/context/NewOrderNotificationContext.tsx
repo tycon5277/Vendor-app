@@ -30,7 +30,6 @@ interface NewOrderNotificationContextType {
   dismissNotification: () => void;
   refreshOrders: () => void;
   isVendorOnline: boolean;
-  requestNotificationPermission: () => Promise<boolean>;
 }
 
 const NewOrderNotificationContext = createContext<NewOrderNotificationContextType | undefined>(undefined);
