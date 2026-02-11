@@ -181,6 +181,30 @@ export default function OrderDetailScreen() {
     }
   };
 
+  // Simulate Genie actions for demo/testing
+  const handleSimulateGenieAction = async (action: string) => {
+    if (!params.id) return;
+    
+    setActionLoading(true);
+    try {
+      const response = await vendorAPI.simulateGenieAction(params.id, action);
+      showAlert({
+        type: 'success',
+        title: action === 'delivered' ? 'Order Delivered!' : 'Status Updated',
+        message: response.data.message,
+      });
+      await loadOrderDetails();
+    } catch (error: any) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: error.response?.data?.detail || 'Failed to simulate action',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Handle item unavailability
   const openItemManagement = (item: OrderItem) => {
     setSelectedItem(item);
