@@ -85,6 +85,11 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
   - Delivery Genie: "Rajan" - automatically created and positioned near vendor
   - Order appears in pending orders list with auto-accept countdown (3 minutes)
   - Full order lifecycle can be tested: Accept → Prepare → Ready → Assign Genie → Deliver
+- **"Simulate Genie Actions" UI** on order details page (for orders with assigned Genie):
+  - Purple dashed card with test mode indicator
+  - Buttons: "Picked Up", "On The Way", "Delivered"
+  - Simulates what Genie Rajan would do in the Genie app
+  - Allows testing the complete delivery flow without a separate Genie app
 
 ## API Endpoints
 
