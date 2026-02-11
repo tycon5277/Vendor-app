@@ -16,7 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
-import * as Notifications from 'expo-notifications';
+// Note: expo-notifications removed - not supported in Expo Go SDK 53+
+// Push notifications require a development build
 import { orderAPI } from '../utils/api';
 import { useAuthStore } from '../store/authStore';
 import { Order } from '../types';
