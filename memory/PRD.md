@@ -65,12 +65,17 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
   - Web Audio API sound (urgent 3-tone pattern: A5→C6→E6 repeated)
   - Strong vibration pattern (800ms bursts on Android)
   - Repeating alert every 2 seconds until dismissed
-- **Push Notifications**: expo-notifications integration for background alerts
+- **Push Notifications**: REMOVED - expo-notifications not supported in Expo Go SDK 53+
+  - Requires development build for push notification support
 - **Smart Polling**: 
   - Polls every 10 seconds when vendor is online
   - Only shows popup for truly NEW orders (not existing ones at startup)
   - Online/offline status check via partner_status
 - **Actions**: "View Details" and "Accept" buttons with haptic feedback
+
+### Bug Fixes (Feb 11, 2026)
+1. **expo-notifications Crash Fix**: Removed expo-notifications integration since it's not supported in Expo Go with SDK 53+. The app was crashing on launch due to this incompatibility.
+2. **Orders Page TypeError Fix**: Added defensive null checks for `item.items` array in orders list rendering. The app was crashing with "Cannot read property 'map' of undefined" when order items were undefined.
 
 ## API Endpoints
 
