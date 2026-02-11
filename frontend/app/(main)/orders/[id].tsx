@@ -1878,6 +1878,60 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#22C55E',
   },
+  // Demo Genie Actions Card
+  demoGenieCard: {
+    backgroundColor: '#F5F3FF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    borderStyle: 'dashed',
+  },
+  demoGenieHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  demoGenieTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6D28D9',
+  },
+  demoGenieSubtitle: {
+    fontSize: 12,
+    color: '#7C3AED',
+    marginBottom: 12,
+  },
+  demoGenieButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  demoGenieBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  demoGenieBtnPickup: {
+    backgroundColor: '#F59E0B',
+  },
+  demoGenieBtnOnWay: {
+    backgroundColor: '#3B82F6',
+  },
+  demoGenieBtnDelivered: {
+    backgroundColor: '#22C55E',
+  },
+  demoGenieBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
   // Timeline Toggle
   timelineToggle: {
     flexDirection: 'row',
