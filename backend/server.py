@@ -3904,7 +3904,7 @@ async def seed_demo_order(current_user: User = Depends(require_auth)):
         "created_at": now
     }
     
-    await db.orders.insert_one(demo_order)
+    await db.shop_orders.insert_one(demo_order)
     
     return {
         "message": "Demo order created successfully!",
