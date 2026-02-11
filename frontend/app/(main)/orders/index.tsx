@@ -680,14 +680,14 @@ export default function OrdersScreen() {
                   </View>
 
                   <View style={styles.orderSummaryItems}>
-                    <Text style={styles.itemsLabel}>{newOrderData.items.length} items</Text>
-                    {newOrderData.items.slice(0, 3).map((item, idx) => (
+                    <Text style={styles.itemsLabel}>{newOrderData.items?.length || 0} items</Text>
+                    {(newOrderData.items || []).slice(0, 3).map((item, idx) => (
                       <Text key={idx} style={styles.itemLine}>
                         {item.quantity}x {item.name}
                       </Text>
                     ))}
-                    {newOrderData.items.length > 3 && (
-                      <Text style={styles.moreItemsText}>+{newOrderData.items.length - 3} more items</Text>
+                    {(newOrderData.items?.length || 0) > 3 && (
+                      <Text style={styles.moreItemsText}>+{newOrderData.items!.length - 3} more items</Text>
                     )}
                   </View>
 
