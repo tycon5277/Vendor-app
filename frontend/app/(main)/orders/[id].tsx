@@ -837,72 +837,7 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Status Timeline - Collapsible */}
-        <TouchableOpacity 
-          style={styles.timelineToggle}
-          onPress={() => setShowTimeline(!showTimeline)}
-        >
-          <View style={styles.timelineToggleLeft}>
-            <Ionicons name="git-branch" size={18} color="#6366F1" />
-            <Text style={styles.timelineToggleText}>Order Timeline</Text>
-          </View>
-          <View style={styles.timelineProgress}>
-            <Text style={styles.timelineProgressText}>
-              {Math.round((checkpoints.filter(c => c.completed).length / checkpoints.length) * 100)}%
-            </Text>
-            <Ionicons 
-              name={showTimeline ? "chevron-up" : "chevron-down"} 
-              size={18} 
-              color="#6B7280" 
-            />
-          </View>
-        </TouchableOpacity>
-
-        {showTimeline && (
-          <View style={styles.checkpointsCard}>
-            {checkpoints.map((checkpoint, index) => (
-              <View key={checkpoint.key} style={styles.checkpointRow}>
-                {index > 0 && (
-                  <View style={[
-                    styles.connectorLine,
-                    checkpoint.completed && styles.connectorLineCompleted
-                  ]} />
-                )}
-                
-                <View style={[
-                  styles.checkpointCircle,
-                  checkpoint.completed && styles.checkpointCircleCompleted,
-                  checkpoint.current && styles.checkpointCircleCurrent,
-                ]}>
-                  {checkpoint.completed ? (
-                    <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-                  ) : (
-                    <Ionicons 
-                      name={checkpoint.icon as any} 
-                      size={14} 
-                      color={checkpoint.current ? '#6366F1' : '#9CA3AF'} 
-                    />
-                  )}
-                </View>
-                
-                <View style={styles.checkpointContent}>
-                  <Text style={[
-                    styles.checkpointLabel,
-                    checkpoint.completed && styles.checkpointLabelCompleted,
-                    checkpoint.current && styles.checkpointLabelCurrent,
-                  ]}>
-                    {checkpoint.label}
-                  </Text>
-                  {checkpoint.timestamp && (
-                    <Text style={styles.checkpointTime}>
-                      {format(new Date(checkpoint.timestamp), 'h:mm a')}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
+        {/* Note: Original collapsible timeline removed - now using OrderTimeline component above */}
 
         <View style={{ height: 120 }} />
       </ScrollView>
