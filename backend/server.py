@@ -2721,6 +2721,726 @@ def get_status_message(status: str, agent_name: str = None) -> str:
     }
     return messages.get(status, status)
 
+# ===================== ORDER TIMELINE - UNIVERSAL ENDPOINTS =====================
+# These endpoints are used by ALL 3 apps (Wisher, Vendor, Genie) for real-time order tracking
+
+@api_router.get("/orders/{order_id}/status")
+async def get_order_status(order_id: str, request: Request, session_token: Optional[str] = Cookie(default=None)):
+    """
+    Universal order status endpoint - Used by all 3 apps for polling (10 sec interval)
+    Returns current status, timeline, and relevant details based on the caller's role.
+    """
+    user = await get_current_user(request, session_token)
+    
+    order = await db.shop_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Build timeline with human-readable messages
+    timeline = []
+    for entry in order.get("status_history", []):
+        timeline.append({
+            "status": entry.get("status"),
+            "timestamp": entry.get("timestamp"),
+            "by": entry.get("by"),
+            "message": get_status_message(entry.get("status"), order.get("agent_name")),
+            "notes": entry.get("notes")
+        })
+    
+    # Base response
+    response = {
+        "order_id": order_id,
+        "status": order.get("status"),
+        "payment_status": order.get("payment_status", "pending"),
+        "created_at": order.get("created_at").isoformat() if order.get("created_at") else None,
+        "timeline": timeline,
+        "vendor": {
+            "id": order.get("vendor_id"),
+            "name": order.get("vendor_name")
+        },
+        "items_count": len(order.get("items", [])),
+        "total_amount": order.get("total_amount"),
+        "delivery_type": order.get("delivery_type"),
+        "delivery_fee": order.get("delivery_fee", 0)
+    }
+    
+    # Add agent/genie info if assigned
+    if order.get("assigned_agent_id"):
+        response["genie"] = {
+            "id": order.get("assigned_agent_id"),
+            "name": order.get("agent_name"),
+            "phone": order.get("agent_phone"),
+            "photo": order.get("agent_photo"),
+            "rating": order.get("agent_rating"),
+            "vehicle_type": order.get("agent_vehicle_type"),
+            "vehicle_number": order.get("agent_vehicle_number"),
+            "current_location": order.get("agent_current_location"),
+            "accepted_at": order.get("agent_accepted_at").isoformat() if order.get("agent_accepted_at") else None,
+            "estimated_time": order.get("estimated_delivery_time")
+        }
+    
+    # Add customer info for vendor/genie views
+    if user and (user.user_id == order.get("vendor_id") or user.user_id == order.get("assigned_agent_id")):
+        response["customer"] = {
+            "id": order.get("user_id"),
+            "name": order.get("customer_name"),
+            "phone": order.get("customer_phone"),
+            "delivery_address": order.get("delivery_address")
+        }
+    
+    # Add items detail for relevant parties
+    if user and (user.user_id == order.get("user_id") or user.user_id == order.get("vendor_id")):
+        response["items"] = order.get("items", [])
+    
+    return response
+
+# ===================== WISHER APP ENDPOINTS =====================
+# These endpoints are for the Wisher (Customer) app to place and track orders
+
+class CreateOrderRequest(BaseModel):
+    vendor_id: str
+    items: List[dict]  # [{product_id, name, quantity, price, image}]
+    delivery_address: dict  # {address, lat, lng}
+    delivery_type: str = "agent_delivery"  # self_pickup, vendor_delivery, agent_delivery
+    special_instructions: Optional[str] = None
+    payment_method: str = "prepaid"  # prepaid, cod (cod not supported currently)
+
+@api_router.post("/wisher/orders")
+async def create_wisher_order(
+    data: CreateOrderRequest,
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None)
+):
+    """
+    Create a new order from Wisher app.
+    Payment is prepaid - order goes to 'placed' status immediately after payment.
+    """
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    now = datetime.now(timezone.utc)
+    
+    # Get vendor info
+    vendor = await db.users.find_one({"user_id": data.vendor_id}, {"_id": 0})
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    if vendor.get("partner_status") != "available":
+        raise HTTPException(status_code=400, detail="Vendor is currently closed")
+    
+    # Calculate totals
+    items_total = sum(item.get("price", 0) * item.get("quantity", 1) for item in data.items)
+    
+    # Calculate delivery fee based on distance
+    delivery_fee = 0.0
+    if data.delivery_type == "agent_delivery" and vendor.get("vendor_shop_location"):
+        vendor_loc = vendor.get("vendor_shop_location", {})
+        customer_loc = data.delivery_address
+        if vendor_loc.get("lat") and customer_loc.get("lat"):
+            distance = calculate_distance_km(
+                vendor_loc.get("lat"), vendor_loc.get("lng"),
+                customer_loc.get("lat"), customer_loc.get("lng")
+            )
+            fee_result = calculate_customer_delivery_fee(distance)
+            delivery_fee = fee_result.get("delivery_fee", 35.0)
+    
+    total_amount = items_total + delivery_fee
+    
+    # Generate order ID
+    order_id = f"ord_{uuid.uuid4().hex[:12]}"
+    
+    # Create order with 'placed' status (payment is prepaid)
+    order = {
+        "order_id": order_id,
+        "user_id": user.user_id,
+        "vendor_id": data.vendor_id,
+        "vendor_name": vendor.get("vendor_shop_name", "Shop"),
+        "items": data.items,
+        "total_amount": total_amount,
+        "delivery_address": data.delivery_address,
+        "delivery_type": data.delivery_type,
+        "delivery_fee": delivery_fee,
+        "status": "placed",  # New status - order placed, waiting for vendor
+        "payment_status": "paid",  # Prepaid
+        "customer_name": user.name,
+        "customer_phone": user.phone,
+        "special_instructions": data.special_instructions,
+        "auto_accept_at": now + timedelta(seconds=AUTO_ACCEPT_TIMEOUT_SECONDS),
+        "status_history": [{
+            "status": "placed",
+            "timestamp": now.isoformat(),
+            "by": "customer",
+            "message": "Order placed"
+        }],
+        "created_at": now
+    }
+    
+    await db.shop_orders.insert_one(order)
+    order.pop("_id", None)
+    
+    # Notify vendor of new order
+    notification = {
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": data.vendor_id,
+        "type": "new_order",
+        "title": "New Order! 🛒",
+        "message": f"New order from {user.name or 'Customer'} - ₹{total_amount}",
+        "data": {
+            "order_id": order_id,
+            "customer_name": user.name,
+            "total_amount": total_amount,
+            "items_count": len(data.items)
+        },
+        "read": False,
+        "created_at": now
+    }
+    await db.notifications.insert_one(notification)
+    
+    return {
+        "message": "Order placed successfully",
+        "order": order
+    }
+
+@api_router.get("/wisher/orders")
+async def get_wisher_orders(
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None),
+    status: Optional[str] = None,
+    limit: int = 50
+):
+    """Get orders for the current Wisher/customer"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    query = {"user_id": user.user_id}
+    if status:
+        query["status"] = status
+    
+    orders = await db.shop_orders.find(query, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    return {"orders": orders, "count": len(orders)}
+
+@api_router.get("/wisher/orders/{order_id}")
+async def get_wisher_order_detail(
+    order_id: str,
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None)
+):
+    """Get detailed order info for Wisher"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    order = await db.shop_orders.find_one(
+        {"order_id": order_id, "user_id": user.user_id},
+        {"_id": 0}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Build timeline
+    timeline = []
+    for entry in order.get("status_history", []):
+        timeline.append({
+            "status": entry.get("status"),
+            "timestamp": entry.get("timestamp"),
+            "message": get_status_message(entry.get("status"), order.get("agent_name"))
+        })
+    
+    # Get vendor location for map
+    vendor = await db.users.find_one({"user_id": order["vendor_id"]}, {"_id": 0})
+    vendor_location = vendor.get("vendor_shop_location") if vendor else None
+    
+    return {
+        "order": order,
+        "timeline": timeline,
+        "vendor_location": vendor_location,
+        "can_cancel": order.get("status") in ["placed", "pending"]  # Can cancel before accepted
+    }
+
+@api_router.post("/wisher/orders/{order_id}/cancel")
+async def cancel_wisher_order(
+    order_id: str,
+    reason: Optional[str] = None,
+    request: Request = None,
+    session_token: Optional[str] = Cookie(default=None)
+):
+    """Cancel an order (only if not yet accepted by vendor)"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    order = await db.shop_orders.find_one({"order_id": order_id, "user_id": user.user_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("status") not in ["placed", "pending"]:
+        raise HTTPException(status_code=400, detail="Cannot cancel order after vendor has accepted")
+    
+    now = datetime.now(timezone.utc)
+    
+    status_entry = {
+        "status": "cancelled",
+        "timestamp": now.isoformat(),
+        "by": "customer",
+        "reason": reason
+    }
+    
+    await db.shop_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {"status": "cancelled"},
+            "$push": {"status_history": status_entry}
+        }
+    )
+    
+    # Notify vendor
+    notification = {
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": order["vendor_id"],
+        "type": "order_cancelled",
+        "title": "Order Cancelled ❌",
+        "message": f"Order #{order_id[-8:]} was cancelled by customer",
+        "data": {"order_id": order_id, "reason": reason},
+        "read": False,
+        "created_at": now
+    }
+    await db.notifications.insert_one(notification)
+    
+    # TODO: Process refund if payment was made
+    
+    return {"message": "Order cancelled successfully"}
+
+# ===================== GENIE APP - ENHANCED DELIVERY ENDPOINTS =====================
+
+@api_router.get("/genie/orders/available")
+async def get_available_orders_for_genie(
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None),
+    lat: Optional[float] = None,
+    lng: Optional[float] = None
+):
+    """
+    Get orders available for pickup by Genies.
+    Orders in 'ready' or 'awaiting_pickup' status with agent_delivery type.
+    Broadcasts to all online Genies - first to accept gets it.
+    """
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Find orders ready for Genie pickup
+    available_orders = await db.shop_orders.find({
+        "status": {"$in": ["ready", "awaiting_pickup"]},
+        "delivery_type": "agent_delivery",
+        "assigned_agent_id": None  # Not yet assigned to any Genie
+    }, {"_id": 0}).sort("created_at", 1).to_list(50)  # Oldest first (FIFO)
+    
+    # Enrich with vendor location and distance
+    enriched_orders = []
+    for order in available_orders:
+        vendor = await db.users.find_one({"user_id": order["vendor_id"]}, {"_id": 0})
+        vendor_loc = vendor.get("vendor_shop_location", {}) if vendor else {}
+        
+        order_info = {
+            "order_id": order["order_id"],
+            "vendor_name": order.get("vendor_name"),
+            "vendor_address": vendor.get("vendor_shop_address") if vendor else None,
+            "vendor_location": vendor_loc,
+            "customer_address": order.get("delivery_address", {}).get("address"),
+            "customer_location": {
+                "lat": order.get("delivery_address", {}).get("lat"),
+                "lng": order.get("delivery_address", {}).get("lng")
+            },
+            "items_count": len(order.get("items", [])),
+            "total_amount": order.get("total_amount"),
+            "delivery_fee": order.get("delivery_fee"),
+            "created_at": order.get("created_at").isoformat() if order.get("created_at") else None,
+            "status": order.get("status")
+        }
+        
+        # Calculate distance if Genie location provided
+        if lat and lng and vendor_loc.get("lat"):
+            order_info["distance_to_vendor_km"] = calculate_distance_km(
+                lat, lng, vendor_loc.get("lat"), vendor_loc.get("lng")
+            )
+            
+            # Also calculate total delivery distance
+            if order.get("delivery_address", {}).get("lat"):
+                order_info["vendor_to_customer_km"] = calculate_distance_km(
+                    vendor_loc.get("lat"), vendor_loc.get("lng"),
+                    order.get("delivery_address", {}).get("lat"),
+                    order.get("delivery_address", {}).get("lng")
+                )
+        
+        enriched_orders.append(order_info)
+    
+    # Sort by distance if location provided
+    if lat and lng:
+        enriched_orders.sort(key=lambda x: x.get("distance_to_vendor_km", float("inf")))
+    
+    return {
+        "available_orders": enriched_orders,
+        "count": len(enriched_orders)
+    }
+
+@api_router.post("/genie/orders/{order_id}/accept")
+async def genie_accept_order(
+    order_id: str,
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None),
+    estimated_pickup_mins: int = 10,
+    estimated_delivery_mins: int = 20
+):
+    """
+    Genie accepts an available order for delivery.
+    First Genie to accept gets assigned.
+    """
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    now = datetime.now(timezone.utc)
+    
+    # Find the order
+    order = await db.shop_orders.find_one({"order_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Check if order is available
+    if order.get("status") not in ["ready", "awaiting_pickup"]:
+        raise HTTPException(status_code=400, detail="Order is not available for pickup")
+    
+    if order.get("assigned_agent_id"):
+        raise HTTPException(status_code=400, detail="Order already assigned to another Genie")
+    
+    # Get or create agent profile
+    agent_profile = await db.agent_profiles.find_one({"user_id": user.user_id})
+    if not agent_profile:
+        agent_profile = {
+            "agent_id": f"agent_{uuid.uuid4().hex[:12]}",
+            "user_id": user.user_id,
+            "name": user.name or "Genie",
+            "phone": user.phone,
+            "vehicle_type": "bike",
+            "rating": 5.0,
+            "total_deliveries": 0,
+            "is_online": True,
+            "created_at": now
+        }
+        await db.agent_profiles.insert_one(agent_profile)
+    
+    estimated_time = f"{estimated_delivery_mins}-{estimated_delivery_mins + 10} mins"
+    
+    # Update order with Genie details
+    update_data = {
+        "assigned_agent_id": user.user_id,
+        "agent_name": agent_profile.get("name", user.name),
+        "agent_phone": agent_profile.get("phone", user.phone),
+        "agent_photo": agent_profile.get("photo"),
+        "agent_rating": agent_profile.get("rating", 5.0),
+        "agent_vehicle_type": agent_profile.get("vehicle_type", "bike"),
+        "agent_vehicle_number": agent_profile.get("vehicle_number"),
+        "agent_accepted_at": now,
+        "estimated_delivery_time": estimated_time,
+        "delivery_method": "carpet_genie",
+        "status": "awaiting_pickup"  # Genie is on way to pickup
+    }
+    
+    status_entry = {
+        "status": "genie_assigned",
+        "timestamp": now.isoformat(),
+        "by": "genie",
+        "agent_id": user.user_id,
+        "agent_name": agent_profile.get("name", user.name)
+    }
+    
+    await db.shop_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": update_data,
+            "$push": {"status_history": status_entry}
+        }
+    )
+    
+    # Update agent profile with current order
+    await db.agent_profiles.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"current_order_id": order_id, "is_online": True}}
+    )
+    
+    # Notify Vendor
+    vendor_notification = {
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": order["vendor_id"],
+        "type": "genie_assigned",
+        "title": "Genie Assigned! 🚴",
+        "message": f"{agent_profile.get('name', 'A Genie')} will pick up order #{order_id[-8:]}",
+        "data": {
+            "order_id": order_id,
+            "genie_name": agent_profile.get("name"),
+            "genie_phone": agent_profile.get("phone"),
+            "estimated_pickup": f"{estimated_pickup_mins} mins"
+        },
+        "read": False,
+        "created_at": now
+    }
+    await db.notifications.insert_one(vendor_notification)
+    
+    # Notify Customer
+    customer_notification = {
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": order["user_id"],
+        "type": "genie_assigned",
+        "title": "Delivery Partner Assigned! 🎉",
+        "message": f"{agent_profile.get('name', 'Your delivery partner')} is on the way to pick up your order",
+        "data": {
+            "order_id": order_id,
+            "genie_name": agent_profile.get("name"),
+            "genie_phone": agent_profile.get("phone"),
+            "genie_photo": agent_profile.get("photo"),
+            "genie_rating": agent_profile.get("rating"),
+            "estimated_time": estimated_time
+        },
+        "read": False,
+        "created_at": now
+    }
+    await db.notifications.insert_one(customer_notification)
+    
+    return {
+        "message": "Order accepted successfully",
+        "order_id": order_id,
+        "vendor_name": order.get("vendor_name"),
+        "vendor_address": order.get("vendor_shop_address"),
+        "customer_address": order.get("delivery_address", {}).get("address"),
+        "estimated_delivery": estimated_time
+    }
+
+@api_router.post("/genie/orders/{order_id}/pickup")
+async def genie_pickup_order(
+    order_id: str,
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None)
+):
+    """Genie marks order as picked up from vendor"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    order = await db.shop_orders.find_one({"order_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("assigned_agent_id") != user.user_id:
+        raise HTTPException(status_code=403, detail="You are not assigned to this order")
+    
+    if order.get("status") not in ["awaiting_pickup", "ready"]:
+        raise HTTPException(status_code=400, detail="Order is not ready for pickup")
+    
+    now = datetime.now(timezone.utc)
+    
+    status_entry = {
+        "status": "picked_up",
+        "timestamp": now.isoformat(),
+        "by": "genie",
+        "agent_id": user.user_id
+    }
+    
+    await db.shop_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {"status": "picked_up"},
+            "$push": {"status_history": status_entry}
+        }
+    )
+    
+    # Notify vendor
+    await db.notifications.insert_one({
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": order["vendor_id"],
+        "type": "order_picked_up",
+        "title": "Order Picked Up 📦",
+        "message": f"Order #{order_id[-8:]} picked up by {user.name or 'Genie'}",
+        "data": {"order_id": order_id},
+        "read": False,
+        "created_at": now
+    })
+    
+    # Notify customer
+    await db.notifications.insert_one({
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": order["user_id"],
+        "type": "order_picked_up",
+        "title": "Your order is on the way! 🚴",
+        "message": f"Your order from {order.get('vendor_name')} is being delivered",
+        "data": {"order_id": order_id},
+        "read": False,
+        "created_at": now
+    })
+    
+    return {"message": "Order marked as picked up", "status": "picked_up"}
+
+@api_router.post("/genie/orders/{order_id}/deliver")
+async def genie_deliver_order(
+    order_id: str,
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None),
+    delivery_photo: Optional[str] = None  # Optional proof of delivery
+):
+    """Genie marks order as delivered"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    order = await db.shop_orders.find_one({"order_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("assigned_agent_id") != user.user_id:
+        raise HTTPException(status_code=403, detail="You are not assigned to this order")
+    
+    if order.get("status") not in ["picked_up", "out_for_delivery"]:
+        raise HTTPException(status_code=400, detail="Order is not out for delivery")
+    
+    now = datetime.now(timezone.utc)
+    
+    status_entry = {
+        "status": "delivered",
+        "timestamp": now.isoformat(),
+        "by": "genie",
+        "agent_id": user.user_id,
+        "delivery_photo": delivery_photo
+    }
+    
+    await db.shop_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {"status": "delivered", "delivered_at": now},
+            "$push": {"status_history": status_entry}
+        }
+    )
+    
+    # Record earnings
+    delivery_fee = order.get("delivery_fee", 0)
+    
+    # Vendor earnings
+    await db.earnings.insert_one({
+        "earning_id": f"earn_{uuid.uuid4().hex[:12]}",
+        "partner_id": order["vendor_id"],
+        "order_id": order_id,
+        "amount": order["total_amount"] - delivery_fee,
+        "type": "sale",
+        "description": f"Order #{order_id[-8:]}",
+        "status": "completed",
+        "created_at": now
+    })
+    
+    # Genie earnings
+    if delivery_fee > 0:
+        await db.earnings.insert_one({
+            "earning_id": f"earn_{uuid.uuid4().hex[:12]}",
+            "partner_id": user.user_id,
+            "order_id": order_id,
+            "amount": delivery_fee,
+            "type": "delivery_fee",
+            "description": f"Delivery #{order_id[-8:]}",
+            "status": "completed",
+            "created_at": now
+        })
+    
+    # Update stats
+    await db.users.update_one(
+        {"user_id": order["vendor_id"]},
+        {"$inc": {"partner_total_earnings": order["total_amount"] - delivery_fee, "partner_total_tasks": 1}}
+    )
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$inc": {"partner_total_earnings": delivery_fee, "partner_total_tasks": 1}}
+    )
+    
+    # Clear Genie's current order
+    await db.agent_profiles.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"current_order_id": None}, "$inc": {"total_deliveries": 1}}
+    )
+    
+    # Notify vendor
+    await db.notifications.insert_one({
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": order["vendor_id"],
+        "type": "order_delivered",
+        "title": "Order Delivered! 🎉",
+        "message": f"Order #{order_id[-8:]} delivered successfully",
+        "data": {"order_id": order_id},
+        "read": False,
+        "created_at": now
+    })
+    
+    # Notify customer
+    await db.notifications.insert_one({
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": order["user_id"],
+        "type": "order_delivered",
+        "title": "Your order is here! 🎉",
+        "message": f"Your order from {order.get('vendor_name')} has been delivered",
+        "data": {"order_id": order_id},
+        "read": False,
+        "created_at": now
+    })
+    
+    return {
+        "message": "Order delivered successfully",
+        "status": "delivered",
+        "earnings": delivery_fee
+    }
+
+@api_router.get("/genie/orders/current")
+async def get_genie_current_order(
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None)
+):
+    """Get the current active order for the Genie"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Find active order assigned to this Genie
+    order = await db.shop_orders.find_one({
+        "assigned_agent_id": user.user_id,
+        "status": {"$in": ["awaiting_pickup", "picked_up", "out_for_delivery"]}
+    }, {"_id": 0})
+    
+    if not order:
+        return {"has_active_order": False, "order": None}
+    
+    # Get vendor location
+    vendor = await db.users.find_one({"user_id": order["vendor_id"]}, {"_id": 0})
+    
+    return {
+        "has_active_order": True,
+        "order": {
+            "order_id": order["order_id"],
+            "status": order["status"],
+            "vendor_name": order.get("vendor_name"),
+            "vendor_address": vendor.get("vendor_shop_address") if vendor else None,
+            "vendor_location": vendor.get("vendor_shop_location") if vendor else None,
+            "vendor_phone": vendor.get("phone") if vendor else None,
+            "customer_name": order.get("customer_name"),
+            "customer_phone": order.get("customer_phone"),
+            "customer_address": order.get("delivery_address", {}).get("address"),
+            "customer_location": {
+                "lat": order.get("delivery_address", {}).get("lat"),
+                "lng": order.get("delivery_address", {}).get("lng")
+            },
+            "items_count": len(order.get("items", [])),
+            "total_amount": order.get("total_amount"),
+            "delivery_fee": order.get("delivery_fee"),
+            "special_instructions": order.get("special_instructions")
+        }
+    }
+
 # ===================== PAYMENT & ESCROW ENDPOINTS =====================
 
 def calculate_gateway_fee(amount: float) -> dict:
