@@ -17,8 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Audio } from 'expo-av';
 // Note: expo-notifications removed - not supported in Expo Go SDK 53+
+// Note: expo-av removed - deprecated in SDK 53+, using Web Audio API instead
 // Push notifications require a development build
 import { orderAPI } from '../utils/api';
 import { useAuthStore } from '../store/authStore';
