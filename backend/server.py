@@ -1272,14 +1272,14 @@ async def get_order_details(order_id: str, current_user: User = Depends(require_
 
 @api_router.post("/vendor/orders/{order_id}/accept")
 async def accept_order(order_id: str, current_user: User = Depends(require_vendor)):
-    """Accept a pending order"""
+    """Accept a pending/placed order"""
     order = await db.shop_orders.find_one(
         {"order_id": order_id, "vendor_id": current_user.user_id}
     )
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    if order["status"] != "pending":
+    if order["status"] not in ["pending", "placed"]:
         raise HTTPException(status_code=400, detail="Can only accept pending orders")
     
     status_entry = {
