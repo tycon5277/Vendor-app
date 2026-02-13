@@ -2708,11 +2708,13 @@ async def get_order_live_tracking(order_id: str):
 def get_status_message(status: str, agent_name: str = None) -> str:
     """Get human-readable message for status"""
     messages = {
+        "placed": "Order placed and paid",
         "pending": "Order placed, waiting for vendor",
         "confirmed": "Order accepted by vendor",
         "preparing": "Order is being prepared",
         "ready": "Order is ready",
         "awaiting_pickup": "Waiting for delivery partner",
+        "genie_assigned": f"{agent_name or 'Delivery partner'} is on the way to pick up",
         "agent_assigned": f"{agent_name or 'Delivery partner'} is on the way to pick up",
         "picked_up": f"{agent_name or 'Delivery partner'} has picked up your order",
         "out_for_delivery": f"{agent_name or 'Delivery partner'} is on the way to you",
