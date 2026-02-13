@@ -502,41 +502,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6366F1',
   },
-  // Demo Order Button
-  demoOrderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    marginHorizontal: 16,
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#86EFAC',
-    borderStyle: 'dashed',
-  },
-  demoOrderIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#22C55E',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  demoOrderContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  demoOrderTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#166534',
-  },
-  demoOrderSubtitle: {
-    fontSize: 12,
-    color: '#15803D',
-    marginTop: 2,
-  },
   // Inventory Alerts Section at Top
   inventorySectionTop: {
     marginHorizontal: 16,
