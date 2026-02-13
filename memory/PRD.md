@@ -24,6 +24,7 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
 │       ├── store/      # Zustand stores (auth)
 │       ├── types/      # TypeScript types
 │       └── utils/      # API utilities
+├── ORDER_TIMELINE_PROMPTS.md  # Integration prompts for Wisher & Genie apps
 ```
 
 ## Implemented Features
@@ -35,6 +36,38 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
 4. **Order Management** - Full workflow (pending → confirmed → preparing → ready → delivered)
 5. **Timed Auto-Accept** - Orders auto-accept after 3 minutes
 6. **Home Dashboard** - Performance metrics, inventory alerts, recent orders
+
+### Order Timeline Feature (Completed - Feb 13, 2026)
+Full order lifecycle management across 3 apps (Wisher, Vendor, Genie):
+
+**Order Status Flow:**
+```
+placed → confirmed → preparing → ready → awaiting_pickup → picked_up → delivered
+                                                  ↓
+                                            (or cancelled)
+```
+
+**New Endpoints Implemented:**
+1. **Universal Status Polling** (`GET /api/orders/{order_id}/status`)
+   - Used by all 3 apps for real-time order tracking
+   - Returns timeline, vendor info, genie info when assigned
+   - Poll every 10 seconds
+
+2. **Wisher (Customer) Endpoints**
+   - `POST /api/wisher/orders` - Create order (prepaid, status: "placed")
+   - `GET /api/wisher/orders` - List customer orders
+   - `GET /api/wisher/orders/{id}` - Order details with timeline
+   - `POST /api/wisher/orders/{id}/cancel` - Cancel (before vendor accepts)
+
+3. **Genie (Delivery) Endpoints**
+   - `GET /api/genie/orders/available` - Broadcast available orders to all Genies
+   - `POST /api/genie/orders/{id}/accept` - Accept order (first-to-accept wins)
+   - `POST /api/genie/orders/{id}/pickup` - Mark as picked up
+   - `POST /api/genie/orders/{id}/deliver` - Mark as delivered, record earnings
+   - `GET /api/genie/orders/current` - Get active delivery
+
+**Integration Documentation:**
+- `/app/ORDER_TIMELINE_PROMPTS.md` contains ready-to-use prompts for Wisher and Genie apps
 
 ### Delivery System (Completed - Feb 2026)
 1. **Delivery Assignment Algorithm** - Distance-based Genie assignment
@@ -109,15 +142,31 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
 - `DELETE /api/vendor/products/{id}` - Delete product
 - `PUT /api/vendor/products/{id}/stock` - Update stock
 
-### Orders
+### Orders (Vendor)
 - `GET /api/vendor/orders` - List orders
-- `GET /api/vendor/orders/pending` - Get pending orders
+- `GET /api/vendor/orders/pending` - Get pending/placed orders
 - `GET /api/vendor/orders/{id}` - Get order details
-- `POST /api/vendor/orders/{id}/accept` - Accept order
+- `POST /api/vendor/orders/{id}/accept` - Accept order (supports 'placed' status)
 - `POST /api/vendor/orders/{id}/reject` - Reject order
-- `PUT /api/vendor/orders/{id}/status` - Update status
+- `PUT /api/vendor/orders/{id}/status` - Update status (preparing, ready)
 - `PUT /api/vendor/orders/{id}/items` - Update items
 - `POST /api/vendor/orders/{id}/assign-delivery` - Assign delivery
+
+### Orders (Universal)
+- `GET /api/orders/{id}/status` - Universal order status polling (all apps)
+
+### Orders (Wisher/Customer)
+- `POST /api/wisher/orders` - Create order
+- `GET /api/wisher/orders` - List customer orders
+- `GET /api/wisher/orders/{id}` - Order details
+- `POST /api/wisher/orders/{id}/cancel` - Cancel order
+
+### Orders (Genie/Delivery)
+- `GET /api/genie/orders/available` - Available orders for pickup
+- `POST /api/genie/orders/{id}/accept` - Accept order
+- `POST /api/genie/orders/{id}/pickup` - Mark picked up
+- `POST /api/genie/orders/{id}/deliver` - Mark delivered
+- `GET /api/genie/orders/current` - Current active order
 
 ### Admin (Analytics)
 - `GET /api/admin/delivery-analytics` - Delivery financial metrics
@@ -153,15 +202,19 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
 4. **react-native-maps** - Using WebView workaround for Expo Go compatibility
 
 ## Backlog / Future Tasks
-1. **P1: Payment Gateway Integration** - Integrate Razorpay with Escrow system
-2. **P2: Admin Panel Development** - Build admin UI for analytics
-3. **P3: Genie App Development** - Delivery agent app
-4. **P3: Wisher App Development** - Customer app
-5. **P4: Settlement Timelines** - Define vendor/Genie payout schedules
-6. **P4: Dynamic/Surge Pricing** - Variable delivery fees based on demand
+1. **P1: Advanced Genie Assignment Algorithm** - Assign based on nearness, rating, availability
+2. **P1: Payment Gateway Integration** - Integrate Razorpay with Escrow system
+3. **P2: Admin Panel Development** - Build admin UI for analytics
+4. **P2: Vendor App UI for Order Timeline** - Visual timeline in order details
+5. **P3: Wisher App Integration** - Apply prompts from ORDER_TIMELINE_PROMPTS.md
+6. **P3: Genie App Integration** - Apply prompts from ORDER_TIMELINE_PROMPTS.md
+7. **P4: Settlement Timelines** - Define vendor/Genie payout schedules
+8. **P4: Dynamic/Surge Pricing** - Variable delivery fees based on demand
 
 ## Test Credentials
-- Phone: `9999999999`
+- Vendor Phone: `9999999999` (has shop setup)
+- Wisher Phone: `8888888888` (test customer)
+- Genie Phone: `7777777777` (test delivery agent)
 - OTP: `123456`
 
 ## Environment Variables
@@ -175,4 +228,4 @@ DB_NAME=test_database
 ```
 
 ---
-Last Updated: February 11, 2026
+Last Updated: February 13, 2026
