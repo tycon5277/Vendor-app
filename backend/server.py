@@ -1440,7 +1440,7 @@ class DeliveryAssignment(BaseModel):
     notes: Optional[str] = None
 
 @api_router.get("/vendor/orders/{order_id}/details")
-async def get_order_details(order_id: str, current_user: User = Depends(require_vendor)):
+async def get_vendor_order_details_extended(order_id: str, current_user: User = Depends(require_vendor)):
     """Get comprehensive order details with status history"""
     order = await db.shop_orders.find_one(
         {"order_id": order_id, "vendor_id": current_user.user_id},
@@ -1451,10 +1451,6 @@ async def get_order_details(order_id: str, current_user: User = Depends(require_
     
     # Get vendor info to check delivery capabilities
     vendor = await db.users.find_one({"user_id": current_user.user_id})
-    
-    # Calculate status progress
-    current_status = order.get("status", "pending")
-    completed_statuses = ORDER_STATUSES[:ORDER_STATUSES.index(current_status) + 1] if current_status in ORDER_STATUSES else []
     
     return {
         "order": order,
