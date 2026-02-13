@@ -82,14 +82,6 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
   // Play loud notification sound
   const playLoudSound = useCallback(async () => {
     try {
-      // Configure audio for maximum volume
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: false,
-      });
-
       if (Platform.OS === 'web') {
         // Web Audio API - Louder, more urgent sound
         try {
