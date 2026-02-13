@@ -54,10 +54,6 @@ export const vendorAPI = {
   getEarnings: (period: string) => api.get(`/vendor/earnings?period=${period}`),
   getQRData: () => api.get('/vendor/qr-data'),
   seedData: () => api.post('/seed/vendor'),
-  createDemoOrder: () => api.post('/seed/demo-order'),
-  // Simulate Genie actions for testing
-  simulateGenieAction: (orderId: string, action: string) => 
-    api.post(`/seed/simulate-genie-action/${orderId}?action=${action}`),
 };
 
 // Product APIs
