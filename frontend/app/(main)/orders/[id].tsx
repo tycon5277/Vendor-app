@@ -401,6 +401,11 @@ export default function OrderDetailScreen() {
           )}
         </View>
 
+        {/* Visual Order Timeline - Always visible */}
+        {checkpoints.length > 0 && (
+          <OrderTimeline steps={checkpoints} status={order.status} />
+        )}
+
         {/* ORDER ITEMS - PRIMARY SECTION */}
         <View style={styles.itemsCard}>
           <View style={styles.itemsHeader}>
