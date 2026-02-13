@@ -155,17 +155,9 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
     }
   }, []);
 
-  // Cleanup sound
+  // Cleanup sound/alerts
   const cleanupSound = useCallback(async () => {
     stopAlertLoop();
-    if (soundRef.current) {
-      try {
-        await soundRef.current.unloadAsync();
-      } catch (error) {
-        // Ignore cleanup errors
-      }
-      soundRef.current = null;
-    }
   }, [stopAlertLoop]);
 
   // Show notification modal
