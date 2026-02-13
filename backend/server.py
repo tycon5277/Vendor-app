@@ -1421,7 +1421,8 @@ async def request_agent_delivery(order_id: str, current_user: User = Depends(req
 
 # Order Status Checkpoints
 ORDER_STATUSES = [
-    "pending",           # Customer placed order
+    "placed",            # Customer placed order (prepaid)
+    "pending",           # Customer placed order (legacy)
     "confirmed",         # Vendor accepted
     "preparing",         # Vendor is preparing
     "ready",            # Ready for pickup/delivery
