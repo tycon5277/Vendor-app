@@ -172,7 +172,7 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
 ## Environment Variables
 ```
 # Frontend (.env)
-EXPO_PUBLIC_BACKEND_URL=https://order-flow-test.preview.emergentagent.com
+EXPO_PUBLIC_BACKEND_URL=https://feature-rollback.preview.emergentagent.com
 
 # Backend (.env)
 MONGO_URL=mongodb://localhost:27017
