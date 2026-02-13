@@ -192,22 +192,6 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* Demo Order Button */}
-          <TouchableOpacity 
-            style={styles.demoOrderBtn} 
-            onPress={handleCreateDemoOrder}
-            activeOpacity={0.8}
-          >
-            <View style={styles.demoOrderIcon}>
-              <Ionicons name="flash" size={20} color="#FFFFFF" />
-            </View>
-            <View style={styles.demoOrderContent}>
-              <Text style={styles.demoOrderTitle}>Test Order Flow</Text>
-              <Text style={styles.demoOrderSubtitle}>Create demo order from "Asha" with Genie "Rajan"</Text>
-            </View>
-            <Ionicons name="add-circle" size={24} color="#22C55E" />
-          </TouchableOpacity>
-
           {/* Inventory Alerts Section - AT THE TOP */}
           {hasInventoryAlerts && (
             <View style={styles.inventorySectionTop}>
