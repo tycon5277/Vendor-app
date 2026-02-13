@@ -79,18 +79,13 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
 3. **Demo Order Collection Fix**: Fixed critical bug where demo orders were inserted into `db.orders` collection instead of `db.shop_orders`. This caused demo orders to not appear in the vendor orders list.
 4. **expo-av Migration**: Removed deprecated expo-av package. Audio notifications now use Web Audio API for web platform and Vibration API for native. This prevents breaking changes when upgrading to SDK 54+.
 
-### Demo Order Feature (Completed - Feb 11, 2026)
-- **"Test Order Flow" Button** on home screen: Creates a pre-configured demo order
-  - Customer: "Asha" with realistic Indian address
-  - Items: Basmati Rice, Fresh Milk, Eggs, Bread (₹694 total)
-  - Delivery Genie: "Rajan" - automatically created and positioned near vendor
-  - Order appears in pending orders list with auto-accept countdown (3 minutes)
-  - Full order lifecycle can be tested: Accept → Prepare → Ready → Assign Genie → Deliver
-- **"Simulate Genie Actions" UI** on order details page (for orders with assigned Genie):
-  - Purple dashed card with test mode indicator
-  - Buttons: "Picked Up", "On The Way", "Delivered"
-  - Simulates what Genie Rajan would do in the Genie app
-  - Allows testing the complete delivery flow without a separate Genie app
+### Demo Order Feature (REMOVED - Feb 11, 2026)
+- **Removed per user request**: The demo order flow feature was fully implemented and then removed as the user no longer needed it
+- Original feature included:
+  - "Test Order Flow" button on home screen
+  - "Simulate Genie Actions" UI on order details page
+  - Backend endpoints: `/api/seed/demo-order` and `/api/seed/simulate-genie-action/{order_id}`
+- **Kept**: The `/api/seed/vendor` endpoint for initial data seeding still exists
 
 ## API Endpoints
 
@@ -180,4 +175,4 @@ DB_NAME=test_database
 ```
 
 ---
-Last Updated: February 9, 2026
+Last Updated: February 11, 2026
