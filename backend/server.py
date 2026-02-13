@@ -1205,12 +1205,12 @@ async def get_vendor_orders(
 
 @api_router.get("/vendor/orders/pending")
 async def get_pending_orders(current_user: User = Depends(require_vendor)):
-    """Get new pending orders with auto-accept countdown"""
+    """Get new pending/placed orders with auto-accept countdown"""
     # First, process any auto-accept orders
     await process_auto_accept_orders(current_user.user_id)
     
     orders = await db.shop_orders.find(
-        {"vendor_id": current_user.user_id, "status": "pending"},
+        {"vendor_id": current_user.user_id, "status": {"$in": ["pending", "placed"]}},
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
     
