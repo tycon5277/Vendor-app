@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+// Note: expo-av removed - deprecated in SDK 53+, using Vibration instead
 import { orderAPI } from '../../../src/utils/api';
 import { Order } from '../../../src/types';
 import { useAlert } from '../../../src/context/AlertContext';
