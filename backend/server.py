@@ -1124,10 +1124,10 @@ async def process_auto_accept_orders(vendor_id: str):
     """Check and auto-accept orders that have exceeded the timeout"""
     now = datetime.now(timezone.utc)
     
-    # Find pending orders that have exceeded auto_accept_at time
+    # Find pending/placed orders that have exceeded auto_accept_at time
     pending_orders = await db.shop_orders.find({
         "vendor_id": vendor_id,
-        "status": "pending",
+        "status": {"$in": ["pending", "placed"]},
         "auto_accept_at": {"$lte": now}
     }).to_list(100)
     
