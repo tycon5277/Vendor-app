@@ -1465,6 +1465,10 @@ def get_status_checkpoints(order: dict) -> list:
     current_status = order.get("status", "pending")
     status_history = {s["status"]: s for s in order.get("status_history", [])}
     
+    # Map 'placed' to 'pending' for checkpoint matching (both are first step)
+    # 'placed' is for prepaid orders, 'pending' is for legacy orders
+    display_status = "pending" if current_status == "placed" else current_status
+    
     checkpoints = [
         {"key": "pending", "label": "Order Placed", "icon": "cart", "description": "Customer placed the order"},
         {"key": "confirmed", "label": "Accepted", "icon": "checkmark-circle", "description": "You accepted the order"},
@@ -1477,14 +1481,17 @@ def get_status_checkpoints(order: dict) -> list:
     ]
     
     status_order = ["pending", "confirmed", "preparing", "ready", "awaiting_pickup", "picked_up", "out_for_delivery", "delivered"]
-    current_index = status_order.index(current_status) if current_status in status_order else -1
+    current_index = status_order.index(display_status) if display_status in status_order else -1
     
     for i, cp in enumerate(checkpoints):
         if i <= current_index:
             cp["completed"] = True
             cp["current"] = (i == current_index)
+            # Check for both 'pending' and 'placed' timestamps
             if cp["key"] in status_history:
                 cp["timestamp"] = status_history[cp["key"]].get("timestamp")
+            elif cp["key"] == "pending" and "placed" in status_history:
+                cp["timestamp"] = status_history["placed"].get("timestamp")
         else:
             cp["completed"] = False
             cp["current"] = False
