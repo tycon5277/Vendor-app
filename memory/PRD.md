@@ -77,6 +77,7 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
 1. **expo-notifications Crash Fix**: Removed expo-notifications integration since it's not supported in Expo Go with SDK 53+. The app was crashing on launch due to this incompatibility.
 2. **Orders Page TypeError Fix**: Added defensive null checks for `item.items` array in orders list rendering. The app was crashing with "Cannot read property 'map' of undefined" when order items were undefined.
 3. **Demo Order Collection Fix**: Fixed critical bug where demo orders were inserted into `db.orders` collection instead of `db.shop_orders`. This caused demo orders to not appear in the vendor orders list.
+4. **expo-av Migration**: Removed deprecated expo-av package. Audio notifications now use Web Audio API for web platform and Vibration API for native. This prevents breaking changes when upgrading to SDK 54+.
 
 ### Demo Order Feature (Completed - Feb 11, 2026)
 - **"Test Order Flow" Button** on home screen: Creates a pre-configured demo order
