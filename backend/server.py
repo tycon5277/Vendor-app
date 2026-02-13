@@ -1607,10 +1607,6 @@ async def execute_order_workflow_action(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    current_status = order.get("status", "pending")
-    new_status = None
-    message = ""
-    
     # Map actions to status changes
     action_map = {
         "accept": ("confirmed", "Order accepted"),
