@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { orderAPI } from '../../../src/utils/api';
 import { useAlert } from '../../../src/context/AlertContext';
 import { format } from 'date-fns';
+import { OrderTimeline } from '../../../src/components/OrderTimeline';
 
 const { width } = Dimensions.get('window');
 
