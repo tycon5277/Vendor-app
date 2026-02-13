@@ -120,24 +120,6 @@ export default function HomeScreen() {
     }
   };
 
-  const handleCreateDemoOrder = async () => {
-    try {
-      const response = await vendorAPI.createDemoOrder();
-      showAlert({
-        type: 'success',
-        title: 'Demo Order Created! 📦',
-        message: `Order from ${response.data.customer_name} (₹${response.data.total_amount}). Genie "Rajan" is ready for delivery!`,
-      });
-      loadData();
-    } catch (error: any) {
-      showAlert({
-        type: 'error',
-        title: 'Error',
-        message: error.response?.data?.detail || 'Failed to create demo order',
-      });
-    }
-  };
-
   // Calculate level based on total orders
   const totalOrders = analytics?.total_orders || 0;
   const level = Math.floor(totalOrders / 10) + 1;
