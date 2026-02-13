@@ -45,7 +45,6 @@ export default function OrdersScreen() {
   const alertOpacityAnim = useRef(new Animated.Value(0)).current;
   const countdownAnim = useRef(new Animated.Value(1)).current;
   const previousOrderIds = useRef<Set<string>>(new Set());
-  const soundRef = useRef<Audio.Sound | null>(null);
 
   // Filter orders by tab
   const getFilteredOrders = () => {
