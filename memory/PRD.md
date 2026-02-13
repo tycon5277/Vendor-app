@@ -229,3 +229,9 @@ DB_NAME=test_database
 
 ---
 Last Updated: February 13, 2026
+
+## Recent Changes (Feb 13, 2026)
+- **Order Timeline Feature Complete**: Backend endpoints + Vendor App UI component
+- **Bug Fixed**: `get_status_checkpoints()` now correctly handles 'placed' status for prepaid orders
+- **New Component**: `OrderTimeline.tsx` - Visual progress bar with step-by-step status display
+- **All Tests Passing**: 22/22 backend tests pass
