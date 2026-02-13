@@ -1,52 +1,53 @@
 <analysis>**original_problem_statement:**
-The user initially reported critical mobile app failures, including a  on the orders screen and a crash related to . Over the course of the session, they requested several fixes and features: redesigning the order notification and details page, fixing a , and implementing a comprehensive demo order generation feature. This demo feature was fully built, allowing the creation of an order and simulation of the entire delivery process.
+The user initially requested the complete removal of a demo order flow feature that had just been implemented. This included removing UI elements from the Vendor App frontend and associated endpoints from the shared backend.
 
-However, after its completion, the user requested a migration away from the deprecated  package. Once that was done, the user's final request was to **remove the entire demo order flow feature** that had just been built.
+After the successful removal of the demo feature, the user provided a detailed specification for a new, comprehensive Order Timeline feature. This feature is critical and complex, as it must synchronize the state of an order across three distinct applications—**Wisher App (customer)**, **Genie App (driver)**, and **Vendor App (shop)**—all of which are powered by a single, common backend. The user has provided GitHub links to the Wisher and Genie app repositories, as they exist outside the current workspace. The core task is to plan and implement this multi-app order lifecycle.
 
 **PRODUCT REQUIREMENTS:**
-1.  Remove the Test Order Flow button and all associated backend logic.
-2.  Remove the Simulate Genie Actions feature from the order details page and its backend endpoint.
-3.  Ensure the core application remains functional after the removal.
+1.  **Shared Backend Logic:** Implement endpoints and database schema changes to manage the entire order lifecycle status: , , , , , , , , and .
+2.  **Vendor App UI:** Update the vendor interface to allow manual acceptance of orders, marking them as preparing and ready, and assigning them for delivery.
+3.  **Cross-App Synchronization:** Ensure status updates are reflected in real-time (via polling) for the appropriate user in their respective app (Wisher, Vendor, Genie).
+4.  **Genie App Logic:** Create a mechanism for Genies to see and accept available delivery jobs, and update the order status upon pickup and delivery.
+5.  **Wisher App UI:** Allow the Wisher to track their order's progress through the entire timeline.
+6.  **Implementation Strategy:** The agent must provide code/prompts for the Wisher and Genie apps, as they are in separate repositories and cannot be modified directly.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The project is a React Native (Expo) mobile application for vendors with a FastAPI backend. The initial bugs and UI issues have been resolved. A feature to generate and simulate a full demo order lifecycle was implemented and then subsequently targeted for removal per the user's latest request. The project has also been cleaned of deprecated dependencies like  and .
+The project consists of a FastAPI backend and a React Native (Expo) frontend for the **Vendor App**. The backend already has a basic structure with routes for , , and , confirming its design as a shared service. The temporary demo order flow feature has been completely purged from the codebase. The current workspace does not contain the frontend code for the Wisher and Genie apps, but the agent has their GitHub repository URLs for analysis.
 
 **Last working item**:
--   **Last item agent was working:** The user has just requested the removal of the entire demo order flow feature from both the frontend and backend. The agent has acknowledged this request.
--   **Status:** NOT STARTED
+-   **Last item agent was working:** The agent was in the planning and discovery phase for the new Order Timeline feature. After confirming the multi-app architecture with the user, it began reviewing the provided GitHub repositories for the Wisher and Genie apps to understand their structure and prepare a comprehensive implementation plan.
+-   **Status:** IN PROGRESS
 -   **Agent Testing Done:** N
--   **Which testing method agent to use?** Both frontend and backend testing agents should be used after the removal to ensure no broken references or functionality regressions have been introduced.
+-   **Which testing method agent to use?** This is a large, complex feature spanning multiple applications. After implementation, it will require using **both** the frontend and backend testing agents, with a coordinated strategy to test the interactions between the three applications.
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-There are no pending issues. The last user request is a new task.
+There are no pending bugs. The focus is entirely on the new feature development.
 
 **In progress Task List**:
--   **Task 1:** Remove the Demo Order Flow feature (Priority: P0)
+-   **Task 1:** Plan and Implement the Order Timeline Feature (Priority: P0)
 
 #### Task Detail:
--   **Task 1: Remove the Demo Order Flow feature.**
-    -   **Where to resume:** The task involves removing code from multiple files:
-        1.  **Backend ():** Delete the  and  endpoints.
-        2.  **Backend ():** Delete the  function.
-        3.  **Frontend ():** Delete the Test Order Flow button and its handler.
-        4.  **Frontend ():** Delete the Simulate Genie Actions UI and its associated handler logic.
-        5.  **Frontend ():** Delete the  and  functions.
-    -   **What will be achieved with this?** The codebase will be cleaned of the temporary demo feature as requested by the user, simplifying the application.
-    -   **Status:** NOT STARTED
+-   **Task 1: Plan and Implement the Order Timeline Feature.**
+    -   **Where to resume:** The agent has completed a preliminary review of the external Wisher and Genie app repositories. The immediate next step is to synthesize all gathered information into a detailed, phased implementation plan. This plan must be presented to the user for approval and should cover:
+        1.  **Phase 1 (Backend):** Database schema modifications (e.g., in the  collection) to include a detailed status field and necessary foreign keys (, ). Creation of all new API endpoints required for each step of the order lifecycle.
+        2.  **Phase 2 (Vendor App):** Implementing the UI changes in the Vendor app for managing and tracking orders.
+        3.  **Phase 3 (Wisher & Genie Apps):** Formulating the exact code changes and instructions for the user to apply to the Wisher and Genie app codebases.
+    -   **What will be achieved with this?** A fully functional, synchronized order tracking system across all three applications, fulfilling the core business logic.
+    -   **Status:** IN PROGRESS
     -   **Should Test frontend/backend/both after fix?** Both
-    -   **Blocked on something:** None
+    -   **Blocked on something:** None. The agent must formulate and propose the plan.
 
 **Upcoming and Future Tasks**
-There are no other upcoming or future tasks mentioned by the user at this time.
+-   **Future Task (P1):** Implement the advanced genie assignment algorithm. The user mentioned that after the basic order logic is functional, a more complex algorithm (based on nearness, rating, etc.) should be implemented to determine which genie is offered a delivery job first.
 
 **Completed work in this session**
--   **Demo Order Flow Bug Fix:** Fixed the initial bug where demo orders were inserted into the wrong MongoDB collection ( instead of ).
--   **Full Demo Order Flow Implementation:** Built a feature to simulate the entire order lifecycle. This included backend endpoints and a frontend UI to create a demo order, assign a genie, and step through delivery statuses (, , ). This entire feature is now slated for removal.
--   ** Deprecation Fix:** Successfully migrated the application away from the deprecated  package by removing its unused imports and deleting it from , resolving the associated console warnings.
--   ** Cleanup:** Removed the unused  package from the project dependencies.
+-   **Demo Feature Removal (Frontend):** Removed the Test Order Flow button, associated handler functions, and styles from  and the Simulate Genie Actions card from .
+-   **Demo Feature Removal (Backend):** Deleted the  and  endpoints from .
+-   **API Client Cleanup:** Removed the now-unused  and  functions from .
+-   **Verification:** Confirmed that the removed endpoints returned a 404 status, core endpoints remained functional, and the user verified the UI changes were reflected in the app.
 
 **Earlier issues found/mentioned but not fixed**
 None.
@@ -58,61 +59,65 @@ None.
 
 
 **Key Technical Concepts**
--   **Frameworks:** React Native (Frontend) with Expo, FastAPI (Backend).
--   **Database:** MongoDB.
--   **Dependency Management:** The session involved identifying and removing unused/deprecated dependencies (, ) from  and cleaning up related code.
--   **Feature Lifecycle:** A feature was requested, fully implemented, and then requested for removal, demonstrating a complete development and rollback cycle.
+-   **Multi-App Architecture:** A single backend serves three distinct frontend applications for different user personas (Vendor, Customer, Driver).
+-   **State Synchronization:** The core challenge is managing and synchronizing the state of a single  entity across the three separate frontends, likely through frequent polling as suggested by the user.
+-   **Cross-Repository Development:** A key part of the task is for the agent to analyze code in external repositories and provide clear, copy-pasteable instructions or code blocks for the user to implement in those separate projects.
 
 **key DB schema**
--   **shop_orders:** Stores all order information, including , , , , and . This is the primary collection for orders.
--   **agent_profiles:** Stores data for delivery agents like Rajan.
+-   **shop_orders:** This collection will need significant updates. A new  field (likely an enum: , , , , , , , ) is required. Fields for  and  will also be necessary.
 
 **changes in tech stack**
--   The  and  packages were removed from the frontend dependencies.
+None.
 
 **All files of reference**
--   : Will be modified to remove demo endpoints.
--   : Will be modified to remove the demo order creation function.
--   : Will be modified to remove the demo button.
--   : Will be modified to remove the genie simulation UI.
--   : Will be modified to remove API functions for demo features.
--   : Was modified to remove  and .
+-   : Will be the central point for all new API logic.
+-   : The order detail screen in the Vendor App, which will need a timeline view.
+-   : The home screen for the Vendor App, where new orders will appear.
+-   Files from the Wisher and Genie app GitHub repositories (to be analyzed).
 
 **Areas that need refactoring**:
-None. The next task is code removal, not refactoring.
+None. The focus is on new feature development.
 
 **key api endpoints**
--   : **TO BE REMOVED.**
--   : **TO BE REMOVED.**
--   : Core functionality for assigning a delivery.
--   : Core functionality for fetching orders.
+The agent needs to design and propose a new set of RESTful endpoints, for example:
+-    (for broadcasting jobs)
+-   
+-   
+-   
+-   
+-    (for polling)
 
 **Critical Info for New Agent**
--   Your immediate and only task is to **completely remove the demo order flow feature**. The user has explicitly requested this cleanup after it was fully built.
--   The removal spans both the frontend and backend. Refer to the In progress Task List for a precise checklist of files and components to delete.
--   After removing the code, it is critical to run comprehensive tests on both the frontend and backend to ensure that the core functionality (viewing orders, assigning real deliveries) has not been broken.
+-   Your primary task is to architect and plan the implementation of the Order Timeline feature. **Do not start coding immediately.**
+-   The architecture involves **three separate frontend apps** (Vendor, Wisher, Genie) and **one shared backend**. You only have direct write access to the Vendor app and the backend.
+-   Your first step is to create a detailed, phased plan based on the user's requirements and your analysis of the three codebases. Present this plan to the user for approval.
+-   For the Wisher and Genie apps, your role is to act as an architect: analyze their code from the provided GitHub links and prepare precise code snippets and instructions for the user to implement in their respective development environments.
+-   The user has provided very specific logic for the order lifecycle. Adhere to it closely.
 
 **documents and test reports created in this job**
 -    was updated.
--    was generated during the testing of the feature that is now being removed.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.   - **PENDING**. This is the current and highest priority task to start working on.
-2.   - Agent completing the  migration.
-3.   - Agent confirming the fix for the warning.
-4.   - User giving approval to proceed with the  migration immediately.
-5.   - User asking for clarification on a deprecation warning, which initiated the migration task.
-6.   - User reporting the incomplete demo flow, which led to the implementation of the full genie simulation feature (that is now to be removed).
+1.  ****: PENDING - User wants a plan and then code/prompts to apply to the other two apps. This defines the core workflow for the next agent.
+2.  ****: RESOLVED - User clarified the app structure.
+3.  ****: RESOLVED - User corrected the agent's initial misunderstanding about the project structure.
+4.  ****: RESOLVED - User approved the agent's suggestions for handling edge cases like cancellations.
+5.  ****: RESOLVED - Agent proposed solutions for vendor cancellation and genie unavailability.
+6.  ****: RESOLVED - User provided key clarifications on payment, order broadcasting, polling frequency, and other business logic.
+7.  ****: PENDING - This is the primary request detailing the entire feature to be built.
+8.  ****: RESOLVED - User confirmed the previous task (demo feature removal) was successful.
+9.  ****: RESOLVED - User reported still seeing the button, which led to the agent suggesting a refresh.
+10. ****: RESOLVED - Agent's summary of the demo feature removal.
 
 **Project Health Check:**
--   **Broken:** No features are currently broken.
--   **Mocked:** The demo/mock data flow is present but is scheduled for immediate removal.
+-   **Broken:** None
+-   **Mocked:** None
 
 **3rd Party Integrations**
--   **Expo:** A framework and platform for universal React applications. No user-provided keys are required.
+-   **Expo:** A framework and platform for universal React applications.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES (for the feature that is now being removed).
+-   **Testing agent used after significant changes:** NO (The last task was code removal and planning).
 -   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** []
 -   **Known regressions:** None.
@@ -121,4 +126,4 @@ None. The next task is code removal, not refactoring.
 Login is handled via OTP. No static credentials are required.
 
 **What agent forgot to execute**
-The agent successfully followed all user instructions, including building out a feature and then starting the process to remove it upon a change in user requirements. Nothing was forgotten.</analysis>
+The agent initially misunderstood the project structure, assuming all frontends were in one repository. However, it quickly corrected this by asking clarifying questions and adapted its approach once the user provided the correct information and GitHub links. No tasks were ultimately forgotten.</analysis>
