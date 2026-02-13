@@ -1757,7 +1757,7 @@ async def update_order_items(
                 "customer_id": order["user_id"],
                 "amount": refund_amount,
                 "reason": "item_unavailable" if unavailable_items else "quantity_adjusted",
-                "reason_details": f"Items adjusted by vendor",
+                "reason_details": "Items adjusted by vendor",
                 "affected_items": affected_items,
                 "status": "completed",  # Auto-completed for now
                 "created_at": now,
@@ -1986,7 +1986,7 @@ async def assign_delivery_partner(
             assignment_log["total_assignment_time_seconds"] = 0  # Instant for auto-assign
             assignment_log["status"] = "assigned"
             
-            message = f"Order assigned to Carpet Genie"  # Don't expose agent name to vendor
+            message = "Order assigned to Carpet Genie"  # Don't expose agent name to vendor
             
             # Notify customer that delivery partner is assigned
             customer_notification = {
