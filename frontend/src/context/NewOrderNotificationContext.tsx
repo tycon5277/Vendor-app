@@ -73,8 +73,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
   const overlayAnim = useRef(new Animated.Value(0)).current;
   const cardSlideAnim = useRef(new Animated.Value(50)).current;
   
-  // Sound ref
-  const soundRef = useRef<Audio.Sound | null>(null);
+  // Sound interval ref for alert loop
   const soundIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // App state ref
