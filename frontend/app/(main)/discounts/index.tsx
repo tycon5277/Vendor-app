@@ -108,6 +108,7 @@ export default function DiscountsScreen() {
   const loadProducts = useCallback(async () => {
     try {
       const response = await productAPI.getAll();
+      console.log('Products loaded:', response.data);
       setProducts(response.data || []);
     } catch (error) {
       console.error('Load products error:', error);
