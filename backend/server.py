@@ -169,6 +169,55 @@ class EarningsRecord(BaseModel):
     status: str = "pending"  # pending, settled, cancelled
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+# ===================== DISCOUNT & TIMINGS MODELS =====================
+
+class Discount(BaseModel):
+    discount_id: str
+    vendor_id: str
+    name: str
+    type: str  # percentage, flat, bogo
+    value: float  # percentage amount or flat amount
+    coupon_code: Optional[str] = None
+    min_order_value: float = 0.0
+    max_discount: Optional[float] = None  # Cap for percentage discounts
+    apply_to: str = "all"  # all, categories, products
+    categories: List[str] = []
+    product_ids: List[str] = []
+    validity_type: str = "always"  # always, date_range
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    usage_limit: Optional[int] = None
+    one_per_customer: bool = False
+    usage_count: int = 0
+    status: str = "active"  # active, scheduled, expired, disabled
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class DaySchedule(BaseModel):
+    day: str  # monday, tuesday, etc.
+    is_open: bool = True
+    open_time: str = "09:00"
+    close_time: str = "21:00"
+    has_break: bool = False
+    break_start: Optional[str] = None
+    break_end: Optional[str] = None
+
+class ShopTimings(BaseModel):
+    timings_id: str
+    vendor_id: str
+    weekly_schedule: List[dict]  # List of DaySchedule
+    delivery_cutoff_minutes: int = 30  # Minutes before closing
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Holiday(BaseModel):
+    holiday_id: str
+    vendor_id: str
+    name: str
+    date: str  # YYYY-MM-DD or date range
+    end_date: Optional[str] = None  # For multi-day closures
+    reason: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # ===================== PAYMENT & WALLET MODELS =====================
 
 class PaymentTransaction(BaseModel):
