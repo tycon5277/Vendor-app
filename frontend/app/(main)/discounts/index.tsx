@@ -166,6 +166,7 @@ export default function DiscountsScreen() {
   };
 
   const openEditModal = (discount: Discount) => {
+    loadProducts(); // Reload products when opening modal
     setEditingDiscount(discount);
     setFormData({
       name: discount.name,
