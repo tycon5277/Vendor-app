@@ -1172,6 +1172,23 @@ const styles = StyleSheet.create({
     marginTop: 12,
     gap: 10,
   },
+  datePickerSection: {
+    marginTop: 16,
+    gap: 16,
+  },
+  datePickerWrapper: {
+    flex: 1,
+  },
+  datePickerLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  dateArrow: {
+    paddingTop: 28,
+  },
   dateBtn: {
     flex: 1,
     flexDirection: 'row',
