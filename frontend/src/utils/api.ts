@@ -98,3 +98,23 @@ export const chatAPI = {
     api.post(`/vendor/chats/${roomId}/messages`, { content }),
   createRoom: (orderId: string) => api.post(`/vendor/chats/create?order_id=${orderId}`),
 };
+
+// Discount APIs
+export const discountAPI = {
+  getAll: (status?: string) => api.get('/vendor/discounts', { params: { status } }),
+  getOne: (id: string) => api.get(`/vendor/discounts/${id}`),
+  create: (data: any) => api.post('/vendor/discounts', data),
+  update: (id: string, data: any) => api.put(`/vendor/discounts/${id}`, data),
+  delete: (id: string) => api.delete(`/vendor/discounts/${id}`),
+  toggle: (id: string) => api.put(`/vendor/discounts/${id}/toggle`),
+};
+
+// Timings APIs
+export const timingsAPI = {
+  get: () => api.get('/vendor/timings'),
+  update: (data: any) => api.put('/vendor/timings', data),
+  updateDay: (data: any) => api.put('/vendor/timings/day', data),
+  addHoliday: (data: any) => api.post('/vendor/timings/holidays', data),
+  deleteHoliday: (id: string) => api.delete(`/vendor/timings/holidays/${id}`),
+  closeEarly: (data: { close_time: string; reason?: string }) => api.post('/vendor/timings/close-early', data),
+};
