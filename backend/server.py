@@ -4968,6 +4968,11 @@ class CreateDiscountRequest(BaseModel):
     apply_to: str = "all"  # all, categories, products
     categories: List[str] = []
     product_ids: List[str] = []
+    # BOGO specific fields
+    bogo_buy_product_id: Optional[str] = None
+    bogo_buy_quantity: int = 1
+    bogo_get_product_id: Optional[str] = None  # None means same product
+    bogo_get_quantity: int = 1
     validity_type: str = "always"  # always, date_range
     start_date: Optional[str] = None
     end_date: Optional[str] = None
