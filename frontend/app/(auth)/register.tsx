@@ -343,7 +343,7 @@ export default function RegisterScreen() {
         title: 'Congratulations! 🎉',
         message: 'Your shop is now registered! Time to start selling.',
         buttons: [
-          { text: 'Start Selling', onPress: () => router.replace('/(main)/home') },
+          { text: 'Start Selling', onPress: () => router.replace('/(main)/(tabs)/home') },
         ],
       });
     } catch (error: any) {

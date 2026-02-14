@@ -57,7 +57,7 @@ export default function VerifyScreen() {
       setUser(user);
 
       if (is_vendor) {
-        router.replace('/(main)/home');
+        router.replace('/(main)/(tabs)/home');
       } else {
         router.replace('/(auth)/register');
       }
