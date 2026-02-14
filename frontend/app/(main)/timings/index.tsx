@@ -82,9 +82,10 @@ export default function TimingsScreen() {
   // Form state for holiday
   const [holidayForm, setHolidayForm] = useState({
     name: '',
-    date: '',
-    end_date: '',
+    date: new Date(),
+    end_date: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
     reason: '',
+    isMultiDay: false,
   });
   
   // Form state for close early
