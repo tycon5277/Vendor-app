@@ -71,6 +71,7 @@ export default function DiscountsScreen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingDiscount, setEditingDiscount] = useState<Discount | null>(null);
   const [saving, setSaving] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -81,6 +82,11 @@ export default function DiscountsScreen() {
     min_order_value: 0,
     max_discount: 0,
     apply_to: 'all',
+    // BOGO specific fields
+    bogo_buy_product_id: '',
+    bogo_buy_quantity: 1,
+    bogo_get_product_id: '', // empty string means same product
+    bogo_get_quantity: 1,
     validity_type: 'always',
     start_date: new Date(),
     end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
@@ -96,6 +102,15 @@ export default function DiscountsScreen() {
       console.error('Load discounts error:', error);
     } finally {
       setLoading(false);
+    }
+  }, []);
+  
+  const loadProducts = useCallback(async () => {
+    try {
+      const response = await productAPI.getAll();
+      setProducts(response.data || []);
+    } catch (error) {
+      console.error('Load products error:', error);
     }
   }, []);
 
