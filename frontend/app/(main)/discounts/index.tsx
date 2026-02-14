@@ -1278,6 +1278,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+    gap: 8,
   },
   bogoLabel: {
     paddingHorizontal: 12,
@@ -1288,6 +1289,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 1,
+  },
+  productCountBadge: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginLeft: 'auto',
   },
   bogoFieldLabel: {
     fontSize: 13,
