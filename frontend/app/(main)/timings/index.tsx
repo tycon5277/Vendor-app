@@ -260,49 +260,14 @@ export default function TimingsScreen() {
     value: string,
     onChange: (time: string) => void
   ) => {
-    const [hour, minute] = value.split(':');
-    
     return (
       <View style={styles.timeSelectorContainer}>
         <Text style={styles.timeSelectorLabel}>{label}</Text>
-        <View style={styles.timeSelector}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.timePicker}
-          >
-            {HOURS.map(h => (
-              <TouchableOpacity
-                key={h}
-                style={[styles.timeOption, hour === h && styles.timeOptionActive]}
-                onPress={() => onChange(`${h}:${minute}`)}
-              >
-                <Text style={[styles.timeOptionText, hour === h && styles.timeOptionTextActive]}>
-                  {h}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <Text style={styles.timeSeparator}>:</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.timePicker}
-          >
-            {MINUTES.map(m => (
-              <TouchableOpacity
-                key={m}
-                style={[styles.timeOption, minute === m && styles.timeOptionActive]}
-                onPress={() => onChange(`${hour}:${m}`)}
-              >
-                <Text style={[styles.timeOptionText, minute === m && styles.timeOptionTextActive]}>
-                  {m}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-        <Text style={styles.timeDisplay}>{formatTime(value)}</Text>
+        <TimeWheelPicker
+          time={value}
+          onTimeChange={onChange}
+          minuteInterval={15}
+        />
       </View>
     );
   };
