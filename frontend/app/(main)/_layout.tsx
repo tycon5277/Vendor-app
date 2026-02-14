@@ -8,8 +8,8 @@ export default function MainLayout() {
       <Stack.Screen name="promote" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="warehouse" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="performance" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="discounts" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="timings" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="discounts/index" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="timings/index" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }
