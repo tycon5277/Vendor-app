@@ -485,23 +485,169 @@ export default function DiscountsScreen() {
               data-testid="discount-name-input"
             />
 
-            {/* Discount Value */}
-            <Text style={styles.sectionTitle}>
-              {formData.type === 'percentage' ? 'Discount Percentage' : formData.type === 'flat' ? 'Discount Amount' : 'Buy X Get Y'}
-            </Text>
-            <View style={styles.valueRow}>
-              <TextInput
-                style={[styles.input, styles.valueInput]}
-                placeholder={formData.type === 'percentage' ? '10' : '50'}
-                placeholderTextColor="#9CA3AF"
-                keyboardType="numeric"
-                value={formData.value.toString()}
-                onChangeText={(text) => setFormData(prev => ({ ...prev, value: parseInt(text) || 0 }))}
-              />
-              <Text style={styles.valueUnit}>
-                {formData.type === 'percentage' ? '%' : formData.type === 'flat' ? '₹' : ''}
-              </Text>
-            </View>
+            {/* Discount Value - Different UI for BOGO */}
+            {formData.type !== 'bogo' ? (
+              <>
+                <Text style={styles.sectionTitle}>
+                  {formData.type === 'percentage' ? 'Discount Percentage' : 'Discount Amount'}
+                </Text>
+                <View style={styles.valueRow}>
+                  <TextInput
+                    style={[styles.input, styles.valueInput]}
+                    placeholder={formData.type === 'percentage' ? '10' : '50'}
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="numeric"
+                    value={formData.value.toString()}
+                    onChangeText={(text) => setFormData(prev => ({ ...prev, value: parseInt(text) || 0 }))}
+                  />
+                  <Text style={styles.valueUnit}>
+                    {formData.type === 'percentage' ? '%' : '₹'}
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <>
+                {/* BOGO Section */}
+                <View style={styles.bogoSection}>
+                  {/* BUY Section */}
+                  <View style={styles.bogoCard}>
+                    <View style={styles.bogoHeader}>
+                      <View style={[styles.bogoLabel, { backgroundColor: '#EEF2FF' }]}>
+                        <Text style={[styles.bogoLabelText, { color: '#6366F1' }]}>BUY</Text>
+                      </View>
+                    </View>
+                    
+                    <Text style={styles.bogoFieldLabel}>Select Product</Text>
+                    <ScrollView 
+                      horizontal 
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.productScroll}
+                    >
+                      {products.length === 0 ? (
+                        <Text style={styles.noProductsText}>No products available. Add products first.</Text>
+                      ) : (
+                        products.map(product => (
+                          <TouchableOpacity
+                            key={product.product_id}
+                            style={[
+                              styles.productChip,
+                              formData.bogo_buy_product_id === product.product_id && styles.productChipActive
+                            ]}
+                            onPress={() => setFormData(prev => ({ ...prev, bogo_buy_product_id: product.product_id }))}
+                          >
+                            <Text style={[
+                              styles.productChipText,
+                              formData.bogo_buy_product_id === product.product_id && styles.productChipTextActive
+                            ]}>
+                              {product.name}
+                            </Text>
+                            <Text style={styles.productChipPrice}>₹{product.price}/{product.unit}</Text>
+                          </TouchableOpacity>
+                        ))
+                      )}
+                    </ScrollView>
+                    
+                    <Text style={styles.bogoFieldLabel}>Quantity</Text>
+                    <View style={styles.quantityRow}>
+                      <TouchableOpacity
+                        style={styles.quantityBtn}
+                        onPress={() => setFormData(prev => ({ ...prev, bogo_buy_quantity: Math.max(1, prev.bogo_buy_quantity - 1) }))}
+                      >
+                        <Ionicons name="remove" size={20} color="#6366F1" />
+                      </TouchableOpacity>
+                      <Text style={styles.quantityValue}>{formData.bogo_buy_quantity}</Text>
+                      <TouchableOpacity
+                        style={styles.quantityBtn}
+                        onPress={() => setFormData(prev => ({ ...prev, bogo_buy_quantity: prev.bogo_buy_quantity + 1 }))}
+                      >
+                        <Ionicons name="add" size={20} color="#6366F1" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Arrow */}
+                  <View style={styles.bogoArrow}>
+                    <Ionicons name="arrow-down" size={24} color="#6366F1" />
+                  </View>
+
+                  {/* GET Section */}
+                  <View style={styles.bogoCard}>
+                    <View style={styles.bogoHeader}>
+                      <View style={[styles.bogoLabel, { backgroundColor: '#DCFCE7' }]}>
+                        <Text style={[styles.bogoLabelText, { color: '#22C55E' }]}>GET FREE</Text>
+                      </View>
+                    </View>
+                    
+                    <Text style={styles.bogoFieldLabel}>Select Product</Text>
+                    <ScrollView 
+                      horizontal 
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.productScroll}
+                    >
+                      <TouchableOpacity
+                        style={[
+                          styles.productChip,
+                          formData.bogo_get_product_id === '' && styles.productChipActive
+                        ]}
+                        onPress={() => setFormData(prev => ({ ...prev, bogo_get_product_id: '' }))}
+                      >
+                        <Text style={[
+                          styles.productChipText,
+                          formData.bogo_get_product_id === '' && styles.productChipTextActive
+                        ]}>
+                          Same Product
+                        </Text>
+                      </TouchableOpacity>
+                      {products.map(product => (
+                        <TouchableOpacity
+                          key={product.product_id}
+                          style={[
+                            styles.productChip,
+                            formData.bogo_get_product_id === product.product_id && styles.productChipActive
+                          ]}
+                          onPress={() => setFormData(prev => ({ ...prev, bogo_get_product_id: product.product_id }))}
+                        >
+                          <Text style={[
+                            styles.productChipText,
+                            formData.bogo_get_product_id === product.product_id && styles.productChipTextActive
+                          ]}>
+                            {product.name}
+                          </Text>
+                          <Text style={styles.productChipPrice}>₹{product.price}/{product.unit}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                    
+                    <Text style={styles.bogoFieldLabel}>Quantity (Free)</Text>
+                    <View style={styles.quantityRow}>
+                      <TouchableOpacity
+                        style={styles.quantityBtn}
+                        onPress={() => setFormData(prev => ({ ...prev, bogo_get_quantity: Math.max(1, prev.bogo_get_quantity - 1) }))}
+                      >
+                        <Ionicons name="remove" size={20} color="#22C55E" />
+                      </TouchableOpacity>
+                      <Text style={styles.quantityValue}>{formData.bogo_get_quantity}</Text>
+                      <TouchableOpacity
+                        style={styles.quantityBtn}
+                        onPress={() => setFormData(prev => ({ ...prev, bogo_get_quantity: prev.bogo_get_quantity + 1 }))}
+                      >
+                        <Ionicons name="add" size={20} color="#22C55E" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* BOGO Summary */}
+                  {formData.bogo_buy_product_id && (
+                    <View style={styles.bogoSummary}>
+                      <Ionicons name="gift" size={20} color="#6366F1" />
+                      <Text style={styles.bogoSummaryText}>
+                        Buy {formData.bogo_buy_quantity} {products.find(p => p.product_id === formData.bogo_buy_product_id)?.name || 'product'} → Get {formData.bogo_get_quantity} {formData.bogo_get_product_id ? products.find(p => p.product_id === formData.bogo_get_product_id)?.name : 'same product'} FREE
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </>
+            )}
 
             {/* Coupon Code */}
             <Text style={styles.sectionTitle}>Coupon Code (Optional)</Text>
