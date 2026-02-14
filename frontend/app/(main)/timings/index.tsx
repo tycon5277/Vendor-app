@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { timingsAPI } from '../../../src/utils/api';
 import { useAlert } from '../../../src/context/AlertContext';
+import { DateWheelPicker, TimeWheelPicker } from '../../../src/components/WheelPicker';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS: Record<string, string> = {
