@@ -386,7 +386,7 @@ export default function WarehouseScreen() {
     <Animated.View style={[styles.container, { paddingTop: insets.top, opacity: fadeAnim }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.push('/(main)/products')}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/(main)/products')}>
           <Ionicons name="arrow-back" size={24} color="#374151" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
