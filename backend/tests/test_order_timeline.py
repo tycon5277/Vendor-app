@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime
 
 # Use environment variable for BASE_URL, with public preview URL
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://discount-timings-hub.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://vendor-shop-nav-fix.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_PHONE = "9999999999"
