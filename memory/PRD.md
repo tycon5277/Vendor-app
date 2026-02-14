@@ -1,337 +1,135 @@
-# QuickWish Vendor App - Product Requirements Document
+# Vendor Shop App - Product Requirements Document
 
-## Overview
-The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Vendor-Shop, Genie-Delivery). This app allows shop owners to manage their shops, orders, products, and deliveries.
+## Original Problem Statement
+Build a vendor management application for a delivery/marketplace platform where vendors can:
+- Manage their shop status (open/closed)
+- Handle products and inventory
+- Process and track orders
+- Create discounts and promotions
+- Set shop operating hours and holidays
 
-## Tech Stack
-- **Frontend**: React Native (Expo) with TypeScript
-- **Backend**: Python FastAPI with MongoDB
-- **Database**: MongoDB (motor async driver)
+## Current Architecture
 
-## Architecture
+### Tech Stack
+- **Frontend**: React Native (Expo) with Expo Router
+- **Backend**: FastAPI (Python)
+- **Database**: MongoDB
+
+### Project Structure
 ```
 /app
-├── backend/
-│   ├── server.py       # Main FastAPI server with all endpoints
-│   └── tests/          # Backend test files
 ├── frontend/
-│   ├── app/            # Expo Router pages
-│   │   ├── (auth)/     # Authentication screens
-│   │   ├── (main)/     # Main app screens (tabs)
-│   │   │   ├── promote.tsx  # Promote Your Shop screen
+│   ├── app/
+│   │   ├── (main)/
+│   │   │   ├── _layout.tsx
+│   │   │   ├── (tabs)/
+│   │   │   │   └── products/index.tsx  # My Shop screen
+│   │   │   ├── discounts/index.tsx     # Discounts management
+│   │   │   └── timings/index.tsx       # Shop timings
 │   └── src/
-│       ├── components/ # Reusable components
-│       ├── context/    # React contexts (Alert, NewOrderNotification)
-│       ├── store/      # Zustand stores (auth)
-│       ├── types/      # TypeScript types
-│       └── utils/      # API utilities
-├── ORDER_TIMELINE_PROMPTS.md         # Integration prompts for Wisher & Genie apps
-├── WISHER_APP_INTEGRATION_PROMPT.md  # Promotions integration for Wisher App
-├── WIREFRAMES.md                     # Detailed UI wireframes for My Shop features
+│       └── components/
+│           └── WheelPicker.tsx         # Reusable date/time picker
+├── backend/
+│   └── server.py
+└── memory/
+    └── PRD.md
 ```
 
 ## Implemented Features
 
-### Core Features (Completed)
-1. **OTP-Based Authentication** - Phone number login with 6-digit OTP
-2. **Vendor Registration** - Multi-step shop registration with location picker
-3. **Product Management** - CRUD operations for products
-4. **Order Management** - Full workflow (pending → confirmed → preparing → ready → delivered)
-5. **Timed Auto-Accept** - Orders auto-accept after 3 minutes
-6. **Home Dashboard** - Performance metrics, inventory alerts, recent orders
+### Phase 1 - Core Vendor Features ✅
+- Vendor registration and authentication (OTP-based)
+- Shop status management (open/closed toggle)
+- Product management (CRUD operations)
+- Order management (accept, reject, workflow states)
 
-### Order Timeline Feature (Completed - Feb 13, 2026)
-Full order lifecycle management across 3 apps (Wisher, Vendor, Genie):
+### Phase 2 - Discounts & Timings ✅ (Feb 14, 2026)
+- **Discounts Feature**
+  - Percentage off discounts
+  - Flat amount discounts
+  - BOGO (Buy X Get Y) with product selection
+  - Coupon code support
+  - Date range validity
+  - Usage limits
 
-**Order Status Flow:**
+- **Timings Feature**
+  - Weekly schedule management
+  - Break time configuration
+  - Holiday management with date picker
+  - Close early functionality
+
+### Phase 3 - UI/UX Improvements ✅ (Feb 14, 2026)
+- Dial/wheel style date pickers (replaced text input)
+- Dial/wheel style time pickers
+- BOGO product selector with "Same Product" option
+
+## Database Collections
+
+### discounts
+```json
+{
+  "discount_id": "disc_xxx",
+  "vendor_id": "user_xxx",
+  "name": "Summer Sale",
+  "type": "percentage|flat|bogo",
+  "value": 10,
+  "bogo_buy_product_id": "prod_xxx",
+  "bogo_buy_quantity": 2,
+  "bogo_get_product_id": "prod_yyy",
+  "bogo_get_quantity": 1,
+  "validity_type": "always|date_range",
+  "start_date": "2026-02-14T00:00:00Z",
+  "end_date": "2026-02-21T00:00:00Z",
+  "status": "active|scheduled|expired|disabled"
+}
 ```
-placed → confirmed → preparing → ready → awaiting_pickup → picked_up → delivered
-                                                  ↓
-                                            (or cancelled)
+
+### shop_timings
+```json
+{
+  "vendor_id": "user_xxx",
+  "weekly_schedule": [
+    {
+      "day": "monday",
+      "is_open": true,
+      "open_time": "09:00",
+      "close_time": "21:00",
+      "has_break": true,
+      "break_start": "13:00",
+      "break_end": "14:00"
+    }
+  ],
+  "delivery_cutoff_minutes": 30
+}
 ```
 
-**New Endpoints Implemented:**
-1. **Universal Status Polling** (`GET /api/orders/{order_id}/status`)
-   - Used by all 3 apps for real-time order tracking
-   - Returns timeline, vendor info, genie info when assigned
-   - Poll every 10 seconds
+## Upcoming Tasks
 
-2. **Wisher (Customer) Endpoints**
-   - `POST /api/wisher/orders` - Create order (prepaid, status: "placed")
-   - `GET /api/wisher/orders` - List customer orders
-   - `GET /api/wisher/orders/{id}` - Order details with timeline
-   - `POST /api/wisher/orders/{id}/cancel` - Cancel (before vendor accepts)
+### P1 - Shop QR Feature Enhancement
+- Expand QR code functionality for shop discovery
 
-3. **Genie (Delivery) Endpoints**
-   - `GET /api/genie/orders/available` - Broadcast available orders to all Genies
-   - `POST /api/genie/orders/{id}/accept` - Accept order (first-to-accept wins)
-   - `POST /api/genie/orders/{id}/pickup` - Mark as picked up
-   - `POST /api/genie/orders/{id}/deliver` - Mark as delivered, record earnings
-   - `GET /api/genie/orders/current` - Get active delivery
+### P2 - Advanced Genie Assignment Algorithm
+- Implement smarter delivery assignment logic
 
-**Integration Documentation:**
-- `/app/ORDER_TIMELINE_PROMPTS.md` contains ready-to-use prompts for Wisher and Genie apps
-
-### Delivery System (Completed - Feb 2026)
-1. **Delivery Assignment Algorithm** - Distance-based Genie assignment
-   - Finds nearest available Genie using Haversine formula
-   - Creates pending delivery request when no Genies available
-   - Supports both "Carpet Genie" (platform delivery) and "Self Delivery"
-
-2. **Admin Analytics Endpoints**
-   - `/api/admin/delivery-analytics` - Financial metrics (customer fees, Genie payouts, platform margin)
-   - `/api/admin/delivery-assignments` - Assignment logs with success rates
-   - `/api/admin/genie-performance` - Genie stats and earnings
-   - `/api/admin/platform-revenue` - Revenue summary by period
-   - `/api/admin/config/delivery` - Configurable delivery fee structure
-
-3. **Escrow Payment System** (Backend MOCKED)
-   - Payment transactions with escrow holding
-   - Vendor and Genie wallets for settlements
-   - Refund processing for unavailable items
-
-### New Order Notification (Completed & Redesigned - Feb 2026)
-- **Claymorphism UI Design**: Light background, soft shadows, premium card appearance
-  - Bell icon with shake animation
-  - "NEW" badge
-  - Order details in nested card with icons
-  - Total amount prominently displayed in green
-  - Timer with countdown styling
-- **Loud Sound & Vibration**: 
-  - Web Audio API sound (urgent 3-tone pattern: A5→C6→E6 repeated)
-  - Strong vibration pattern (800ms bursts on Android)
-  - Repeating alert every 2 seconds until dismissed
-- **Push Notifications**: REMOVED - expo-notifications not supported in Expo Go SDK 53+
-  - Requires development build for push notification support
-- **Smart Polling**: 
-  - Polls every 10 seconds when vendor is online
-  - Only shows popup for truly NEW orders (not existing ones at startup)
-  - Online/offline status check via partner_status
-- **Actions**: "View Details" and "Accept" buttons with haptic feedback
-
-### Bug Fixes (Feb 11, 2026)
-1. **expo-notifications Crash Fix**: Removed expo-notifications integration since it's not supported in Expo Go with SDK 53+. The app was crashing on launch due to this incompatibility.
-2. **Orders Page TypeError Fix**: Added defensive null checks for `item.items` array in orders list rendering. The app was crashing with "Cannot read property 'map' of undefined" when order items were undefined.
-3. **Demo Order Collection Fix**: Fixed critical bug where demo orders were inserted into `db.orders` collection instead of `db.shop_orders`. This caused demo orders to not appear in the vendor orders list.
-4. **expo-av Migration**: Removed deprecated expo-av package. Audio notifications now use Web Audio API for web platform and Vibration API for native. This prevents breaking changes when upgrading to SDK 54+.
-
-### Demo Order Feature (REMOVED - Feb 11, 2026)
-- **Removed per user request**: The demo order flow feature was fully implemented and then removed as the user no longer needed it
-- Original feature included:
-  - "Test Order Flow" button on home screen
-  - "Simulate Genie Actions" UI on order details page
-  - Backend endpoints: `/api/seed/demo-order` and `/api/seed/simulate-genie-action/{order_id}`
-- **Kept**: The `/api/seed/vendor` endpoint for initial data seeding still exists
+### P3 - Social Media Feed Engagement
+- Add commenting to Explore tab posts
 
 ## API Endpoints
 
-### Authentication
-- `POST /api/auth/send-otp` - Send OTP to phone
-- `POST /api/auth/verify-otp` - Verify OTP and get session
-- `GET /api/auth/me` - Get current user
-- `POST /api/auth/logout` - Logout
-
-### Vendor
-- `POST /api/vendor/register` - Register as vendor
-- `PUT /api/vendor/profile` - Update profile
-- `PUT /api/vendor/status` - Update shop status (open/closed)
-- `GET /api/vendor/analytics` - Get performance analytics
-- `GET /api/vendor/shop-types` - Get available shop types
-
-### Products
-- `GET /api/vendor/products` - List products
-- `POST /api/vendor/products` - Create product
-- `PUT /api/vendor/products/{id}` - Update product
-- `DELETE /api/vendor/products/{id}` - Delete product
-- `PUT /api/vendor/products/{id}/stock` - Update stock
-
-### Orders (Vendor)
-- `GET /api/vendor/orders` - List orders
-- `GET /api/vendor/orders/pending` - Get pending/placed orders
-- `GET /api/vendor/orders/{id}` - Get order details
-- `POST /api/vendor/orders/{id}/accept` - Accept order (supports 'placed' status)
-- `POST /api/vendor/orders/{id}/reject` - Reject order
-- `PUT /api/vendor/orders/{id}/status` - Update status (preparing, ready)
-- `PUT /api/vendor/orders/{id}/items` - Update items
-- `POST /api/vendor/orders/{id}/assign-delivery` - Assign delivery
-
-### Orders (Universal)
-- `GET /api/orders/{id}/status` - Universal order status polling (all apps)
-
-### Orders (Wisher/Customer)
-- `POST /api/wisher/orders` - Create order
-- `GET /api/wisher/orders` - List customer orders
-- `GET /api/wisher/orders/{id}` - Order details
-- `POST /api/wisher/orders/{id}/cancel` - Cancel order
-
-### Orders (Genie/Delivery)
-- `GET /api/genie/orders/available` - Available orders for pickup
-- `POST /api/genie/orders/{id}/accept` - Accept order
-- `POST /api/genie/orders/{id}/pickup` - Mark picked up
-- `POST /api/genie/orders/{id}/deliver` - Mark delivered
-- `GET /api/genie/orders/current` - Current active order
-
-### Admin (Analytics)
-- `GET /api/admin/delivery-analytics` - Delivery financial metrics
-- `GET /api/admin/delivery-assignments` - Assignment logs
-- `GET /api/admin/genie-performance` - Genie performance
-- `GET /api/admin/platform-revenue` - Platform revenue
-- `GET /api/admin/config/delivery` - Delivery config
-
-## Database Models
-
-### Core Models
-- **User** - Unified user model with vendor/agent fields
-- **Product** - Product catalog
-- **ShopOrder** - Order with full workflow status
-
-### Payment Models (MOCKED)
-- **PaymentTransaction** - Customer payments
-- **EscrowHolding** - Funds held during order
-- **RefundRecord** - Refund tracking
-- **VendorWallet** - Vendor balance
-- **GenieWallet** - Genie balance
-
-### Delivery Models
-- **DeliveryRequest** - Pending delivery assignments
-- **DeliveryFeeCalculation** - Fee calculation records
-- **DeliveryAssignmentLog** - Assignment tracking
-- **AgentProfile** - Genie profiles
-
-## Mocked/Pending Integrations
-1. **Razorpay Payment Gateway** - Payment flow is backend-only, no real integration
-2. **Real Genie GPS Tracking** - Location data is seeded for testing
-3. **Push Notifications** - Token storage exists but not sending real notifications
-4. **react-native-maps** - Using WebView workaround for Expo Go compatibility
-
-## Backlog / Future Tasks
-1. **P1: Advanced Genie Assignment Algorithm** - Assign based on nearness, rating, availability
-2. **P1: Payment Gateway Integration** - Integrate Razorpay with Escrow system
-3. **P1: Implement Discounts Feature** - Create/manage promotional offers in Vendor App
-4. **P1: Implement Timings Feature** - Operating hours management in Vendor App
-5. **P1: Enhance Shop QR Feature** - QR code customization and print templates
-6. **P2: Admin Panel Development** - Build admin UI for analytics
-7. **P3: Wisher App Integration** - Apply prompts from ORDER_TIMELINE_PROMPTS.md
-8. **P3: Genie App Integration** - Apply prompts from ORDER_TIMELINE_PROMPTS.md
-9. **P4: Settlement Timelines** - Define vendor/Genie payout schedules
-10. **P4: Dynamic/Surge Pricing** - Variable delivery fees based on demand
-
-## Test Credentials
-- Vendor Phone: `9999999999` (has shop setup)
-- Wisher Phone: `8888888888` (test customer)
-- Genie Phone: `7777777777` (test delivery agent)
-- OTP: `123456`
-
-## Environment Variables
-```
-# Frontend (.env)
-EXPO_PUBLIC_BACKEND_URL=https://vendor-shop-nav-fix.preview.emergentagent.com
-
-# Backend (.env)
-MONGO_URL=mongodb://localhost:27017
-DB_NAME=test_database
-```
-
----
-Last Updated: February 14, 2026
-
-## Recent Changes (Feb 14, 2026)
-### Promote Your Shop Feature (Completed)
-- **New Screen**: `promote.tsx` - Full-featured promotion management
-- **Stats Dashboard**: Real-time reach metrics (impressions, clicks, followers, likes)
-- **Quick Share**: WhatsApp, Facebook, Instagram share buttons
-- **Promotion Types**:
-  - Featured Listing (₹99/day) - Top of Local Hub search
-  - Visibility Boost (₹149/day) - Extended delivery radius
-  - Explore Promotion (₹199/day) - Featured in Explore tab
-- **Duration Selection**: 1, 7, 14, 30 days with savings display
-- **Shop Posts**: Create posts for Explore feed
-
-### New Backend APIs (Vendor)
-- `POST /api/vendor/posts` - Create shop post
-- `GET /api/vendor/posts` - List vendor posts
-- `DELETE /api/vendor/posts/{id}` - Delete post
-- `POST /api/vendor/banners` - Create banner ad
-- `GET /api/vendor/banners` - List banners
-- `POST /api/vendor/promotions` - Create promotion
-- `GET /api/vendor/promotions` - List promotions
-- `GET /api/vendor/promotions/stats` - Promotion statistics
-
-### Discounts APIs (New - Feb 14, 2026)
-- `GET /api/vendor/discounts` - List all vendor discounts with status filter
-- `GET /api/vendor/discounts/{id}` - Get single discount details
-- `POST /api/vendor/discounts` - Create new discount (percentage/flat/bogo)
+### Discounts
+- `GET /api/vendor/discounts` - List all discounts
+- `POST /api/vendor/discounts` - Create discount
 - `PUT /api/vendor/discounts/{id}` - Update discount
 - `DELETE /api/vendor/discounts/{id}` - Delete discount
-- `PUT /api/vendor/discounts/{id}/toggle` - Toggle active/disabled status
+- `POST /api/vendor/discounts/{id}/toggle` - Enable/disable
 
-### Timings APIs (New - Feb 14, 2026)
-- `GET /api/vendor/timings` - Get weekly schedule and holidays
-- `PUT /api/vendor/timings` - Update full weekly schedule
-- `PUT /api/vendor/timings/day` - Update specific day with break times
-- `POST /api/vendor/timings/holidays` - Add holiday/closure
-- `DELETE /api/vendor/timings/holidays/{id}` - Delete holiday
+### Timings
+- `GET /api/vendor/timings` - Get shop timings & holidays
+- `PUT /api/vendor/timings/day` - Update day schedule
+- `POST /api/vendor/timings/holidays` - Add holiday
+- `DELETE /api/vendor/timings/holidays/{id}` - Remove holiday
 - `POST /api/vendor/timings/close-early` - Close shop early today
 
-### New Backend APIs (Wisher App Integration)
-- `GET /api/wisher/home/banners` - Banners for Home carousel
-- `POST /api/wisher/banners/{id}/click` - Track banner click
-- `GET /api/wisher/explore/feed` - Explore feed posts
-- `GET /api/wisher/explore/promoted` - Promoted highlights
-- `POST /api/wisher/posts/{id}/like` - Like/unlike post
-- `POST /api/wisher/shops/{id}/follow` - Follow/unfollow shop
-- `GET /api/wisher/localhub/featured` - Featured shops
-
-### Documentation
-- `WIREFRAMES.md` - Detailed UI wireframes for Discounts, Timings, Shop QR, Promote
-- `WISHER_APP_INTEGRATION_PROMPT.md` - Integration guide for Wisher App
-
-## Previous Changes (Feb 13, 2026)
-- **Order Timeline Feature Complete**: Backend endpoints + Vendor App UI component
-- **Bug Fixed**: `get_status_checkpoints()` now correctly handles 'placed' status for prepaid orders
-- **New Component**: `OrderTimeline.tsx` - Visual progress bar with step-by-step status display
-- **All Tests Passing**: 22/22 backend tests pass
-
-## Latest Changes (Feb 14, 2026) - Discounts & Timings Feature
-
-### Discounts Feature
-Allows vendors to create and manage various discount types:
-- **Percentage Off** (e.g., 15% off)
-- **Flat Amount Off** (e.g., ₹50 off)
-- **BOGO** (Buy X Get Y Free)
-
-**Discount properties:**
-- Coupon codes (optional, auto-generate)
-- Minimum order value
-- Maximum discount cap (for percentage)
-- Validity: Always active or date-range (scheduled)
-- Usage limits
-- One per customer option
-
-**Frontend Components:**
-- `app/(main)/discounts.tsx` - Full CRUD UI with tabs (active/scheduled/expired/disabled)
-- Create/Edit modal with type selection, value, coupon code, validity settings
-
-### Timings Feature
-Allows vendors to manage shop operating hours:
-- **Weekly Schedule**: Set open/close times for each day
-- **Break Times**: Optional mid-day breaks
-- **Holidays**: Add single or multi-day closures
-- **Close Early**: Quick action to close shop early today
-- **Delivery Cutoff**: Configure minutes before closing to stop accepting orders
-
-**Frontend Components:**
-- `app/(main)/timings.tsx` - Current status, weekly schedule editor, holiday management
-- Day schedule modal with time pickers
-- Holiday and close early modals
-
-### Navigation Integration
-- My Shop page (`products/index.tsx`) now has clickable Discounts and Timings buttons
-- Stack navigation properly configured in `(main)/_layout.tsx`
-- Back button navigation works correctly
-
-### Testing
-- 23/23 backend tests pass (100%)
-- Bug fixed: datetime timezone comparison in discount scheduling
-- Test file: `/app/backend/tests/test_discounts_timings.py`
-
+## Test Credentials
+- Phone: Any 10-digit number
+- OTP: `123456` (debug mode)
