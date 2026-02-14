@@ -161,6 +161,7 @@ export default function DiscountsScreen() {
 
   const openCreateModal = () => {
     resetForm();
+    loadProducts(); // Reload products when opening modal
     setShowCreateModal(true);
   };
 
