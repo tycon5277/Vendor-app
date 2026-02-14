@@ -151,7 +151,7 @@ export default function ProfileScreen() {
           {/* Performance Card - NEW */}
           <TouchableOpacity 
             style={styles.performanceCard}
-            onPress={() => router.push('/(main)/performance')}
+            onPress={() => router.push('/(main)/(screens)/performance')}
             activeOpacity={0.9}
           >
             <View style={styles.performanceHeader}>

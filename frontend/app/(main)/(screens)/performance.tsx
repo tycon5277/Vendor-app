@@ -251,7 +251,7 @@ export default function PerformanceScreen() {
                 {lowStockProducts.length > 3 && (
                   <TouchableOpacity 
                     style={styles.viewAllBtn}
-                    onPress={() => router.push('/(main)/warehouse')}
+                    onPress={() => router.push('/(main)/(screens)/warehouse')}
                   >
                     <Text style={styles.viewAllText}>View all {lowStockProducts.length} items</Text>
                   </TouchableOpacity>

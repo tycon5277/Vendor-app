@@ -200,7 +200,7 @@ export default function HomeScreen() {
                   <Ionicons name="warning" size={20} color="#DC2626" />
                   <Text style={styles.sectionTitle}>Inventory Alerts</Text>
                 </View>
-                <TouchableOpacity onPress={() => router.push('/(main)/warehouse')}>
+                <TouchableOpacity onPress={() => router.push('/(main)/(screens)/warehouse')}>
                   <Text style={styles.seeAllBtn}>Manage →</Text>
                 </TouchableOpacity>
               </View>
@@ -210,7 +210,7 @@ export default function HomeScreen() {
                 <TouchableOpacity 
                   style={styles.alertCard}
                   onPress={() => router.push({ 
-                    pathname: '/(main)/warehouse', 
+                    pathname: '/(main)/(screens)/warehouse', 
                     params: { filter: 'out_of_stock' } 
                   })}
                   activeOpacity={0.7}
@@ -243,7 +243,7 @@ export default function HomeScreen() {
                 <TouchableOpacity 
                   style={styles.alertCard}
                   onPress={() => router.push({ 
-                    pathname: '/(main)/warehouse', 
+                    pathname: '/(main)/(screens)/warehouse', 
                     params: { filter: 'low_stock' } 
                   })}
                   activeOpacity={0.7}
@@ -278,7 +278,7 @@ export default function HomeScreen() {
           {/* Today's Performance - Clickable */}
           <TouchableOpacity 
             style={styles.heroSection}
-            onPress={() => router.push('/(main)/performance')}
+            onPress={() => router.push('/(main)/(screens)/performance')}
             activeOpacity={0.9}
           >
             <View style={styles.heroHeader}>
@@ -370,7 +370,7 @@ export default function HomeScreen() {
           {/* Insights Card */}
           <TouchableOpacity 
             style={styles.insightsCard}
-            onPress={() => router.push('/(main)/performance')}
+            onPress={() => router.push('/(main)/(screens)/performance')}
           >
             <View style={styles.insightsIcon}>
               <Ionicons name="bulb" size={24} color="#F59E0B" />
