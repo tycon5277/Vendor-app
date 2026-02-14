@@ -4951,6 +4951,466 @@ class ShopFollower(BaseModel):
     vendor_id: str
     followed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+# ===================== DISCOUNT ENDPOINTS =====================
+
+class CreateDiscountRequest(BaseModel):
+    name: str
+    type: str  # percentage, flat, bogo
+    value: float
+    coupon_code: Optional[str] = None
+    min_order_value: float = 0.0
+    max_discount: Optional[float] = None
+    apply_to: str = "all"  # all, categories, products
+    categories: List[str] = []
+    product_ids: List[str] = []
+    validity_type: str = "always"  # always, date_range
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    usage_limit: Optional[int] = None
+    one_per_customer: bool = False
+
+@api_router.post("/vendor/discounts")
+async def create_discount(
+    data: CreateDiscountRequest,
+    user: User = Depends(require_vendor)
+):
+    """Create a new discount"""
+    discount_id = f"disc_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    # Determine status
+    status = "active"
+    start_dt = None
+    end_dt = None
+    
+    if data.validity_type == "date_range" and data.start_date:
+        start_dt = datetime.fromisoformat(data.start_date.replace('Z', '+00:00'))
+        if start_dt > now:
+            status = "scheduled"
+    
+    if data.validity_type == "date_range" and data.end_date:
+        end_dt = datetime.fromisoformat(data.end_date.replace('Z', '+00:00'))
+        if end_dt < now:
+            status = "expired"
+    
+    discount = {
+        "discount_id": discount_id,
+        "vendor_id": user.user_id,
+        "name": data.name,
+        "type": data.type,
+        "value": data.value,
+        "coupon_code": data.coupon_code.upper() if data.coupon_code else None,
+        "min_order_value": data.min_order_value,
+        "max_discount": data.max_discount,
+        "apply_to": data.apply_to,
+        "categories": data.categories,
+        "product_ids": data.product_ids,
+        "validity_type": data.validity_type,
+        "start_date": start_dt,
+        "end_date": end_dt,
+        "usage_limit": data.usage_limit,
+        "one_per_customer": data.one_per_customer,
+        "usage_count": 0,
+        "status": status,
+        "created_at": now
+    }
+    
+    await db.discounts.insert_one(discount)
+    discount.pop("_id", None)
+    
+    # Convert datetime to string for response
+    if discount.get("start_date"):
+        discount["start_date"] = discount["start_date"].isoformat()
+    if discount.get("end_date"):
+        discount["end_date"] = discount["end_date"].isoformat()
+    discount["created_at"] = discount["created_at"].isoformat()
+    
+    return {"message": "Discount created", "discount": discount}
+
+@api_router.get("/vendor/discounts")
+async def get_vendor_discounts(
+    status: Optional[str] = None,
+    user: User = Depends(require_vendor)
+):
+    """Get all discounts for this vendor"""
+    query = {"vendor_id": user.user_id}
+    
+    now = datetime.now(timezone.utc)
+    
+    # Update statuses for any discounts that may have changed
+    await db.discounts.update_many(
+        {
+            "vendor_id": user.user_id,
+            "status": "scheduled",
+            "start_date": {"$lte": now}
+        },
+        {"$set": {"status": "active"}}
+    )
+    
+    await db.discounts.update_many(
+        {
+            "vendor_id": user.user_id,
+            "status": {"$in": ["active", "scheduled"]},
+            "validity_type": "date_range",
+            "end_date": {"$lt": now}
+        },
+        {"$set": {"status": "expired"}}
+    )
+    
+    if status:
+        query["status"] = status
+    
+    discounts = await db.discounts.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    
+    # Convert datetime to string
+    for d in discounts:
+        if d.get("start_date"):
+            d["start_date"] = d["start_date"].isoformat()
+        if d.get("end_date"):
+            d["end_date"] = d["end_date"].isoformat()
+        if d.get("created_at"):
+            d["created_at"] = d["created_at"].isoformat()
+    
+    return {"discounts": discounts}
+
+@api_router.get("/vendor/discounts/{discount_id}")
+async def get_discount(discount_id: str, user: User = Depends(require_vendor)):
+    """Get a specific discount"""
+    discount = await db.discounts.find_one(
+        {"discount_id": discount_id, "vendor_id": user.user_id},
+        {"_id": 0}
+    )
+    if not discount:
+        raise HTTPException(status_code=404, detail="Discount not found")
+    
+    # Convert datetime to string
+    if discount.get("start_date"):
+        discount["start_date"] = discount["start_date"].isoformat()
+    if discount.get("end_date"):
+        discount["end_date"] = discount["end_date"].isoformat()
+    if discount.get("created_at"):
+        discount["created_at"] = discount["created_at"].isoformat()
+    
+    return discount
+
+@api_router.put("/vendor/discounts/{discount_id}")
+async def update_discount(
+    discount_id: str,
+    data: CreateDiscountRequest,
+    user: User = Depends(require_vendor)
+):
+    """Update a discount"""
+    existing = await db.discounts.find_one(
+        {"discount_id": discount_id, "vendor_id": user.user_id}
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Discount not found")
+    
+    now = datetime.now(timezone.utc)
+    status = "active"
+    start_dt = None
+    end_dt = None
+    
+    if data.validity_type == "date_range" and data.start_date:
+        start_dt = datetime.fromisoformat(data.start_date.replace('Z', '+00:00'))
+        if start_dt > now:
+            status = "scheduled"
+    
+    if data.validity_type == "date_range" and data.end_date:
+        end_dt = datetime.fromisoformat(data.end_date.replace('Z', '+00:00'))
+        if end_dt < now:
+            status = "expired"
+    
+    update_data = {
+        "name": data.name,
+        "type": data.type,
+        "value": data.value,
+        "coupon_code": data.coupon_code.upper() if data.coupon_code else None,
+        "min_order_value": data.min_order_value,
+        "max_discount": data.max_discount,
+        "apply_to": data.apply_to,
+        "categories": data.categories,
+        "product_ids": data.product_ids,
+        "validity_type": data.validity_type,
+        "start_date": start_dt,
+        "end_date": end_dt,
+        "usage_limit": data.usage_limit,
+        "one_per_customer": data.one_per_customer,
+        "status": status
+    }
+    
+    await db.discounts.update_one(
+        {"discount_id": discount_id},
+        {"$set": update_data}
+    )
+    
+    return {"message": "Discount updated"}
+
+@api_router.delete("/vendor/discounts/{discount_id}")
+async def delete_discount(discount_id: str, user: User = Depends(require_vendor)):
+    """Delete a discount"""
+    result = await db.discounts.delete_one(
+        {"discount_id": discount_id, "vendor_id": user.user_id}
+    )
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Discount not found")
+    
+    return {"message": "Discount deleted"}
+
+@api_router.put("/vendor/discounts/{discount_id}/toggle")
+async def toggle_discount(discount_id: str, user: User = Depends(require_vendor)):
+    """Toggle discount active/disabled status"""
+    discount = await db.discounts.find_one(
+        {"discount_id": discount_id, "vendor_id": user.user_id}
+    )
+    if not discount:
+        raise HTTPException(status_code=404, detail="Discount not found")
+    
+    new_status = "disabled" if discount["status"] == "active" else "active"
+    
+    await db.discounts.update_one(
+        {"discount_id": discount_id},
+        {"$set": {"status": new_status}}
+    )
+    
+    return {"message": f"Discount {'disabled' if new_status == 'disabled' else 'enabled'}", "status": new_status}
+
+# ===================== TIMINGS ENDPOINTS =====================
+
+DEFAULT_WEEKLY_SCHEDULE = [
+    {"day": "monday", "is_open": True, "open_time": "09:00", "close_time": "21:00", "has_break": False},
+    {"day": "tuesday", "is_open": True, "open_time": "09:00", "close_time": "21:00", "has_break": False},
+    {"day": "wednesday", "is_open": True, "open_time": "09:00", "close_time": "21:00", "has_break": False},
+    {"day": "thursday", "is_open": True, "open_time": "09:00", "close_time": "21:00", "has_break": False},
+    {"day": "friday", "is_open": True, "open_time": "09:00", "close_time": "21:00", "has_break": False},
+    {"day": "saturday", "is_open": True, "open_time": "10:00", "close_time": "22:00", "has_break": False},
+    {"day": "sunday", "is_open": False, "open_time": "09:00", "close_time": "21:00", "has_break": False},
+]
+
+@api_router.get("/vendor/timings")
+async def get_vendor_timings(user: User = Depends(require_vendor)):
+    """Get operating hours for the vendor's shop"""
+    timings = await db.shop_timings.find_one(
+        {"vendor_id": user.user_id},
+        {"_id": 0}
+    )
+    
+    if not timings:
+        # Create default timings
+        timings_id = f"timing_{uuid.uuid4().hex[:12]}"
+        now = datetime.now(timezone.utc)
+        
+        timings = {
+            "timings_id": timings_id,
+            "vendor_id": user.user_id,
+            "weekly_schedule": DEFAULT_WEEKLY_SCHEDULE,
+            "delivery_cutoff_minutes": 30,
+            "created_at": now,
+            "updated_at": now
+        }
+        
+        await db.shop_timings.insert_one(timings)
+        timings.pop("_id", None)
+    
+    # Convert datetime to string
+    if timings.get("created_at") and isinstance(timings["created_at"], datetime):
+        timings["created_at"] = timings["created_at"].isoformat()
+    if timings.get("updated_at") and isinstance(timings["updated_at"], datetime):
+        timings["updated_at"] = timings["updated_at"].isoformat()
+    
+    # Get holidays
+    holidays = await db.shop_holidays.find(
+        {"vendor_id": user.user_id},
+        {"_id": 0}
+    ).sort("date", 1).to_list(50)
+    
+    # Convert datetime fields
+    for h in holidays:
+        if h.get("created_at") and isinstance(h["created_at"], datetime):
+            h["created_at"] = h["created_at"].isoformat()
+    
+    return {
+        "timings": timings,
+        "holidays": holidays
+    }
+
+class UpdateTimingsRequest(BaseModel):
+    weekly_schedule: List[dict]
+    delivery_cutoff_minutes: int = 30
+
+@api_router.put("/vendor/timings")
+async def update_vendor_timings(
+    data: UpdateTimingsRequest,
+    user: User = Depends(require_vendor)
+):
+    """Update operating hours"""
+    now = datetime.now(timezone.utc)
+    
+    existing = await db.shop_timings.find_one({"vendor_id": user.user_id})
+    
+    if existing:
+        await db.shop_timings.update_one(
+            {"vendor_id": user.user_id},
+            {
+                "$set": {
+                    "weekly_schedule": data.weekly_schedule,
+                    "delivery_cutoff_minutes": data.delivery_cutoff_minutes,
+                    "updated_at": now
+                }
+            }
+        )
+    else:
+        timings_id = f"timing_{uuid.uuid4().hex[:12]}"
+        timings = {
+            "timings_id": timings_id,
+            "vendor_id": user.user_id,
+            "weekly_schedule": data.weekly_schedule,
+            "delivery_cutoff_minutes": data.delivery_cutoff_minutes,
+            "created_at": now,
+            "updated_at": now
+        }
+        await db.shop_timings.insert_one(timings)
+    
+    return {"message": "Timings updated"}
+
+class UpdateDayScheduleRequest(BaseModel):
+    day: str
+    is_open: bool
+    open_time: str = "09:00"
+    close_time: str = "21:00"
+    has_break: bool = False
+    break_start: Optional[str] = None
+    break_end: Optional[str] = None
+    apply_to_all_weekdays: bool = False
+
+@api_router.put("/vendor/timings/day")
+async def update_day_schedule(
+    data: UpdateDayScheduleRequest,
+    user: User = Depends(require_vendor)
+):
+    """Update schedule for a specific day"""
+    timings = await db.shop_timings.find_one({"vendor_id": user.user_id})
+    
+    if not timings:
+        # Create with defaults first
+        timings_id = f"timing_{uuid.uuid4().hex[:12]}"
+        now = datetime.now(timezone.utc)
+        timings = {
+            "timings_id": timings_id,
+            "vendor_id": user.user_id,
+            "weekly_schedule": DEFAULT_WEEKLY_SCHEDULE.copy(),
+            "delivery_cutoff_minutes": 30,
+            "created_at": now,
+            "updated_at": now
+        }
+        await db.shop_timings.insert_one(timings)
+    
+    day_data = {
+        "day": data.day.lower(),
+        "is_open": data.is_open,
+        "open_time": data.open_time,
+        "close_time": data.close_time,
+        "has_break": data.has_break,
+        "break_start": data.break_start,
+        "break_end": data.break_end
+    }
+    
+    schedule = timings.get("weekly_schedule", DEFAULT_WEEKLY_SCHEDULE.copy())
+    
+    if data.apply_to_all_weekdays:
+        weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday"]
+        for i, s in enumerate(schedule):
+            if s["day"] in weekdays:
+                schedule[i] = {**day_data, "day": s["day"]}
+    else:
+        for i, s in enumerate(schedule):
+            if s["day"] == data.day.lower():
+                schedule[i] = day_data
+                break
+    
+    await db.shop_timings.update_one(
+        {"vendor_id": user.user_id},
+        {
+            "$set": {
+                "weekly_schedule": schedule,
+                "updated_at": datetime.now(timezone.utc)
+            }
+        }
+    )
+    
+    return {"message": "Day schedule updated"}
+
+class AddHolidayRequest(BaseModel):
+    name: str
+    date: str  # YYYY-MM-DD
+    end_date: Optional[str] = None
+    reason: Optional[str] = None
+
+@api_router.post("/vendor/timings/holidays")
+async def add_holiday(
+    data: AddHolidayRequest,
+    user: User = Depends(require_vendor)
+):
+    """Add a holiday or closure"""
+    holiday_id = f"hol_{uuid.uuid4().hex[:12]}"
+    
+    holiday = {
+        "holiday_id": holiday_id,
+        "vendor_id": user.user_id,
+        "name": data.name,
+        "date": data.date,
+        "end_date": data.end_date,
+        "reason": data.reason,
+        "created_at": datetime.now(timezone.utc)
+    }
+    
+    await db.shop_holidays.insert_one(holiday)
+    holiday.pop("_id", None)
+    holiday["created_at"] = holiday["created_at"].isoformat()
+    
+    return {"message": "Holiday added", "holiday": holiday}
+
+@api_router.delete("/vendor/timings/holidays/{holiday_id}")
+async def delete_holiday(holiday_id: str, user: User = Depends(require_vendor)):
+    """Delete a holiday"""
+    result = await db.shop_holidays.delete_one(
+        {"holiday_id": holiday_id, "vendor_id": user.user_id}
+    )
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Holiday not found")
+    
+    return {"message": "Holiday deleted"}
+
+class CloseEarlyRequest(BaseModel):
+    close_time: str  # HH:MM format
+    reason: Optional[str] = None
+
+@api_router.post("/vendor/timings/close-early")
+async def close_shop_early(
+    data: CloseEarlyRequest,
+    user: User = Depends(require_vendor)
+):
+    """Close shop early today"""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    
+    # Add as a special one-day closure
+    holiday_id = f"close_{uuid.uuid4().hex[:12]}"
+    
+    early_close = {
+        "holiday_id": holiday_id,
+        "vendor_id": user.user_id,
+        "name": f"Early Close - {data.close_time}",
+        "date": today,
+        "end_date": None,
+        "reason": data.reason or "Closing early today",
+        "early_close_time": data.close_time,
+        "created_at": datetime.now(timezone.utc)
+    }
+    
+    await db.shop_holidays.insert_one(early_close)
+    
+    return {"message": f"Shop will close early at {data.close_time} today"}
+
 # ===================== VENDOR PROMOTION ENDPOINTS =====================
 
 class CreatePostRequest(BaseModel):
