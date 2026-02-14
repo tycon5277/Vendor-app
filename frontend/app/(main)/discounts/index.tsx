@@ -145,6 +145,11 @@ export default function DiscountsScreen() {
       min_order_value: 0,
       max_discount: 0,
       apply_to: 'all',
+      // BOGO fields
+      bogo_buy_product_id: '',
+      bogo_buy_quantity: 1,
+      bogo_get_product_id: '',
+      bogo_get_quantity: 1,
       validity_type: 'always',
       start_date: new Date(),
       end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
@@ -169,6 +174,11 @@ export default function DiscountsScreen() {
       min_order_value: discount.min_order_value,
       max_discount: discount.max_discount || 0,
       apply_to: discount.apply_to,
+      // BOGO fields
+      bogo_buy_product_id: discount.bogo_buy_product_id || '',
+      bogo_buy_quantity: discount.bogo_buy_quantity || 1,
+      bogo_get_product_id: discount.bogo_get_product_id || '',
+      bogo_get_quantity: discount.bogo_get_quantity || 1,
       validity_type: discount.validity_type,
       start_date: discount.start_date ? new Date(discount.start_date) : new Date(),
       end_date: discount.end_date ? new Date(discount.end_date) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
@@ -184,6 +194,12 @@ export default function DiscountsScreen() {
       return;
     }
     
+    // Validate BOGO fields
+    if (formData.type === 'bogo' && !formData.bogo_buy_product_id) {
+      showAlert({ type: 'warning', title: 'Required', message: 'Please select a product for "Buy" in BOGO offer' });
+      return;
+    }
+    
     setSaving(true);
     try {
       const payload = {
@@ -196,6 +212,11 @@ export default function DiscountsScreen() {
         apply_to: formData.apply_to,
         categories: [],
         product_ids: [],
+        // BOGO fields
+        bogo_buy_product_id: formData.type === 'bogo' ? formData.bogo_buy_product_id : null,
+        bogo_buy_quantity: formData.type === 'bogo' ? formData.bogo_buy_quantity : 1,
+        bogo_get_product_id: formData.type === 'bogo' ? (formData.bogo_get_product_id || null) : null,
+        bogo_get_quantity: formData.type === 'bogo' ? formData.bogo_get_quantity : 1,
         validity_type: formData.validity_type,
         start_date: formData.validity_type === 'date_range' ? formData.start_date.toISOString() : null,
         end_date: formData.validity_type === 'date_range' ? formData.end_date.toISOString() : null,
