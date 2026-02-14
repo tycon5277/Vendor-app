@@ -534,7 +534,7 @@ export default function TimingsScreen() {
         onRequestClose={() => setShowHolidayModal(false)}
       >
         <View style={styles.bottomModalOverlay}>
-          <View style={[styles.bottomModal, { paddingBottom: insets.bottom + 20 }]}>
+          <ScrollView style={[styles.bottomModal, { paddingBottom: insets.bottom + 20 }]}>
             <View style={styles.bottomModalHandle} />
             <Text style={styles.bottomModalTitle}>Add Holiday</Text>
             
@@ -546,24 +546,34 @@ export default function TimingsScreen() {
               onChangeText={(text) => setHolidayForm(prev => ({ ...prev, name: text }))}
             />
             
-            <TextInput
-              style={styles.input}
-              placeholder="Date (YYYY-MM-DD)"
-              placeholderTextColor="#9CA3AF"
-              value={holidayForm.date}
-              onChangeText={(text) => setHolidayForm(prev => ({ ...prev, date: text }))}
+            <Text style={styles.datePickerLabel}>Holiday Date</Text>
+            <DateWheelPicker
+              date={holidayForm.date}
+              onDateChange={(date) => setHolidayForm(prev => ({ ...prev, date }))}
             />
             
-            <TextInput
-              style={styles.input}
-              placeholder="End Date (optional, for multi-day)"
-              placeholderTextColor="#9CA3AF"
-              value={holidayForm.end_date}
-              onChangeText={(text) => setHolidayForm(prev => ({ ...prev, end_date: text }))}
-            />
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>Multi-day Holiday</Text>
+              <Switch
+                value={holidayForm.isMultiDay}
+                onValueChange={(value) => setHolidayForm(prev => ({ ...prev, isMultiDay: value }))}
+                trackColor={{ false: '#D1D5DB', true: '#A5B4FC' }}
+                thumbColor={holidayForm.isMultiDay ? '#6366F1' : '#F3F4F6'}
+              />
+            </View>
+            
+            {holidayForm.isMultiDay && (
+              <>
+                <Text style={styles.datePickerLabel}>End Date</Text>
+                <DateWheelPicker
+                  date={holidayForm.end_date}
+                  onDateChange={(date) => setHolidayForm(prev => ({ ...prev, end_date: date }))}
+                />
+              </>
+            )}
             
             <TextInput
-              style={styles.input}
+              style={[styles.input, { marginTop: 16 }]}
               placeholder="Reason (optional)"
               placeholderTextColor="#9CA3AF"
               value={holidayForm.reason}
@@ -589,7 +599,7 @@ export default function TimingsScreen() {
                 )}
               </TouchableOpacity>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
 
