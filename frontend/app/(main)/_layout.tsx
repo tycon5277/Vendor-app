@@ -73,16 +73,35 @@ export default function MainLayout() {
         '/profile',
       ];
 
+      // Define sub-screen routes that should go back to their parent
+      const subScreenRoutes: Record<string, string> = {
+        '/promote': '/(main)/products',
+        '/warehouse': '/(main)/products',
+        '/performance': '/(main)/home',
+      };
+
+      // Check if current path is a SUB-SCREEN that needs explicit back navigation
+      const cleanPath = currentPath.replace('/(main)', '');
+      const subScreenParent = Object.entries(subScreenRoutes).find(([route]) => 
+        cleanPath === route || cleanPath.endsWith(route)
+      );
+
+      if (subScreenParent) {
+        // Navigate back to the parent screen
+        router.push(subScreenParent[1] as any);
+        return true; // Prevent default
+      }
+
       // Check if current path is a MAIN TAB screen
       const isOnMainTab = mainTabRoutes.some(route => {
-        const cleanPath = currentPath.replace('/(main)', '');
         return cleanPath === route || cleanPath.endsWith(route);
       });
 
-      // If NOT on a main tab (e.g., warehouse, performance, product detail, etc.)
+      // If NOT on a main tab (e.g., product detail, add product, etc.)
       // Let the default back behavior work (go to previous screen)
       if (!isOnMainTab) {
-        return false; // Let system handle normal back navigation
+        router.back();
+        return true; // We handled it
       }
 
       // Check if we're on the home screen
