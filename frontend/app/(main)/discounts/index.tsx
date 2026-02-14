@@ -116,7 +116,8 @@ export default function DiscountsScreen() {
 
   useEffect(() => {
     loadDiscounts();
-  }, [loadDiscounts]);
+    loadProducts();
+  }, [loadDiscounts, loadProducts]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
