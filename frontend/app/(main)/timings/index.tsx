@@ -166,23 +166,31 @@ export default function TimingsScreen() {
   };
 
   const addHoliday = async () => {
-    if (!holidayForm.name || !holidayForm.date) {
-      showAlert({ type: 'warning', title: 'Required', message: 'Please enter holiday name and date' });
+    if (!holidayForm.name) {
+      showAlert({ type: 'warning', title: 'Required', message: 'Please enter holiday name' });
       return;
     }
     
     setSaving(true);
     try {
+      const formatDateStr = (date: Date) => date.toISOString().split('T')[0];
+      
       await timingsAPI.addHoliday({
         name: holidayForm.name,
-        date: holidayForm.date,
-        end_date: holidayForm.end_date || null,
+        date: formatDateStr(holidayForm.date),
+        end_date: holidayForm.isMultiDay ? formatDateStr(holidayForm.end_date) : null,
         reason: holidayForm.reason || null,
       });
       
       showAlert({ type: 'success', title: 'Added!', message: 'Holiday added' });
       setShowHolidayModal(false);
-      setHolidayForm({ name: '', date: '', end_date: '', reason: '' });
+      setHolidayForm({ 
+        name: '', 
+        date: new Date(), 
+        end_date: new Date(Date.now() + 24 * 60 * 60 * 1000), 
+        reason: '',
+        isMultiDay: false,
+      });
       loadTimings();
     } catch (error: any) {
       showAlert({ type: 'error', title: 'Error', message: error.response?.data?.detail || 'Failed to add holiday' });
