@@ -5021,6 +5021,11 @@ async def create_discount(
         "apply_to": data.apply_to,
         "categories": data.categories,
         "product_ids": data.product_ids,
+        # BOGO specific fields
+        "bogo_buy_product_id": data.bogo_buy_product_id,
+        "bogo_buy_quantity": data.bogo_buy_quantity,
+        "bogo_get_product_id": data.bogo_get_product_id,
+        "bogo_get_quantity": data.bogo_get_quantity,
         "validity_type": data.validity_type,
         "start_date": start_dt,
         "end_date": end_dt,
