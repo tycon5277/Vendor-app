@@ -163,6 +163,9 @@ export default function MainLayout() {
       // Clean the path for easier matching
       const cleanPath = currentPath.replace('/(main)', '').replace(/^\/+/, '/');
 
+      // DEBUG: Log the current path
+      console.log('[BackHandler] Current path:', currentPath, '| Clean path:', cleanPath);
+
       // Define sub-screen routes that should go back to their parent tab
       const subScreenParents = {
         '/promote': '/(main)/products',
@@ -173,6 +176,7 @@ export default function MainLayout() {
       // Check if we're on a sub-screen
       for (const [subRoute, parentRoute] of Object.entries(subScreenParents)) {
         if (cleanPath === subRoute || cleanPath.endsWith(subRoute)) {
+          console.log('[BackHandler] Sub-screen detected, navigating to:', parentRoute);
           router.replace(parentRoute);
           return true;
         }
