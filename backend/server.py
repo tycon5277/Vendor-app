@@ -4839,6 +4839,508 @@ async def create_subscription(
     
     return {"message": f"Subscribed to {plan_type} plan", "subscription": subscription}
 
+# ===================== PROMOTION & MARKETING MODELS =====================
+
+class ShopPost(BaseModel):
+    """Vendor posts for Explore feed"""
+    post_id: str
+    vendor_id: str
+    vendor_name: str
+    vendor_image: Optional[str] = None
+    vendor_category: Optional[str] = None
+    content: str
+    images: List[str] = []  # URLs or base64
+    tagged_products: List[dict] = []  # [{product_id, name, price}]
+    is_promoted: bool = False
+    promotion_id: Optional[str] = None
+    likes: int = 0
+    comments: int = 0
+    shares: int = 0
+    liked_by: List[str] = []  # user_ids who liked
+    status: str = "active"  # active, archived, deleted
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Banner(BaseModel):
+    """Banner ads for Home tab carousel"""
+    banner_id: str
+    vendor_id: str
+    vendor_name: str
+    title: str
+    subtitle: Optional[str] = None
+    image: str  # URL or base64
+    link_type: str = "shop"  # shop, product, external
+    link_target: Optional[str] = None  # shop_id, product_id, or URL
+    target_area: Optional[dict] = None  # {lat, lng, radius_km} - if None, show everywhere
+    impressions: int = 0
+    clicks: int = 0
+    start_date: datetime
+    end_date: datetime
+    status: str = "active"  # pending, active, paused, expired
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Promotion(BaseModel):
+    """Paid promotions (featured listings, boosts)"""
+    promotion_id: str
+    vendor_id: str
+    type: str  # featured_listing, visibility_boost, explore_promotion
+    budget: float
+    spent: float = 0.0
+    duration_days: int
+    start_date: datetime
+    end_date: datetime
+    target_radius_km: Optional[float] = None  # For visibility boost
+    impressions: int = 0
+    clicks: int = 0
+    orders_generated: int = 0
+    status: str = "active"  # pending, active, paused, completed, cancelled
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ShopFollower(BaseModel):
+    """Track shop followers"""
+    follow_id: str
+    wisher_id: str
+    vendor_id: str
+    followed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# ===================== VENDOR PROMOTION ENDPOINTS =====================
+
+class CreatePostRequest(BaseModel):
+    content: str
+    images: List[str] = []
+    tagged_products: List[dict] = []
+    is_promoted: bool = False
+
+@api_router.post("/vendor/posts")
+async def create_shop_post(
+    data: CreatePostRequest,
+    user: User = Depends(require_vendor)
+):
+    """Create a new shop post for Explore feed"""
+    post_id = f"post_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    post = {
+        "post_id": post_id,
+        "vendor_id": user.user_id,
+        "vendor_name": user.vendor_shop_name or user.name,
+        "vendor_image": user.vendor_shop_image or user.picture,
+        "vendor_category": user.vendor_shop_type,
+        "content": data.content,
+        "images": data.images,
+        "tagged_products": data.tagged_products,
+        "is_promoted": data.is_promoted,
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "liked_by": [],
+        "status": "active",
+        "created_at": now
+    }
+    
+    await db.shop_posts.insert_one(post)
+    post.pop("_id", None)
+    
+    return {"message": "Post created", "post": post}
+
+@api_router.get("/vendor/posts")
+async def get_vendor_posts(user: User = Depends(require_vendor)):
+    """Get all posts by this vendor"""
+    posts = await db.shop_posts.find(
+        {"vendor_id": user.user_id, "status": {"$ne": "deleted"}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    return posts
+
+@api_router.delete("/vendor/posts/{post_id}")
+async def delete_shop_post(post_id: str, user: User = Depends(require_vendor)):
+    """Delete a shop post"""
+    result = await db.shop_posts.update_one(
+        {"post_id": post_id, "vendor_id": user.user_id},
+        {"$set": {"status": "deleted"}}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Post not found")
+    return {"message": "Post deleted"}
+
+class CreateBannerRequest(BaseModel):
+    title: str
+    subtitle: Optional[str] = None
+    image: str
+    link_type: str = "shop"
+    link_target: Optional[str] = None
+    duration_days: int = 7
+    target_area: Optional[dict] = None
+
+@api_router.post("/vendor/banners")
+async def create_banner(
+    data: CreateBannerRequest,
+    user: User = Depends(require_vendor)
+):
+    """Create a banner ad for Home tab"""
+    banner_id = f"banner_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    # Pricing: ₹99/day for banners
+    price_per_day = 99
+    total_cost = price_per_day * data.duration_days
+    
+    banner = {
+        "banner_id": banner_id,
+        "vendor_id": user.user_id,
+        "vendor_name": user.vendor_shop_name or user.name,
+        "title": data.title,
+        "subtitle": data.subtitle,
+        "image": data.image,
+        "link_type": data.link_type,
+        "link_target": data.link_target or user.user_id,  # Default to shop
+        "target_area": data.target_area,
+        "impressions": 0,
+        "clicks": 0,
+        "start_date": now,
+        "end_date": now + timedelta(days=data.duration_days),
+        "cost": total_cost,
+        "status": "active",
+        "created_at": now
+    }
+    
+    await db.banners.insert_one(banner)
+    banner.pop("_id", None)
+    
+    return {"message": "Banner created", "banner": banner, "cost": total_cost}
+
+@api_router.get("/vendor/banners")
+async def get_vendor_banners(user: User = Depends(require_vendor)):
+    """Get all banners by this vendor"""
+    banners = await db.banners.find(
+        {"vendor_id": user.user_id},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    
+    # Convert datetime to string for JSON serialization
+    for banner in banners:
+        if isinstance(banner.get("start_date"), datetime):
+            banner["start_date"] = banner["start_date"].isoformat()
+        if isinstance(banner.get("end_date"), datetime):
+            banner["end_date"] = banner["end_date"].isoformat()
+        if isinstance(banner.get("created_at"), datetime):
+            banner["created_at"] = banner["created_at"].isoformat()
+    
+    return banners
+
+class CreatePromotionRequest(BaseModel):
+    type: str  # featured_listing, visibility_boost, explore_promotion
+    duration_days: int = 7
+    target_radius_km: Optional[float] = None
+
+@api_router.post("/vendor/promotions")
+async def create_promotion(
+    data: CreatePromotionRequest,
+    user: User = Depends(require_vendor)
+):
+    """Create a paid promotion"""
+    promotion_id = f"promo_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    # Pricing based on type
+    pricing = {
+        "featured_listing": 99,  # ₹99/day
+        "visibility_boost": 149,  # ₹149/day
+        "explore_promotion": 199   # ₹199/day
+    }
+    
+    if data.type not in pricing:
+        raise HTTPException(status_code=400, detail="Invalid promotion type")
+    
+    price_per_day = pricing[data.type]
+    total_cost = price_per_day * data.duration_days
+    
+    promotion = {
+        "promotion_id": promotion_id,
+        "vendor_id": user.user_id,
+        "vendor_name": user.vendor_shop_name or user.name,
+        "type": data.type,
+        "budget": total_cost,
+        "spent": 0.0,
+        "duration_days": data.duration_days,
+        "start_date": now,
+        "end_date": now + timedelta(days=data.duration_days),
+        "target_radius_km": data.target_radius_km,
+        "impressions": 0,
+        "clicks": 0,
+        "orders_generated": 0,
+        "status": "active",
+        "created_at": now
+    }
+    
+    await db.promotions.insert_one(promotion)
+    promotion.pop("_id", None)
+    
+    return {"message": "Promotion created", "promotion": promotion, "cost": total_cost}
+
+@api_router.get("/vendor/promotions")
+async def get_vendor_promotions(user: User = Depends(require_vendor)):
+    """Get all promotions by this vendor"""
+    promotions = await db.promotions.find(
+        {"vendor_id": user.user_id},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    
+    # Convert datetime to string for JSON serialization
+    for promo in promotions:
+        if isinstance(promo.get("start_date"), datetime):
+            promo["start_date"] = promo["start_date"].isoformat()
+        if isinstance(promo.get("end_date"), datetime):
+            promo["end_date"] = promo["end_date"].isoformat()
+        if isinstance(promo.get("created_at"), datetime):
+            promo["created_at"] = promo["created_at"].isoformat()
+    
+    return promotions
+
+@api_router.get("/vendor/promotions/stats")
+async def get_promotion_stats(user: User = Depends(require_vendor)):
+    """Get promotion statistics summary"""
+    now = datetime.now(timezone.utc)
+    
+    # Active promotions
+    active_promos = await db.promotions.count_documents({
+        "vendor_id": user.user_id,
+        "status": "active",
+        "end_date": {"$gt": now}
+    })
+    
+    # Total reach (impressions)
+    pipeline = [
+        {"$match": {"vendor_id": user.user_id}},
+        {"$group": {
+            "_id": None,
+            "total_impressions": {"$sum": "$impressions"},
+            "total_clicks": {"$sum": "$clicks"},
+            "total_spent": {"$sum": "$spent"}
+        }}
+    ]
+    
+    promo_stats = await db.promotions.aggregate(pipeline).to_list(1)
+    banner_stats = await db.banners.aggregate(pipeline).to_list(1)
+    
+    promo = promo_stats[0] if promo_stats else {"total_impressions": 0, "total_clicks": 0, "total_spent": 0}
+    banner = banner_stats[0] if banner_stats else {"total_impressions": 0, "total_clicks": 0, "total_spent": 0}
+    
+    # Posts engagement
+    posts = await db.shop_posts.find(
+        {"vendor_id": user.user_id, "status": "active"},
+        {"likes": 1, "comments": 1, "shares": 1}
+    ).to_list(100)
+    
+    total_likes = sum(p.get("likes", 0) for p in posts)
+    total_comments = sum(p.get("comments", 0) for p in posts)
+    
+    # Followers count
+    followers = await db.shop_followers.count_documents({"vendor_id": user.user_id})
+    
+    return {
+        "active_promotions": active_promos,
+        "total_reach": promo.get("total_impressions", 0) + banner.get("total_impressions", 0),
+        "total_clicks": promo.get("total_clicks", 0) + banner.get("total_clicks", 0),
+        "total_spent": promo.get("total_spent", 0) + banner.get("total_spent", 0),
+        "posts_count": len(posts),
+        "total_likes": total_likes,
+        "total_comments": total_comments,
+        "followers": followers
+    }
+
+# ===================== WISHER APP ENDPOINTS (For Explore & Home) =====================
+
+@api_router.get("/wisher/home/banners")
+async def get_home_banners(
+    lat: Optional[float] = None,
+    lng: Optional[float] = None
+):
+    """Get active banners for Home tab carousel"""
+    now = datetime.now(timezone.utc)
+    
+    # Find active banners
+    query = {
+        "status": "active",
+        "start_date": {"$lte": now},
+        "end_date": {"$gt": now}
+    }
+    
+    banners = await db.banners.find(query, {"_id": 0}).sort("created_at", -1).to_list(10)
+    
+    # Track impressions
+    banner_ids = [b["banner_id"] for b in banners]
+    if banner_ids:
+        await db.banners.update_many(
+            {"banner_id": {"$in": banner_ids}},
+            {"$inc": {"impressions": 1}}
+        )
+    
+    # Convert datetime for serialization
+    for banner in banners:
+        if isinstance(banner.get("start_date"), datetime):
+            banner["start_date"] = banner["start_date"].isoformat()
+        if isinstance(banner.get("end_date"), datetime):
+            banner["end_date"] = banner["end_date"].isoformat()
+        if isinstance(banner.get("created_at"), datetime):
+            banner["created_at"] = banner["created_at"].isoformat()
+    
+    return banners
+
+@api_router.post("/wisher/banners/{banner_id}/click")
+async def track_banner_click(banner_id: str):
+    """Track banner click"""
+    await db.banners.update_one(
+        {"banner_id": banner_id},
+        {"$inc": {"clicks": 1}}
+    )
+    return {"message": "Click tracked"}
+
+@api_router.get("/wisher/explore/feed")
+async def get_explore_feed(
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    page: int = 1,
+    limit: int = 20
+):
+    """Get Explore feed with posts from vendors (city-wide, not limited by delivery radius)"""
+    skip = (page - 1) * limit
+    
+    # Get active posts, prioritize promoted ones
+    posts = await db.shop_posts.find(
+        {"status": "active"},
+        {"_id": 0}
+    ).sort([("is_promoted", -1), ("created_at", -1)]).skip(skip).limit(limit).to_list(limit)
+    
+    # Convert datetime for serialization
+    for post in posts:
+        if isinstance(post.get("created_at"), datetime):
+            post["created_at"] = post["created_at"].isoformat()
+    
+    return posts
+
+@api_router.get("/wisher/explore/promoted")
+async def get_promoted_highlights():
+    """Get promoted highlights for Explore tab carousel"""
+    now = datetime.now(timezone.utc)
+    
+    # Get vendors with active explore promotions
+    active_promos = await db.promotions.find(
+        {
+            "type": "explore_promotion",
+            "status": "active",
+            "end_date": {"$gt": now}
+        },
+        {"_id": 0, "vendor_id": 1, "promotion_id": 1}
+    ).to_list(20)
+    
+    vendor_ids = [p["vendor_id"] for p in active_promos]
+    
+    # Get promoted posts
+    promoted_posts = await db.shop_posts.find(
+        {"vendor_id": {"$in": vendor_ids}, "status": "active"},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(10).to_list(10)
+    
+    # If not enough promoted posts, add recent regular posts
+    if len(promoted_posts) < 5:
+        regular_posts = await db.shop_posts.find(
+            {"vendor_id": {"$nin": vendor_ids}, "status": "active"},
+            {"_id": 0}
+        ).sort("created_at", -1).limit(5 - len(promoted_posts)).to_list(5)
+        promoted_posts.extend(regular_posts)
+    
+    # Convert datetime for serialization
+    for post in promoted_posts:
+        if isinstance(post.get("created_at"), datetime):
+            post["created_at"] = post["created_at"].isoformat()
+        post["is_highlighted"] = post.get("vendor_id") in vendor_ids
+    
+    # Track impressions
+    for p in active_promos:
+        await db.promotions.update_one(
+            {"promotion_id": p["promotion_id"]},
+            {"$inc": {"impressions": 1}}
+        )
+    
+    return promoted_posts
+
+@api_router.post("/wisher/posts/{post_id}/like")
+async def like_post(post_id: str, user_id: str):
+    """Like/unlike a post"""
+    post = await db.shop_posts.find_one({"post_id": post_id})
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    liked_by = post.get("liked_by", [])
+    
+    if user_id in liked_by:
+        # Unlike
+        await db.shop_posts.update_one(
+            {"post_id": post_id},
+            {"$pull": {"liked_by": user_id}, "$inc": {"likes": -1}}
+        )
+        return {"liked": False, "likes": post.get("likes", 1) - 1}
+    else:
+        # Like
+        await db.shop_posts.update_one(
+            {"post_id": post_id},
+            {"$addToSet": {"liked_by": user_id}, "$inc": {"likes": 1}}
+        )
+        return {"liked": True, "likes": post.get("likes", 0) + 1}
+
+@api_router.post("/wisher/shops/{vendor_id}/follow")
+async def follow_shop(vendor_id: str, user_id: str):
+    """Follow/unfollow a shop"""
+    existing = await db.shop_followers.find_one({
+        "vendor_id": vendor_id,
+        "wisher_id": user_id
+    })
+    
+    if existing:
+        # Unfollow
+        await db.shop_followers.delete_one({"follow_id": existing["follow_id"]})
+        return {"following": False}
+    else:
+        # Follow
+        follow = {
+            "follow_id": f"follow_{uuid.uuid4().hex[:12]}",
+            "vendor_id": vendor_id,
+            "wisher_id": user_id,
+            "followed_at": datetime.now(timezone.utc)
+        }
+        await db.shop_followers.insert_one(follow)
+        return {"following": True}
+
+@api_router.get("/wisher/shops/{vendor_id}/followers")
+async def get_shop_followers(vendor_id: str):
+    """Get follower count for a shop"""
+    count = await db.shop_followers.count_documents({"vendor_id": vendor_id})
+    return {"followers": count}
+
+@api_router.get("/wisher/localhub/featured")
+async def get_featured_shops(
+    lat: float,
+    lng: float,
+    radius_km: float = 5.0
+):
+    """Get featured shops in Local Hub (with active promotions)"""
+    now = datetime.now(timezone.utc)
+    
+    # Get vendors with active featured_listing promotions
+    featured_promos = await db.promotions.find(
+        {
+            "type": "featured_listing",
+            "status": "active",
+            "end_date": {"$gt": now}
+        },
+        {"_id": 0, "vendor_id": 1}
+    ).to_list(20)
+    
+    featured_vendor_ids = [p["vendor_id"] for p in featured_promos]
+    
+    return {"featured_vendor_ids": featured_vendor_ids}
+
 # ===================== HEALTH CHECK =====================
 
 @api_router.get("/")
