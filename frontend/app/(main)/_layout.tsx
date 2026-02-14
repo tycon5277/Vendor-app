@@ -204,6 +204,12 @@ export default function MainLayout() {
             href: null, // Hide from tab bar
           }}
         />
+        <Tabs.Screen
+          name="promote"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
       </Tabs>
 
       {/* Claymorphism Exit Toast */}
