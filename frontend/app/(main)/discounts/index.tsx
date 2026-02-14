@@ -744,36 +744,22 @@ export default function DiscountsScreen() {
             </View>
 
             {formData.validity_type === 'date_range' && (
-              <View style={styles.dateRow}>
-                <View style={styles.dateInputContainer}>
-                  <Ionicons name="calendar" size={18} color="#6366F1" />
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#9CA3AF"
-                    value={formData.start_date.toISOString().split('T')[0]}
-                    onChangeText={(text) => {
-                      const date = new Date(text);
-                      if (!isNaN(date.getTime())) {
-                        setFormData(prev => ({ ...prev, start_date: date }));
-                      }
-                    }}
+              <View style={styles.datePickerSection}>
+                <View style={styles.datePickerWrapper}>
+                  <Text style={styles.datePickerLabel}>Start Date</Text>
+                  <DateWheelPicker
+                    date={formData.start_date}
+                    onDateChange={(date) => setFormData(prev => ({ ...prev, start_date: date }))}
                   />
                 </View>
-                <Text style={styles.dateSeparator}>to</Text>
-                <View style={styles.dateInputContainer}>
-                  <Ionicons name="calendar" size={18} color="#6366F1" />
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#9CA3AF"
-                    value={formData.end_date.toISOString().split('T')[0]}
-                    onChangeText={(text) => {
-                      const date = new Date(text);
-                      if (!isNaN(date.getTime())) {
-                        setFormData(prev => ({ ...prev, end_date: date }));
-                      }
-                    }}
+                <View style={styles.dateArrow}>
+                  <Ionicons name="arrow-forward" size={24} color="#6366F1" />
+                </View>
+                <View style={styles.datePickerWrapper}>
+                  <Text style={styles.datePickerLabel}>End Date</Text>
+                  <DateWheelPicker
+                    date={formData.end_date}
+                    onDateChange={(date) => setFormData(prev => ({ ...prev, end_date: date }))}
                   />
                 </View>
               </View>
