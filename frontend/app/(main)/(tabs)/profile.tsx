@@ -14,9 +14,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
-import { useAuthStore } from '../../src/store/authStore';
-import { vendorAPI } from '../../src/utils/api';
-import { Analytics } from '../../src/types';
+import { useAuthStore } from '../../../src/store/authStore';
+import { vendorAPI } from '../../../src/utils/api';
+import { Analytics } from '../../../src/types';
 
 const { width } = Dimensions.get('window');
 

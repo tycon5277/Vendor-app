@@ -13,10 +13,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '../../../src/store/authStore';
-import { vendorAPI, productAPI } from '../../../src/utils/api';
-import { Product } from '../../../src/types';
-import { useAlert } from '../../../src/context/AlertContext';
+import { useAuthStore } from '../../../../src/store/authStore';
+import { vendorAPI, productAPI } from '../../../../src/utils/api';
+import { Product } from '../../../../src/types';
+import { useAlert } from '../../../../src/context/AlertContext';
 
 const { width } = Dimensions.get('window');
 

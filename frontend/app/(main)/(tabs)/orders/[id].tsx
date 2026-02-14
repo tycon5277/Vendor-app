@@ -17,10 +17,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { orderAPI } from '../../../src/utils/api';
-import { useAlert } from '../../../src/context/AlertContext';
+import { orderAPI } from '../../../../src/utils/api';
+import { useAlert } from '../../../../src/context/AlertContext';
 import { format } from 'date-fns';
-import { OrderTimeline } from '../../../src/components/OrderTimeline';
+import { OrderTimeline } from '../../../../src/components/OrderTimeline';
 
 const { width } = Dimensions.get('window');
 

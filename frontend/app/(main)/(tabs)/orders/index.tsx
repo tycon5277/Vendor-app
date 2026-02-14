@@ -17,9 +17,9 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 // Note: expo-av removed - deprecated in SDK 53+, using Vibration instead
-import { orderAPI } from '../../../src/utils/api';
-import { Order } from '../../../src/types';
-import { useAlert } from '../../../src/context/AlertContext';
+import { orderAPI } from '../../../../src/utils/api';
+import { Order } from '../../../../src/types';
+import { useAlert } from '../../../../src/context/AlertContext';
 import { format } from 'date-fns';
 
 const { width, height } = Dimensions.get('window');

@@ -17,9 +17,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { chatAPI } from '../../src/utils/api';
-import { ChatRoom, Message } from '../../src/types';
-import { useAuthStore } from '../../src/store/authStore';
+import { chatAPI } from '../../../src/utils/api';
+import { ChatRoom, Message } from '../../../src/types';
+import { useAuthStore } from '../../../src/store/authStore';
 import { format, isToday, isYesterday } from 'date-fns';
 
 type ChatTabType = 'customers' | 'delivery';
