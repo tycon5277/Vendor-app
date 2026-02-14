@@ -18,13 +18,16 @@ The Vendor App is part of the QuickWish three-app ecosystem (Wisher-Customer, Ve
 │   ├── app/            # Expo Router pages
 │   │   ├── (auth)/     # Authentication screens
 │   │   ├── (main)/     # Main app screens (tabs)
+│   │   │   ├── promote.tsx  # Promote Your Shop screen
 │   └── src/
 │       ├── components/ # Reusable components
 │       ├── context/    # React contexts (Alert, NewOrderNotification)
 │       ├── store/      # Zustand stores (auth)
 │       ├── types/      # TypeScript types
 │       └── utils/      # API utilities
-├── ORDER_TIMELINE_PROMPTS.md  # Integration prompts for Wisher & Genie apps
+├── ORDER_TIMELINE_PROMPTS.md         # Integration prompts for Wisher & Genie apps
+├── WISHER_APP_INTEGRATION_PROMPT.md  # Promotions integration for Wisher App
+├── WIREFRAMES.md                     # Detailed UI wireframes for My Shop features
 ```
 
 ## Implemented Features
