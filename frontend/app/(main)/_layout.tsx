@@ -108,9 +108,10 @@ function TabsNavigator() {
 export default function MainLayout() {
   const router = useRouter();
   const pathname = usePathname();
+  const segments = useSegments();
   
   // Track back button presses for "press twice to exit" feature
-  const lastBackPressRef = useRef<number>(0);
+  const lastBackPressRef = useRef(0);
   const [showExitToast, setShowExitToast] = useState(false);
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastScale = useRef(new Animated.Value(0.8)).current;
