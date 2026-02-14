@@ -15,8 +15,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { timingsAPI } from '../../src/utils/api';
-import { useAlert } from '../../src/context/AlertContext';
+import { timingsAPI } from '../../../src/utils/api';
+import { useAlert } from '../../../src/context/AlertContext';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS: Record<string, string> = {

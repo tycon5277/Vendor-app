@@ -15,8 +15,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { discountAPI, productAPI } from '../../src/utils/api';
-import { useAlert } from '../../src/context/AlertContext';
+import { discountAPI, productAPI } from '../../../src/utils/api';
+import { useAlert } from '../../../src/context/AlertContext';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 
