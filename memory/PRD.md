@@ -257,6 +257,22 @@ Last Updated: February 14, 2026
 - `GET /api/vendor/promotions` - List promotions
 - `GET /api/vendor/promotions/stats` - Promotion statistics
 
+### Discounts APIs (New - Feb 14, 2026)
+- `GET /api/vendor/discounts` - List all vendor discounts with status filter
+- `GET /api/vendor/discounts/{id}` - Get single discount details
+- `POST /api/vendor/discounts` - Create new discount (percentage/flat/bogo)
+- `PUT /api/vendor/discounts/{id}` - Update discount
+- `DELETE /api/vendor/discounts/{id}` - Delete discount
+- `PUT /api/vendor/discounts/{id}/toggle` - Toggle active/disabled status
+
+### Timings APIs (New - Feb 14, 2026)
+- `GET /api/vendor/timings` - Get weekly schedule and holidays
+- `PUT /api/vendor/timings` - Update full weekly schedule
+- `PUT /api/vendor/timings/day` - Update specific day with break times
+- `POST /api/vendor/timings/holidays` - Add holiday/closure
+- `DELETE /api/vendor/timings/holidays/{id}` - Delete holiday
+- `POST /api/vendor/timings/close-early` - Close shop early today
+
 ### New Backend APIs (Wisher App Integration)
 - `GET /api/wisher/home/banners` - Banners for Home carousel
 - `POST /api/wisher/banners/{id}/click` - Track banner click
