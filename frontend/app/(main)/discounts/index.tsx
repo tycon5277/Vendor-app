@@ -539,25 +539,37 @@ export default function DiscountsScreen() {
 
             {formData.validity_type === 'date_range' && (
               <View style={styles.dateRow}>
-                <TouchableOpacity 
-                  style={styles.dateBtn}
-                  onPress={() => setShowStartDatePicker(true)}
-                >
+                <View style={styles.dateInputContainer}>
                   <Ionicons name="calendar" size={18} color="#6366F1" />
-                  <Text style={styles.dateText}>
-                    {formData.start_date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </Text>
-                </TouchableOpacity>
+                  <TextInput
+                    style={styles.dateInput}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor="#9CA3AF"
+                    value={formData.start_date.toISOString().split('T')[0]}
+                    onChangeText={(text) => {
+                      const date = new Date(text);
+                      if (!isNaN(date.getTime())) {
+                        setFormData(prev => ({ ...prev, start_date: date }));
+                      }
+                    }}
+                  />
+                </View>
                 <Text style={styles.dateSeparator}>to</Text>
-                <TouchableOpacity 
-                  style={styles.dateBtn}
-                  onPress={() => setShowEndDatePicker(true)}
-                >
+                <View style={styles.dateInputContainer}>
                   <Ionicons name="calendar" size={18} color="#6366F1" />
-                  <Text style={styles.dateText}>
-                    {formData.end_date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </Text>
-                </TouchableOpacity>
+                  <TextInput
+                    style={styles.dateInput}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor="#9CA3AF"
+                    value={formData.end_date.toISOString().split('T')[0]}
+                    onChangeText={(text) => {
+                      const date = new Date(text);
+                      if (!isNaN(date.getTime())) {
+                        setFormData(prev => ({ ...prev, end_date: date }));
+                      }
+                    }}
+                  />
+                </View>
               </View>
             )}
 
