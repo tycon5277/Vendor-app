@@ -1,47 +1,63 @@
 <analysis>**original_problem_statement:**
-The user initially requested the complete removal of a demo order flow feature. After its successful removal, the user specified a new, complex Order Timeline feature. This feature must synchronize the state of an order across three distinct applications—**Wisher App (customer)**, **Genie App (driver)**, and **Vendor App (shop)**—all powered by a single, shared backend. The user provided GitHub links for the Wisher and Genie apps, which exist outside the current workspace. The core task was to plan, implement, and test this multi-app order lifecycle, and then brainstorm ideas for new features in the Vendor App's My Shop tab.
+The user initially requested the removal of a demo order flow, which was completed. The project then pivoted to a new Order Timeline feature to synchronize order status across three applications: Wisher (customer), Genie (driver), and Vendor (shop), all using a shared backend. This was successfully implemented and tested.
+
+The user then requested feature ideation for the My Shop tab in the Vendor App, focusing on , , , and  buttons. After detailed planning and wireframing, the user prioritized the Promote feature.
+
+The user elaborated on their vision for promotions, specifying how they should appear in the Wisher App: as banners on the  tab and as promoted posts in a social-media-style  tab. The agent was tasked with building the backend and Vendor App UI for this feature and providing a direct integration prompt for the user to paste into the separate Wisher App repository.
 
 **PRODUCT REQUIREMENTS:**
-1.  **Shared Backend Logic:** Implement endpoints and database schema changes to manage the entire order lifecycle status: , , , , , , , , and .
-2.  **Vendor App UI:** Update the vendor interface to allow manual acceptance of orders, marking them as preparing and ready, and add a visual timeline to track order progress.
-3.  **Cross-App Synchronization:** Ensure status updates are reflected in real-time (via polling) for the appropriate user in their respective app (Wisher, Vendor, Genie).
-4.  **Genie App Logic:** Create a mechanism for Carpet Genies to see and accept available delivery jobs and update the order status upon pickup and delivery.
-5.  **Wisher App UI:** Allow the Wisher to track their order's progress through the entire timeline, particularly for orders placed via the Local Hub tab.
-6.  **Implementation Strategy:** The agent must provide code/prompts for the Wisher and Genie apps, as they are in separate repositories and cannot be modified directly.
-7.  **New Feature Ideation:** Propose functionality for , , , and  buttons in the Vendor app.
+1.  **Shared Backend for Promotions:** Implement APIs to create, manage, and retrieve various promotion types (Banners, Featured Listings, Explore Posts).
+2.  **Vendor App UI:** Build a Promote screen where vendors can create promotional campaigns, post updates to the Explore feed, and view analytics.
+3.  **Wisher App Integration:** Promotions created by vendors must be reflected in the Wisher App.
+    *   **Home Tab:** Display a carousel of paid banner ads.
+    *   **Local Hub Tab:** Show a Featured badge on promoted shops.
+    *   **Explore Tab:** Display promoted posts and organic shop updates in a social media-style feed, replacing the current hardcoded data.
+4.  **Cross-Repository Implementation:** Since the Wisher App is in an external repository, the agent must provide a comprehensive code prompt for the user to apply the necessary changes.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The project consists of a shared FastAPI backend and a React Native (Expo) frontend for the **Vendor App**. The Order Timeline feature is fully implemented and tested.
--   **Backend**: Contains all necessary API endpoints to manage the order lifecycle across the three applications.
--   **Vendor App**: The order detail screen features a new, prominent visual timeline component to track an order's progress.
--   **Wisher & Genie Apps**: These external applications have been updated by the user (guided by agent-provided prompts) with the necessary API integration and are correctly pointing to the shared backend.
+The shared FastAPI backend has been extended with new collections (, , ) and corresponding API endpoints to manage the entire promotion lifecycle. The Vendor App (React Native) now has a new Promote screen, accessible from the My Shop tab, which allows vendors to create Featured Listing, Visibility Boost, and Explore Promotion campaigns. The UI for creating these promotions is functional. The agent has also created a markdown file containing the integration prompt for the Wisher App but has not yet provided it to the user.
 
 **Last working item**:
--   **Last item agent was working:** The agent was responding to the user's request for ideas regarding new features in the My Shop tab (, , , ). The previous task of implementing and testing the Order Timeline UI and end-to-end flow was completed just before this new request.
--   **Status:** USER VERIFICATION PENDING
--   **Agent Testing Done:** Y
--   **Which testing method agent to use?** NA
+-   **Last item agent was working:** The agent had just finished implementing and testing the Promote feature in the Vendor App. The final step was to provide the user with the integration prompt for the external Wisher App. The agent created the file  but then called the  tool without displaying the content of the file, despite the user's explicit request: 
+-   **Status:** BLOCKED
+-   **Agent Testing Done:** Y (for the Vendor App UI and backend APIs)
+-   **Which testing method agent to use?** NA (The immediate task is to provide information, not test code). After the user applies the prompt, the  should be used for end-to-end verification across both apps.
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-There are no pending bugs or technical issues.
+-   **Issue 1: (P0 - CRITICAL BLOCKER) User is waiting for the Wisher App integration prompt.**
+    -   **Attempted fixes:** The previous agent created the prompt in  but failed to output it to the user before finishing the job.
+    -   **Next debug checklist:**
+        1.  Read the content of .
+        2.  Provide the full content of the file to the user as their next message.
+    -   **Why fix this issue and what will be achieved with the fix?** This is the user's last and most direct request. Fulfilling it will unblock the user and allow them to connect the new Promote feature to their Wisher App, making the feature functional from end-to-end.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** Both. A full end-to-end test will be required after the user applies the prompt.
+    -   **Blocked on other issue:** None.
 
 **In progress Task List**:
-None. The last implementation task was completed.
+None.
 
 **Upcoming and Future Tasks**
--   **Upcoming Task (P0): Ideate My Shop Features:** Respond to the user's latest request by providing ideas and potential implementation plans for the , , , and  buttons in the Vendor App's My Shop tab.
+-   **Upcoming Tasks:**
+    -   **(P1) Implement  Feature:** Design and build the UI and backend logic for vendors to create and manage various discount types (percentage, flat, BOGO).
+    -   **(P1) Implement  Feature:** Build the UI and backend logic for vendors to manage their shop's operating hours, holidays, and temporary closures.
+    -   **(P2) Enhance  Feature:** Expand the existing QR code functionality with more options like product-specific codes, customizable designs, and analytics.
 
--   **Future Task (P1): Advanced Genie Assignment Algorithm:** Implement a more complex algorithm (based on nearness, rating, etc.) to determine which genie is offered a delivery job first. This was planned to be done after the basic order logic was functional.
+-   **Future Tasks:**
+    -   **(P2) Advanced Genie Assignment Algorithm:** Implement a more complex algorithm (based on nearness, rating, etc.) to determine which genie is offered a delivery job first.
+    -   **(P3) Social Media Feed Engagement:** Add more social features to the Explore tab, such as commenting on posts and user-to-user interactions.
 
 **Completed work in this session**
--   **Backend API Implementation:** Created a full suite of API endpoints in  to manage the order lifecycle for the Wisher, Vendor, and Genie apps.
--   **External App Integration:** Provided detailed prompts for the user to update the external Wisher and Genie apps, then verified the changes and corrected a backend URL mismatch in the Wisher app.
--   **Vendor App UI Enhancement:** Created a new visual  component in  and integrated it into the order details screen .
--   **End-to-End Testing:** Used the testing agent to perform a comprehensive test of the entire order flow across all three apps. The agent found and fixed a bug where the  status was not mapping correctly in the new timeline component.
--   **Documentation:** Created  to assist the user and updated .
+-   **Feature Ideation & Wireframing:** Brainstormed and created detailed wireframes for the My Shop tab features (, , , ).
+-   **External Code Analysis:** Analyzed the external Wisher App repository to understand its tab structure, navigation, and the state of the , , and  screens.
+-   **Backend Promotion APIs:** Implemented new endpoints in  to handle creation and retrieval of banners, shop posts, and promotions.
+-   **Vendor App Promote UI:** Created a new screen at  with a UI for creating and viewing promotions.
+-   **Navigation Update:** Modified  to link the Promote button to the new screen and updated  to include the route.
+-   **Documentation:** Created  and . Updated .
 
 **Earlier issues found/mentioned but not fixed**
 None.
@@ -53,71 +69,77 @@ None.
 
 
 **Key Technical Concepts**
--   **Multi-App Architecture:** A single backend serves three distinct frontend applications for different user personas (Vendor, Customer, Driver).
--   **State Synchronization:** The state of an  entity is managed across three separate frontends via frequent API polling.
--   **Cross-Repository Development:** The agent analyzed code in external repositories and provided instructions for the user to implement changes in those separate projects.
+-   **Multi-App Architecture:** A single backend serves three distinct frontend applications.
+-   **Cross-Repository Development:** The agent analyzes external code and provides integration prompts for the user to implement changes in separate projects.
+-   **API-Driven UI:** The Wisher App's UI (e.g., Explore feed, banners) is designed to be populated by API calls, decoupling it from hardcoded data.
 
 **key DB schema**
--   **shop_orders:** This collection is central to the order flow. Key fields include  (e.g., , , , ), , and .
+-   **shop_orders:** Manages the order lifecycle.
+-   **banners:** (New) Stores data for banner ads on the Wisher App's Home tab. .
+-   **promotions:** (New) Manages featured listings and visibility boosts. .
+-   **shop_posts:** (New) Stores organic and promoted content for the Wisher App's Explore feed. .
 
 **changes in tech stack**
 None.
 
 **All files of reference**
--   : Contains the complete backend logic for the order lifecycle.
--   : The order detail screen in the Vendor App, which now uses the new timeline component.
--   : The new, reusable visual timeline component.
+-   : **(CRITICAL)** Contains the code prompt the user is waiting for.
+-   : Updated with new promotion endpoints.
+-   : The new UI screen for the Promote feature.
+-   : The My Shop screen, modified to navigate to the promote screen.
+-   : Updated to register the new  route.
+-   : Updated product requirements document.
 
 **Areas that need refactoring**:
-None.
+-   The Wisher App's  file currently uses hardcoded mock data for its feed. The integration prompt in  is designed to replace this with live API calls.
 
 **key api endpoints**
--   : Place a new order.
--   : Universal endpoint for all apps to poll order status.
--   : For Genies to find available delivery jobs.
--   : For a Genie to accept a job.
--   : Mark order as picked up.
--   : Mark order as delivered.
--   : For Vendor to accept an order.
--   : For Vendor to update status (e.g., , ).
+-   : Fetches banner ads for the Wisher App home screen.
+-   : Fetches the main content feed for the Explore tab.
+-   : Fetches highlighted promotions for the Explore tab.
+-   : Creates a new promotion campaign.
+-   : Creates a new banner ad.
+-   : Creates a new shop post for the Explore feed.
 
 **Critical Info for New Agent**
--   The Order Timeline feature is feature-complete and has been tested end-to-end. The backend, Vendor app, Wisher app, and Genie app are all synchronized.
--   Your immediate task is to address the user's latest request: brainstorm and propose functionality for the , , , and  buttons in the Vendor App. This is a planning and ideation task.
--   Remember the multi-app architecture. Any new features may require changes to the shared backend and potentially providing prompts for the other apps if they are impacted.
+-   Your absolute first priority is to fulfill the user's last request. Read the file  and provide its full content to the user. Do not attempt any other action until this is done.
+-   The Promote feature is only half-complete. It is built in the Vendor App, but it provides no value until the Wisher App is integrated to display the promotions.
+-   After the user confirms they have applied the prompt, you should propose a full end-to-end test using the  to verify that creating a promotion in the Vendor App correctly displays it in the Wisher App.
 
 **documents and test reports created in this job**
 -   
 -   
 -   
+-   
+-   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  ****: PENDING - The user is asking for ideas for new features. This is the current task.
-2.  ****: RESOLVED - User asked for an explanation of the proposed UI changes and testing plan.
-3.  ****: RESOLVED - User approved the plan to add the visual timeline and test the full flow.
-4.  ****: RESOLVED - User asked for clarification on the agent's suggestion to add a timeline UI and perform testing.
-5.  ****: RESOLVED - Agent confirmed all three apps were pointing to the correct backend.
-6.  ****: RESOLVED - User provided the updated GitHub link after fixing the backend URL.
-7.  ****: RESOLVED - Agent identified and reported that the Wisher app was pointing to the wrong backend URL.
-8.  ****: RESOLVED - User provided the updated GitHub links for verification after applying the integration prompts.
-9.  ****: RESOLVED - User provided more context on the business logic: shops in the Local Hub are listed based on proximity to the wisher.
-10. ****: RESOLVED - User confirmed they pasted the prompts and provided critical business logic that the delivery flow is specifically for Carpet Genies.
+1.  ** (PENDING)**: The user is explicitly asking for the Wisher App integration prompt. This is the current, unresolved task.
+2.  ****: User approved the plan to build the Vendor App feature and provide the Wisher App integration prompt.
+3.  ****: Agent confirmed alignment on the implementation plan after analyzing the Wisher App repo.
+4.  ****: User confirmed the agent's understanding was mostly correct but requested the agent analyze the Wisher App's GitHub repo before implementation to ensure accuracy.
+5.  ****: Agent presented a detailed breakdown of the promotion system and its architecture across all apps.
+6.  ****: User provided detailed requirements for the  and  tabs in the Wisher App and how promotions should be reflected there.
+7.  ****: User asked for clarification on where the promotions would appear for the end-user (the wisher).
+8.  ****: Agent summarized the wireframes created.
+9.  ****: User requested the agent to create wireframes/mockups for the proposed features.
+10. ****: Agent presented detailed feature ideas for all four My Shop buttons and asked the user for prioritization.
 
 **Project Health Check:**
 -   **Broken:** None
--   **Mocked:** None
+-   **Mocked:** The  file in the external Wisher App uses mocked data, which the pending integration prompt aims to fix.
 
 **3rd Party Integrations**
--   **Expo:** A framework and platform for universal React applications.
+-   **Expo:** Framework for universal React applications.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES
+-   **Testing agent used after significant changes:** NO (Only self-testing via screenshots was performed for the Vendor App UI).
 -   **Troubleshoot agent used after agent stuck in loop:** NO
--   **Test files created:** None. The testing agent performed tests directly.
+-   **Test files created:** None.
 -   **Known regressions:** None.
 
 **Credentials to test flow:**
-Login is handled via OTP (e.g., vendor uses 9999999999). No static credentials are required.
+Login is OTP-based. A phone number like  can be used to receive a mock OTP.
 
 **What agent forgot to execute**
-Nothing. The agent successfully navigated a complex, multi-repository feature implementation, including debugging a configuration issue in an external repository.</analysis>
+The previous agent failed to execute the most critical final step: providing the user with the contents of . The agent created the file but then finished the session, leaving the user waiting for the prompt they had just requested.</analysis>
