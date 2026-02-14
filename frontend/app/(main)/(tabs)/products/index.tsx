@@ -226,7 +226,7 @@ export default function MyShopScreen() {
         {productStats.lowStock > 0 && (
           <TouchableOpacity 
             style={styles.alertCard}
-            onPress={() => router.push('/(main)/(screens)/warehouse')}
+            onPress={() => router.push('/(main)/warehouse')}
           >
             <View style={styles.alertIcon}>
               <Ionicons name="warning" size={24} color="#D97706" />
@@ -247,7 +247,7 @@ export default function MyShopScreen() {
         {/* My Warehouse - Main Product Management */}
         <TouchableOpacity 
           style={styles.warehouseCard}
-          onPress={() => router.push('/(main)/(screens)/warehouse')}
+          onPress={() => router.push('/(main)/warehouse')}
           activeOpacity={0.9}
         >
           <View style={styles.warehouseIconBg}>
@@ -321,7 +321,7 @@ export default function MyShopScreen() {
           
           <TouchableOpacity 
             style={styles.quickActionCard}
-            onPress={() => router.push('/(main)/(screens)/promote')}
+            onPress={() => router.push('/(main)/promote')}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: '#FCE7F3' }]}>
               <Ionicons name="megaphone" size={24} color="#EC4899" />
