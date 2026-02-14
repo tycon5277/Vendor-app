@@ -1,0 +1,176 @@
+{
+  "identity": {
+    "name": "E1",
+    "persona": "The Anti-AI Designer",
+    "principles": [
+      "Fusion over Imitation",
+      "Emotion First",
+      "Content is King",
+      "Zoom In",
+      "Negative Space",
+      "Contrast"
+    ]
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Manrope",
+      "body": "Inter",
+      "mono": "SpaceMono"
+    },
+    "scale": {
+      "h1": "text-4xl font-bold tracking-tight",
+      "h2": "text-3xl font-bold tracking-tight",
+      "h3": "text-2xl font-semibold",
+      "h4": "text-xl font-semibold",
+      "body_lg": "text-lg leading-relaxed",
+      "body_base": "text-base leading-relaxed text-slate-600",
+      "caption": "text-sm text-slate-500 uppercase tracking-wider"
+    }
+  },
+  "colors": {
+    "palette": {
+      "primary": {
+        "DEFAULT": "#6366F1",
+        "foreground": "#FFFFFF",
+        "light": "#818CF8",
+        "dark": "#4F46E5"
+      },
+      "secondary": {
+        "DEFAULT": "#8B5CF6",
+        "foreground": "#FFFFFF"
+      },
+      "background": "#F8FAFC",
+      "surface": "#FFFFFF",
+      "text": {
+        "primary": "#0F172A",
+        "secondary": "#475569",
+        "muted": "#94A3B8"
+      },
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "error": "#EF4444",
+      "border": "#E2E8F0"
+    },
+    "gradients": {
+      "primary_to_secondary": "from-indigo-500 to-violet-500",
+      "surface_shine": "from-white/50 to-white/10"
+    }
+  },
+  "layout_strategies": {
+    "spacing": {
+      "container_padding": "p-6",
+      "section_gap": "gap-8",
+      "item_gap": "gap-4",
+      "safe_area": "pt-12 pb-8"
+    },
+    "containers": {
+      "card": "bg-white rounded-2xl p-5 shadow-sm border border-slate-100",
+      "card_hover": "active:scale-[0.98] transition-transform",
+      "screen": "flex-1 bg-slate-50"
+    },
+    "grids": {
+      "dashboard_widgets": "grid grid-cols-2 gap-4",
+      "list_items": "flex flex-col gap-3"
+    }
+  },
+  "components": {
+    "Discounts": {
+      "DiscountCard": {
+        "description": "Card displaying discount details with active/expired status.",
+        "props": ["title", "code", "percentage", "validity", "usageCount", "status"],
+        "style": "bg-white rounded-2xl p-4 border-l-4 border-indigo-500 shadow-sm flex-row justify-between items-center"
+      },
+      "CreateDiscountForm": {
+        "description": "Multi-step form for creating discounts.",
+        "steps": ["Type Selection", "Details Input", "Product Selection", "Review"],
+        "elements": ["Slider for Percentage", "DatePicker", "Toggle for Active"]
+      }
+    },
+    "Timings": {
+      "DayRow": {
+        "description": "Row for each day with open/close toggle and time slots.",
+        "props": ["day", "isOpen", "openTime", "closeTime", "onToggle"],
+        "style": "flex-row justify-between items-center p-4 bg-white rounded-xl mb-2"
+      },
+      "HolidayCalendar": {
+        "description": "Calendar view to select specific dates for closure.",
+        "library": "react-native-calendars (recommended)"
+      }
+    },
+    "ShopQR": {
+      "QRCard": {
+        "description": "Swipeable card showing different QR types (Shop, Product).",
+        "props": ["type", "qrData", "color"],
+        "style": "w-full aspect-square bg-white rounded-3xl items-center justify-center shadow-lg"
+      },
+      "ActionButtons": {
+        "description": "Row of circular buttons for Share, Download, Print.",
+        "style": "flex-row justify-center gap-6 mt-8"
+      }
+    },
+    "Promote": {
+      "CampaignCard": {
+        "description": "Card showing active campaign stats.",
+        "props": ["title", "reach", "clicks", "budget", "status"],
+        "style": "bg-white rounded-2xl p-5 border border-slate-100"
+      },
+      "TemplateSelector": {
+        "description": "Horizontal scroll list of campaign templates.",
+        "items": ["Social Post", "Push Notification", "Banner Ad"]
+      }
+    }
+  },
+  "assets": {
+    "icons": {
+      "library": "lucide-react-native",
+      "mapping": {
+        "discounts": "Tag",
+        "timings": "Clock",
+        "qr": "QrCode",
+        "promote": "Megaphone",
+        "calendar": "Calendar",
+        "share": "Share2",
+        "download": "Download",
+        "copy": "Copy",
+        "edit": "Edit3",
+        "delete": "Trash2",
+        "add": "Plus"
+      }
+    },
+    "images": {
+      "placeholders": [
+        "https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?auto=format&fit=crop&q=80&w=800",
+        "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=800"
+      ]
+    }
+  },
+  "accessibility": {
+    "contrast": "Ensure text-to-background ratio is at least 4.5:1",
+    "touch_targets": "Minimum 44x44px for all interactive elements",
+    "labels": "All inputs and buttons must have aria-label or accessibilityLabel"
+  },
+  "motion": {
+    "transitions": "LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)",
+    "feedback": "Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light) on press"
+  },
+  "instructions_to_main_agent": [
+    "1. Install 'nativewind' and 'tailwindcss' if not present, as the design relies on utility classes.",
+    "2. Use 'lucide-react-native' for icons.",
+    "3. Create a 'MyShop' stack navigator in the existing navigation structure.",
+    "4. Implement 'Discounts', 'Timings', 'Shop QR', and 'Promote' screens as detailed in the 'components' section.",
+    "5. Ensure high contrast and large touch targets for the target audience (Indian vendors).",
+    "6. Use 'react-native-gifted-charts' for analytics in 'Promote' and 'Discounts' dashboards.",
+    "7. Mock data for all screens initially.",
+    "8. Follow the 'Anti-AI Designer' persona: Avoid generic layouts, use bold spacing and typography.",
+    "9. Use 'data-testid' for all interactive elements.",
+    "10. Respect the directory structure: put new screens in '/app/frontend/app/(main)/myshop/'."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Do not use default 'SaaS Blue'. Use the defined Indigo #6366F1.",
+    "Every interaction needs micro-animations (press states).",
+    "Use 2-3x more spacing than feels comfortable.",
+    "Subtle grain textures or noise overlays can be used for 'Promote' cards to make them pop.",
+    "Never use generic AI emojis for icons.",
+    "Use 'sonner' for toasts if available, or a custom accessible toast component."
+  ]
+}
