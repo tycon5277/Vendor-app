@@ -37,6 +37,11 @@ interface Discount {
   apply_to: string;
   categories: string[];
   product_ids: string[];
+  // BOGO specific fields
+  bogo_buy_product_id?: string;
+  bogo_buy_quantity: number;
+  bogo_get_product_id?: string;
+  bogo_get_quantity: number;
   validity_type: string;
   start_date?: string;
   end_date?: string;
@@ -45,6 +50,13 @@ interface Discount {
   usage_count: number;
   status: string;
   created_at: string;
+}
+
+interface Product {
+  product_id: string;
+  name: string;
+  price: number;
+  unit: string;
 }
 
 export default function DiscountsScreen() {
