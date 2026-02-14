@@ -160,38 +160,33 @@ export default function MainLayout() {
   // Handle hardware back button - centralized in layout
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      const currentPath = pathname;
+      // Use segments for more reliable route detection
+      const currentSegment = segments[segments.length - 1] || '';
       
-      // Clean the path for easier matching
-      const cleanPath = currentPath.replace('/(main)', '').replace(/^\/+/, '/');
-
-      // DEBUG: Log the current path
-      console.log('[BackHandler] Current path:', currentPath, '| Clean path:', cleanPath);
+      // DEBUG: Log navigation info
+      console.log('[BackHandler] Pathname:', pathname, '| Segments:', segments, '| Current:', currentSegment);
 
       // Define sub-screen routes that should go back to their parent tab
       const subScreenParents = {
-        '/promote': '/(main)/products',
-        '/warehouse': '/(main)/products',
-        '/performance': '/(main)/home',
+        'promote': 'products',
+        'warehouse': 'products',
+        'performance': 'home',
       };
 
-      // Check if we're on a sub-screen
-      for (const [subRoute, parentRoute] of Object.entries(subScreenParents)) {
-        if (cleanPath === subRoute || cleanPath.endsWith(subRoute)) {
-          console.log('[BackHandler] Sub-screen detected, navigating to:', parentRoute);
-          router.replace(parentRoute);
-          return true;
-        }
+      // Check if we're on a sub-screen using segment name
+      if (subScreenParents[currentSegment]) {
+        const targetTab = subScreenParents[currentSegment];
+        console.log('[BackHandler] Sub-screen detected:', currentSegment, '-> navigating to:', targetTab);
+        router.navigate(`/(main)/${targetTab}`);
+        return true;
       }
 
       // Define MAIN TAB routes
-      const mainTabRoutes = ['/home', '/orders', '/products', '/chats', '/profile'];
-      const isOnMainTab = mainTabRoutes.some(route => 
-        cleanPath === route || cleanPath.endsWith(route)
-      );
+      const mainTabRoutes = ['home', 'orders', 'products', 'chats', 'profile'];
+      const isOnMainTab = mainTabRoutes.includes(currentSegment);
 
       // Check if we're on the home screen
-      const isOnHomeScreen = cleanPath === '/home' || cleanPath.endsWith('/home');
+      const isOnHomeScreen = currentSegment === 'home';
 
       if (isOnHomeScreen) {
         // Implement "press back twice to exit"
