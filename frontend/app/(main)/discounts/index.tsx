@@ -617,30 +617,6 @@ export default function DiscountsScreen() {
             <View style={{ height: 40 }} />
           </ScrollView>
         </View>
-
-        {/* Date Pickers for web/native */}
-        {showStartDatePicker && (
-          <DateTimePicker
-            value={formData.start_date}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, date) => {
-              setShowStartDatePicker(false);
-              if (date) setFormData(prev => ({ ...prev, start_date: date }));
-            }}
-          />
-        )}
-        {showEndDatePicker && (
-          <DateTimePicker
-            value={formData.end_date}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, date) => {
-              setShowEndDatePicker(false);
-              if (date) setFormData(prev => ({ ...prev, end_date: date }));
-            }}
-          />
-        )}
       </Modal>
     </View>
   );
