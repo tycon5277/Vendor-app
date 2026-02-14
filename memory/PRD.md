@@ -291,3 +291,47 @@ Last Updated: February 14, 2026
 - **Bug Fixed**: `get_status_checkpoints()` now correctly handles 'placed' status for prepaid orders
 - **New Component**: `OrderTimeline.tsx` - Visual progress bar with step-by-step status display
 - **All Tests Passing**: 22/22 backend tests pass
+
+## Latest Changes (Feb 14, 2026) - Discounts & Timings Feature
+
+### Discounts Feature
+Allows vendors to create and manage various discount types:
+- **Percentage Off** (e.g., 15% off)
+- **Flat Amount Off** (e.g., ₹50 off)
+- **BOGO** (Buy X Get Y Free)
+
+**Discount properties:**
+- Coupon codes (optional, auto-generate)
+- Minimum order value
+- Maximum discount cap (for percentage)
+- Validity: Always active or date-range (scheduled)
+- Usage limits
+- One per customer option
+
+**Frontend Components:**
+- `app/(main)/discounts.tsx` - Full CRUD UI with tabs (active/scheduled/expired/disabled)
+- Create/Edit modal with type selection, value, coupon code, validity settings
+
+### Timings Feature
+Allows vendors to manage shop operating hours:
+- **Weekly Schedule**: Set open/close times for each day
+- **Break Times**: Optional mid-day breaks
+- **Holidays**: Add single or multi-day closures
+- **Close Early**: Quick action to close shop early today
+- **Delivery Cutoff**: Configure minutes before closing to stop accepting orders
+
+**Frontend Components:**
+- `app/(main)/timings.tsx` - Current status, weekly schedule editor, holiday management
+- Day schedule modal with time pickers
+- Holiday and close early modals
+
+### Navigation Integration
+- My Shop page (`products/index.tsx`) now has clickable Discounts and Timings buttons
+- Stack navigation properly configured in `(main)/_layout.tsx`
+- Back button navigation works correctly
+
+### Testing
+- 23/23 backend tests pass (100%)
+- Bug fixed: datetime timezone comparison in discount scheduling
+- Test file: `/app/backend/tests/test_discounts_timings.py`
+
