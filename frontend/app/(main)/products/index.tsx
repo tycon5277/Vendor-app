@@ -321,7 +321,7 @@ export default function MyShopScreen() {
           
           <TouchableOpacity 
             style={styles.quickActionCard}
-            onPress={() => router.push('/(main)/promote')}
+            onPress={() => router.push('/(main)/(screens)/promote')}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: '#FCE7F3' }]}>
               <Ionicons name="megaphone" size={24} color="#EC4899" />
