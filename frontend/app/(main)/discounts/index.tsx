@@ -75,9 +75,6 @@ export default function DiscountsScreen() {
     usage_limit: 0,
     one_per_customer: false,
   });
-  
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
   const loadDiscounts = useCallback(async () => {
     try {
