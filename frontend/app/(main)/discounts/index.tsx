@@ -579,13 +579,17 @@ export default function DiscountsScreen() {
                       <View style={[styles.bogoLabel, { backgroundColor: '#DCFCE7' }]}>
                         <Text style={[styles.bogoLabelText, { color: '#22C55E' }]}>GET FREE</Text>
                       </View>
+                      {products.length > 0 && (
+                        <Text style={styles.productCountBadge}>{products.length} products</Text>
+                      )}
                     </View>
                     
-                    <Text style={styles.bogoFieldLabel}>Select Product</Text>
+                    <Text style={styles.bogoFieldLabel}>Select Product (Same or Different)</Text>
                     <ScrollView 
                       horizontal 
                       showsHorizontalScrollIndicator={false}
                       style={styles.productScroll}
+                      contentContainerStyle={{ paddingRight: 16 }}
                     >
                       <TouchableOpacity
                         style={[
@@ -594,9 +598,11 @@ export default function DiscountsScreen() {
                         ]}
                         onPress={() => setFormData(prev => ({ ...prev, bogo_get_product_id: '' }))}
                       >
+                        <Ionicons name="sync" size={14} color={formData.bogo_get_product_id === '' ? '#22C55E' : '#6B7280'} />
                         <Text style={[
                           styles.productChipText,
-                          formData.bogo_get_product_id === '' && styles.productChipTextActive
+                          formData.bogo_get_product_id === '' && styles.productChipTextActive,
+                          formData.bogo_get_product_id === '' && { color: '#22C55E' }
                         ]}>
                           Same Product
                         </Text>
