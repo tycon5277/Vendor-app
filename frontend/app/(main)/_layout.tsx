@@ -173,7 +173,7 @@ export default function MainLayout() {
       // Check if we're on a sub-screen
       for (const [subRoute, parentRoute] of Object.entries(subScreenParents)) {
         if (cleanPath === subRoute || cleanPath.endsWith(subRoute)) {
-          router.replace(parentRoute as any);
+          router.replace(parentRoute);
           return true;
         }
       }
