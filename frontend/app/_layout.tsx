@@ -26,7 +26,7 @@ function InitialLayout() {
       } else if (isAuthenticated && !isVendor && !inAuthGroup) {
         router.replace('/(auth)/register');
       } else if (isAuthenticated && isVendor && inAuthGroup) {
-        router.replace('/(main)/home');
+        router.replace('/(main)/(tabs)/home');
       }
     }, 100);
 
