@@ -225,7 +225,7 @@ placed → confirmed → preparing → ready → awaiting_pickup → picked_up �
 ## Environment Variables
 ```
 # Frontend (.env)
-EXPO_PUBLIC_BACKEND_URL=https://promote-feature.preview.emergentagent.com
+EXPO_PUBLIC_BACKEND_URL=https://discount-timings-hub.preview.emergentagent.com
 
 # Backend (.env)
 MONGO_URL=mongodb://localhost:27017
