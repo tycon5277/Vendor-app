@@ -1,120 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Tabs, useRouter, usePathname, useSegments } from 'expo-router';
+import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackHandler, Platform, ToastAndroid, View, Text, StyleSheet, Animated } from 'react-native';
 
-// Tab Navigator Component
-function TabsNavigator() {
-  const insets = useSafeAreaInsets();
-  const bottomPadding = Math.max(insets.bottom, 12);
-
-  return (
-    <Tabs
-      backBehavior="history"
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: '#6366F1',
-        tabBarInactiveTintColor: '#9CA3AF',
-        tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 1,
-          borderTopColor: '#E5E7EB',
-          paddingBottom: bottomPadding,
-          paddingTop: 10,
-          height: 60 + bottomPadding,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-          marginBottom: 0,
-        },
-        tabBarIconStyle: {
-          marginTop: 2,
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="orders"
-        options={{
-          title: 'Orders',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="receipt" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="products"
-        options={{
-          title: 'My Shop',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="storefront" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="chats"
-        options={{
-          title: 'Chats',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
-          ),
-        }}
-      />
-      {/* Hidden screens - accessible but not shown in tab bar */}
-      <Tabs.Screen
-        name="performance"
-        options={{
-          href: null,
-          tabBarStyle: { display: 'none' },
-        }}
-      />
-      <Tabs.Screen
-        name="warehouse"
-        options={{
-          href: null,
-          tabBarStyle: { display: 'none' },
-        }}
-      />
-      <Tabs.Screen
-        name="promote"
-        options={{
-          href: null,
-          tabBarStyle: { display: 'none' },
-        }}
-      />
-    </Tabs>
-  );
-}
-
 export default function MainLayout() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
-  const segments = useSegments();
   
   // Track back button presses for "press twice to exit" feature
   const lastBackPressRef = useRef(0);
   const [showExitToast, setShowExitToast] = useState(false);
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastScale = useRef(new Animated.Value(0.8)).current;
+
+  // Ensure minimum bottom padding for devices with gesture navigation
+  const bottomPadding = Math.max(insets.bottom, 12);
 
   // Show exit toast with Claymorphism animation
   const showExitNotification = () => {
@@ -157,36 +59,24 @@ export default function MainLayout() {
     });
   };
 
-  // Handle hardware back button - centralized in layout
+  // Handle hardware back button - ONLY for main tabs
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      // Use segments for more reliable route detection
-      const currentSegment = segments[segments.length - 1] || '';
+      // Only handle back for main tab routes
+      // Sub-screens in (screens) folder have their own Stack navigator that handles back automatically
       
-      // DEBUG: Log navigation info
-      console.log('[BackHandler] Pathname:', pathname, '| Segments:', segments, '| Current:', currentSegment);
+      const mainTabRoutes = ['/home', '/orders', '/products', '/chats', '/profile'];
+      const isOnMainTab = mainTabRoutes.some(route => 
+        pathname.endsWith(route) || pathname === `/(main)${route}`
+      );
 
-      // Define sub-screen routes that should go back to their parent tab
-      const subScreenParents = {
-        'promote': 'products',
-        'warehouse': 'products',
-        'performance': 'home',
-      };
-
-      // Check if we're on a sub-screen using segment name
-      if (subScreenParents[currentSegment]) {
-        const targetTab = subScreenParents[currentSegment];
-        console.log('[BackHandler] Sub-screen detected:', currentSegment, '-> navigating to:', targetTab);
-        router.navigate(`/(main)/${targetTab}`);
-        return true;
+      // If not on a main tab, let the default behavior work (Stack navigator handles it)
+      if (!isOnMainTab) {
+        return false;
       }
 
-      // Define MAIN TAB routes
-      const mainTabRoutes = ['home', 'orders', 'products', 'chats', 'profile'];
-      const isOnMainTab = mainTabRoutes.includes(currentSegment);
-
       // Check if we're on the home screen
-      const isOnHomeScreen = currentSegment === 'home';
+      const isOnHomeScreen = pathname.includes('/home');
 
       if (isOnHomeScreen) {
         // Implement "press back twice to exit"
@@ -207,24 +97,92 @@ export default function MainLayout() {
       }
 
       // On other main tabs -> go to Home
-      if (isOnMainTab) {
-        console.log('[BackHandler] Main tab, going to home');
-        router.navigate('/(main)/home');
-        return true;
-      }
-
-      // For nested screens (like product/[id], orders/[id], etc.), use router.back()
-      console.log('[BackHandler] Nested screen, using router.back()');
-      router.back();
+      router.navigate('/(main)/home');
       return true;
     });
 
     return () => backHandler.remove();
-  }, [pathname, segments, router]);
+  }, [pathname, router]);
 
   return (
     <>
-      <TabsNavigator />
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: '#6366F1',
+          tabBarInactiveTintColor: '#9CA3AF',
+          tabBarStyle: {
+            backgroundColor: '#FFFFFF',
+            borderTopWidth: 1,
+            borderTopColor: '#E5E7EB',
+            paddingBottom: bottomPadding,
+            paddingTop: 10,
+            height: 60 + bottomPadding,
+          },
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: '600',
+            marginBottom: 0,
+          },
+          tabBarIconStyle: {
+            marginTop: 2,
+          },
+        }}
+      >
+        <Tabs.Screen
+          name="home"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="home" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="orders"
+          options={{
+            title: 'Orders',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="receipt" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="products"
+          options={{
+            title: 'My Shop',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="storefront" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="chats"
+          options={{
+            title: 'Chats',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="chatbubbles" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: 'Profile',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="person" size={size} color={color} />
+            ),
+          }}
+        />
+        {/* Hide the screens group from tab bar - it uses Stack navigation */}
+        <Tabs.Screen
+          name="(screens)"
+          options={{
+            href: null,
+            tabBarStyle: { display: 'none' },
+          }}
+        />
+      </Tabs>
 
       {/* Claymorphism Exit Toast */}
       {showExitToast && (
