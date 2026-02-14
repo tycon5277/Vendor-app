@@ -207,12 +207,14 @@ placed → confirmed → preparing → ready → awaiting_pickup → picked_up �
 ## Backlog / Future Tasks
 1. **P1: Advanced Genie Assignment Algorithm** - Assign based on nearness, rating, availability
 2. **P1: Payment Gateway Integration** - Integrate Razorpay with Escrow system
-3. **P2: Admin Panel Development** - Build admin UI for analytics
-4. **P2: Vendor App UI for Order Timeline** - Visual timeline in order details
-5. **P3: Wisher App Integration** - Apply prompts from ORDER_TIMELINE_PROMPTS.md
-6. **P3: Genie App Integration** - Apply prompts from ORDER_TIMELINE_PROMPTS.md
-7. **P4: Settlement Timelines** - Define vendor/Genie payout schedules
-8. **P4: Dynamic/Surge Pricing** - Variable delivery fees based on demand
+3. **P1: Implement Discounts Feature** - Create/manage promotional offers in Vendor App
+4. **P1: Implement Timings Feature** - Operating hours management in Vendor App
+5. **P1: Enhance Shop QR Feature** - QR code customization and print templates
+6. **P2: Admin Panel Development** - Build admin UI for analytics
+7. **P3: Wisher App Integration** - Apply prompts from ORDER_TIMELINE_PROMPTS.md
+8. **P3: Genie App Integration** - Apply prompts from ORDER_TIMELINE_PROMPTS.md
+9. **P4: Settlement Timelines** - Define vendor/Genie payout schedules
+10. **P4: Dynamic/Surge Pricing** - Variable delivery fees based on demand
 
 ## Test Credentials
 - Vendor Phone: `9999999999` (has shop setup)
@@ -231,9 +233,44 @@ DB_NAME=test_database
 ```
 
 ---
-Last Updated: February 13, 2026
+Last Updated: February 14, 2026
 
-## Recent Changes (Feb 13, 2026)
+## Recent Changes (Feb 14, 2026)
+### Promote Your Shop Feature (Completed)
+- **New Screen**: `promote.tsx` - Full-featured promotion management
+- **Stats Dashboard**: Real-time reach metrics (impressions, clicks, followers, likes)
+- **Quick Share**: WhatsApp, Facebook, Instagram share buttons
+- **Promotion Types**:
+  - Featured Listing (₹99/day) - Top of Local Hub search
+  - Visibility Boost (₹149/day) - Extended delivery radius
+  - Explore Promotion (₹199/day) - Featured in Explore tab
+- **Duration Selection**: 1, 7, 14, 30 days with savings display
+- **Shop Posts**: Create posts for Explore feed
+
+### New Backend APIs (Vendor)
+- `POST /api/vendor/posts` - Create shop post
+- `GET /api/vendor/posts` - List vendor posts
+- `DELETE /api/vendor/posts/{id}` - Delete post
+- `POST /api/vendor/banners` - Create banner ad
+- `GET /api/vendor/banners` - List banners
+- `POST /api/vendor/promotions` - Create promotion
+- `GET /api/vendor/promotions` - List promotions
+- `GET /api/vendor/promotions/stats` - Promotion statistics
+
+### New Backend APIs (Wisher App Integration)
+- `GET /api/wisher/home/banners` - Banners for Home carousel
+- `POST /api/wisher/banners/{id}/click` - Track banner click
+- `GET /api/wisher/explore/feed` - Explore feed posts
+- `GET /api/wisher/explore/promoted` - Promoted highlights
+- `POST /api/wisher/posts/{id}/like` - Like/unlike post
+- `POST /api/wisher/shops/{id}/follow` - Follow/unfollow shop
+- `GET /api/wisher/localhub/featured` - Featured shops
+
+### Documentation
+- `WIREFRAMES.md` - Detailed UI wireframes for Discounts, Timings, Shop QR, Promote
+- `WISHER_APP_INTEGRATION_PROMPT.md` - Integration guide for Wisher App
+
+## Previous Changes (Feb 13, 2026)
 - **Order Timeline Feature Complete**: Backend endpoints + Vendor App UI component
 - **Bug Fixed**: `get_status_checkpoints()` now correctly handles 'placed' status for prepaid orders
 - **New Component**: `OrderTimeline.tsx` - Visual progress bar with step-by-step status display
