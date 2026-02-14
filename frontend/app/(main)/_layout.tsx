@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Tabs, useRouter, usePathname, Stack } from 'expo-router';
+import { Tabs, useRouter, usePathname, useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackHandler, Platform, ToastAndroid, View, Text, StyleSheet, Animated } from 'react-native';
@@ -11,6 +11,7 @@ function TabsNavigator() {
 
   return (
     <Tabs
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#6366F1',
