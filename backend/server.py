@@ -4985,11 +4985,17 @@ async def create_discount(
     
     if data.validity_type == "date_range" and data.start_date:
         start_dt = datetime.fromisoformat(data.start_date.replace('Z', '+00:00'))
+        # Make timezone-aware if naive
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
         if start_dt > now:
             status = "scheduled"
     
     if data.validity_type == "date_range" and data.end_date:
         end_dt = datetime.fromisoformat(data.end_date.replace('Z', '+00:00'))
+        # Make timezone-aware if naive
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
         if end_dt < now:
             status = "expired"
     
