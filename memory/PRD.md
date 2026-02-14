@@ -220,7 +220,7 @@ placed → confirmed → preparing → ready → awaiting_pickup → picked_up �
 ## Environment Variables
 ```
 # Frontend (.env)
-EXPO_PUBLIC_BACKEND_URL=https://order-lifecycle-7.preview.emergentagent.com
+EXPO_PUBLIC_BACKEND_URL=https://order-timeline-sync.preview.emergentagent.com
 
 # Backend (.env)
 MONGO_URL=mongodb://localhost:27017
