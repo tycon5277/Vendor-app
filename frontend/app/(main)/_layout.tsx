@@ -164,7 +164,7 @@ export default function MainLayout() {
       const cleanPath = currentPath.replace('/(main)', '').replace(/^\/+/, '/');
 
       // Define sub-screen routes that should go back to their parent tab
-      const subScreenParents: Record<string, string> = {
+      const subScreenParents = {
         '/promote': '/(main)/products',
         '/warehouse': '/(main)/products',
         '/performance': '/(main)/home',
