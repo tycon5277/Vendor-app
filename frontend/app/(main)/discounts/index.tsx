@@ -1314,6 +1314,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
     borderWidth: 2,
     borderColor: '#F3F4F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   productChipActive: {
     backgroundColor: '#EEF2FF',
