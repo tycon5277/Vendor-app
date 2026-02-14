@@ -208,17 +208,19 @@ export default function MainLayout() {
 
       // On other main tabs -> go to Home
       if (isOnMainTab) {
-        router.replace('/(main)/home');
+        console.log('[BackHandler] Main tab, going to home');
+        router.navigate('/(main)/home');
         return true;
       }
 
       // For nested screens (like product/[id], orders/[id], etc.), use router.back()
+      console.log('[BackHandler] Nested screen, using router.back()');
       router.back();
       return true;
     });
 
     return () => backHandler.remove();
-  }, [pathname, router]);
+  }, [pathname, segments, router]);
 
   return (
     <>
