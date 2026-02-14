@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { discountAPI, productAPI } from '../../../src/utils/api';
 import { useAlert } from '../../../src/context/AlertContext';
+import { DateWheelPicker } from '../../../src/components/WheelPicker';
 
 const DISCOUNT_TYPES = [
   { id: 'percentage', label: 'Percentage Off', icon: 'trending-down', symbol: '%' },
