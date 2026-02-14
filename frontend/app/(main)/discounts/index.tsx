@@ -518,6 +518,9 @@ export default function DiscountsScreen() {
                       <View style={[styles.bogoLabel, { backgroundColor: '#EEF2FF' }]}>
                         <Text style={[styles.bogoLabelText, { color: '#6366F1' }]}>BUY</Text>
                       </View>
+                      {products.length > 0 && (
+                        <Text style={styles.productCountBadge}>{products.length} products</Text>
+                      )}
                     </View>
                     
                     <Text style={styles.bogoFieldLabel}>Select Product</Text>
@@ -525,6 +528,7 @@ export default function DiscountsScreen() {
                       horizontal 
                       showsHorizontalScrollIndicator={false}
                       style={styles.productScroll}
+                      contentContainerStyle={{ paddingRight: 16 }}
                     >
                       {products.length === 0 ? (
                         <Text style={styles.noProductsText}>No products available. Add products first.</Text>
