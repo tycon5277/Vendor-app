@@ -295,14 +295,22 @@ export default function MyShopScreen() {
 
         {/* Quick Actions Grid */}
         <View style={styles.quickActionsGrid}>
-          <TouchableOpacity style={styles.quickActionCard}>
+          <TouchableOpacity 
+            style={styles.quickActionCard}
+            onPress={() => router.push('/(main)/discounts')}
+            data-testid="myshop-discounts-btn"
+          >
             <View style={[styles.quickActionIcon, { backgroundColor: '#EEF2FF' }]}>
               <Ionicons name="pricetag" size={24} color="#6366F1" />
             </View>
             <Text style={styles.quickActionText}>Discounts</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.quickActionCard}>
+          <TouchableOpacity 
+            style={styles.quickActionCard}
+            onPress={() => router.push('/(main)/timings')}
+            data-testid="myshop-timings-btn"
+          >
             <View style={[styles.quickActionIcon, { backgroundColor: '#FEF3C7' }]}>
               <Ionicons name="time" size={24} color="#F59E0B" />
             </View>
