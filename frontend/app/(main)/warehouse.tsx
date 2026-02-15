@@ -310,7 +310,7 @@ export default function WarehouseScreen() {
           !item.in_stock && styles.productCardOutOfStock,
           isLowStock && styles.productCardLowStock,
         ]}
-        onPress={() => router.push(`/(main)/products/${item.product_id}`)}
+        onPress={() => router.push(`/(main)/product-edit/${item.product_id}`)}
         activeOpacity={0.7}
       >
         <View style={styles.productImageContainer}>
