@@ -40,7 +40,7 @@ Copy everything below this line and paste into a new chat for the Wisher App:
 ## Task: Implement Order Timeline Feature in Wisher App
 
 ### Context
-The shared backend at https://vendor-wisher-sync.preview.emergentagent.com already has the Order Timeline API endpoints implemented. I need you to integrate the order tracking feature into this React Native (Expo) Wisher app.
+The shared backend at https://form-nav-fix.preview.emergentagent.com already has the Order Timeline API endpoints implemented. I need you to integrate the order tracking feature into this React Native (Expo) Wisher app.
 
 ### API Endpoints Available
 
@@ -167,7 +167,7 @@ Copy everything below this line and paste into a new chat for the Genie App:
 ## Task: Implement Order Timeline Feature in Genie App (Fulfillment App)
 
 ### Context
-The shared backend at https://vendor-wisher-sync.preview.emergentagent.com already has the Order Timeline API endpoints implemented. I need you to integrate the delivery management feature into this React Native (Expo) Genie app.
+The shared backend at https://form-nav-fix.preview.emergentagent.com already has the Order Timeline API endpoints implemented. I need you to integrate the delivery management feature into this React Native (Expo) Genie app.
 
 ### API Endpoints Available
 
@@ -390,7 +390,7 @@ GENIE delivers to customer                                                      
 
 ## Notes for User
 
-1. **Backend is Ready**: All the endpoints are already implemented and live at `https://vendor-wisher-sync.preview.emergentagent.com`
+1. **Backend is Ready**: All the endpoints are already implemented and live at `https://form-nav-fix.preview.emergentagent.com`
 
 2. **Authentication**: All endpoints require the user to be logged in. The Bearer token from the existing auth flow should work.
 

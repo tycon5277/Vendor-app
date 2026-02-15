@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 
 # Configuration
-BASE_URL = "https://vendor-wisher-sync.preview.emergentagent.com/api"
+BASE_URL = "https://form-nav-fix.preview.emergentagent.com/api"
 TEST_PHONE = "9876543210"
 TEST_OTP = "123456"
 
