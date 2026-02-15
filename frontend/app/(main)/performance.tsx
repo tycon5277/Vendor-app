@@ -242,7 +242,7 @@ export default function PerformanceScreen() {
                     </View>
                     <TouchableOpacity
                       style={styles.restockBtn}
-                      onPress={() => router.push(`/(main)/products/${product.product_id}`)}
+                      onPress={() => router.push(`/(main)/product-edit/${product.product_id}`)}
                     >
                       <Text style={styles.restockBtnText}>Restock</Text>
                     </TouchableOpacity>
