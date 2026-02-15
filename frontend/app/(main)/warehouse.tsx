@@ -572,7 +572,7 @@ export default function WarehouseScreen() {
             {!searchQuery && (
               <TouchableOpacity 
                 style={styles.emptyAddBtn}
-                onPress={() => router.push('/(main)/products/add')}
+                onPress={() => router.push('/(main)/product-add')}
               >
                 <Ionicons name="add-circle" size={20} color="#FFFFFF" />
                 <Text style={styles.emptyAddBtnText}>Add Product</Text>
