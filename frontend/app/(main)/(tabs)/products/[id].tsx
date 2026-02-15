@@ -148,8 +148,15 @@ export default function EditProductScreen() {
 
       await productAPI.update(id!, productData);
       
-      // Navigate to warehouse with success parameter - this exits the stack completely
-      router.replace('/(main)/warehouse?success=updated');
+      // Set pending toast for warehouse to display
+      setPendingToast({
+        type: 'success',
+        title: 'Success! ✅',
+        message: 'Product updated successfully!',
+      });
+      
+      // Go back to previous screen (properly pops the navigation stack)
+      router.back();
     } catch (error: any) {
       Alert.alert('Error', error.response?.data?.detail || 'Failed to update product');
     } finally {
