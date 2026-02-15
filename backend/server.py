@@ -1270,6 +1270,33 @@ async def update_product(product_id: str, data: ProductUpdate, current_user: Use
             {"product_id": product_id},
             {"$set": update_fields}
         )
+        
+        # SYNC: Also update hub_products for Wisher App visibility
+        hub_update = {}
+        if "name" in update_fields:
+            hub_update["name"] = update_fields["name"]
+        if "description" in update_fields:
+            hub_update["description"] = update_fields["description"]
+        if "price" in update_fields:
+            hub_update["price"] = update_fields["price"]
+        if "discounted_price" in update_fields:
+            hub_update["discounted_price"] = update_fields["discounted_price"]
+        if "category" in update_fields:
+            hub_update["category"] = update_fields["category"]
+        if "image" in update_fields:
+            hub_update["images"] = [update_fields["image"]] if update_fields["image"] else []
+        if "in_stock" in update_fields:
+            hub_update["is_available"] = update_fields["in_stock"]
+        if "stock_quantity" in update_fields:
+            hub_update["stock"] = update_fields["stock_quantity"]
+        if "unit" in update_fields:
+            hub_update["unit"] = update_fields["unit"]
+        
+        if hub_update:
+            await db.hub_products.update_one(
+                {"product_id": product_id},
+                {"$set": hub_update}
+            )
     
     updated = await db.products.find_one({"product_id": product_id}, {"_id": 0})
     return updated
