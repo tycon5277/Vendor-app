@@ -144,6 +144,19 @@ export default function TabsLayout() {
               <Ionicons name="storefront" size={size} color={color} />
             ),
           }}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => {
+              // Reset the products stack to index when tab is pressed
+              const state = navigation.getState();
+              const productsRoute = state.routes.find((r: any) => r.name === 'products');
+              
+              // If products stack has nested routes (add or edit screens), reset to index
+              if (productsRoute?.state?.routes?.length > 1) {
+                e.preventDefault();
+                navigation.navigate('products', { screen: 'index' });
+              }
+            },
+          })}
         />
         <Tabs.Screen
           name="chats"
