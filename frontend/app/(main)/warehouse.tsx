@@ -378,7 +378,7 @@ export default function WarehouseScreen() {
           
           <TouchableOpacity 
             style={styles.editBtn}
-            onPress={() => router.push(`/(main)/products/${item.product_id}`)}
+            onPress={() => router.push(`/(main)/product-edit/${item.product_id}`)}
           >
             <Ionicons name="pencil" size={18} color="#6366F1" />
           </TouchableOpacity>
