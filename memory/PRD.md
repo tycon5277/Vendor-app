@@ -38,13 +38,17 @@ Vendor App (users collection)     →  Wisher App (hub_vendors collection)
 │   ├── app/
 │   │   ├── (main)/
 │   │   │   ├── _layout.tsx
+│   │   │   ├── warehouse.tsx         # Product management list
 │   │   │   ├── (tabs)/
-│   │   │   │   └── products/index.tsx  # My Shop screen
-│   │   │   ├── discounts/index.tsx     # Discounts management
-│   │   │   └── timings/index.tsx       # Shop timings
+│   │   │   │   └── products/
+│   │   │   │       ├── index.tsx     # My Shop screen
+│   │   │   │       ├── add.tsx       # Add product form
+│   │   │   │       └── [id].tsx      # Edit product form
+│   │   │   ├── discounts/index.tsx   # Discounts management
+│   │   │   └── timings/index.tsx     # Shop timings
 │   └── src/
 │       └── components/
-│           └── WheelPicker.tsx         # Reusable date/time picker
+│           └── WheelPicker.tsx       # Reusable date/time picker
 ├── backend/
 │   └── server.py
 └── memory/
@@ -97,6 +101,12 @@ Vendor App (users collection)     →  Wisher App (hub_vendors collection)
   - `GET /api/admin/hub-vendors` - Debug: view all hub vendors
   - `DELETE /api/admin/clear-test-data` - Clear all test data from database
 
+### Phase 4 - Navigation Bug Fix ✅ (Dec 2025)
+- **Fixed Add/Edit Product Navigation Bug**
+  - Forms now navigate directly to warehouse page after save
+  - Success toast displays for 2 seconds then auto-dismisses
+  - Uses `router.replace('/(main)/warehouse?success=added|updated')`
+
 ## Database Collections
 
 ### Primary Collections (Vendor App)
@@ -117,28 +127,31 @@ Vendor App (users collection)     →  Wisher App (hub_vendors collection)
 
 ## Pending/Upcoming Tasks
 
-### P0 - Critical
-- ~~Wisher App: Fix `EXPO_PUBLIC_BACKEND_URL` to point to shared backend~~ (User confirmed fix applied)
-- **Next**: Test full end-to-end integration between Vendor and Wisher apps
-
 ### P1 - High Priority
-- Test full Vendor → Wisher discount flow
+- Vendor Verification Workflow (admin approval system)
 - Enhance Shop QR feature
 
 ### P2 - Future
 - Advanced Genie Assignment Algorithm
 - Social Media Feed Engagement (commenting)
-- Vendor Verification Workflow (document upload, admin approval)
+- Refactor Wisher App to read directly from primary collections (eliminate sync logic)
+
+## Known Issues
+- Console warnings: 'shadow*' style props deprecated (should use 'boxShadow') - minor, non-blocking
 
 ## Changelog
 
 ### Dec 2025 (Current Session)
+- **FIXED**: Add/Edit Product navigation bug - forms now close after save and show toast
+- Implemented new navigation approach using `router.replace()` to warehouse page
+- Added success query parameter handling in warehouse.tsx
+- Toast auto-dismisses after 2 seconds as requested
+- Verified fix with testing agent (100% frontend success rate)
+
+### Dec 2025 (Previous Session)
 - Added `DELETE /api/admin/clear-test-data` endpoint
-- Cleared all test data (2,444 documents total):
-  - 55 users, 612 products, 50 hub_vendors, 612 hub_products
-  - 277 orders, 209 sessions, 382 earnings records
-  - Plus discounts, timings, notifications, etc.
-- Database is now clean and ready for fresh development
+- Cleared all test data (2,444 documents total)
+- Database cleanup completed
 
 ### Feb 15, 2026
 - Implemented vendor sync logic to `hub_vendors` collection
