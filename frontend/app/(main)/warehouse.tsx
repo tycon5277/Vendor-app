@@ -549,7 +549,7 @@ export default function WarehouseScreen() {
         data={filteredProducts}
         renderItem={renderProduct}
         keyExtractor={(item) => item.product_id}
-        contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 20) + 100 }]}
+        contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 40) + 120 }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366F1']} />
         }
