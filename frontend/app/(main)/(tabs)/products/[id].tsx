@@ -49,6 +49,7 @@ export default function EditProductScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const { setPendingToast } = useToastStore();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
