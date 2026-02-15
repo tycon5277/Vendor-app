@@ -95,6 +95,7 @@ Vendor App (users collection)     →  Wisher App (hub_vendors collection)
 - **Admin APIs**
   - `POST /api/admin/sync-all-vendors` - One-time migration utility
   - `GET /api/admin/hub-vendors` - Debug: view all hub vendors
+  - `DELETE /api/admin/clear-test-data` - Clear all test data from database
 
 ## Database Collections
 
