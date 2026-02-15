@@ -50,86 +50,81 @@ Build a vendor management application for a delivery/marketplace platform where 
   - BOGO (Buy X Get Y) with product selection
   - Coupon code support
   - Date range validity
-  - Usage limits
+  - Min order value requirements
+  - Dial/wheel picker for date/time inputs
 
-- **Timings Feature**
-  - Weekly schedule management
-  - Break time configuration
-  - Holiday management with date picker
-  - Close early functionality
+- **Shop Timings Feature**
+  - Weekly schedule with open/close times
+  - Break time support
+  - Holiday management
+  - Early closing feature
+  - Dial/wheel picker for time inputs
 
-### Phase 3 - UI/UX Improvements ✅ (Feb 14, 2026)
-- Dial/wheel style date pickers (replaced text input)
-- Dial/wheel style time pickers
-- BOGO product selector with "Same Product" option
+### Phase 3 - Customer-Facing APIs ✅ (Feb 15, 2026)
+Added customer-facing endpoints for Wisher App integration:
+- `GET /api/shops/{shop_id}/discounts` - Returns active discounts
+- `GET /api/shops/{shop_id}/timings` - Returns operating hours & holidays
+- `POST /api/orders/apply-coupon` - Validates and applies coupon codes
 
-## Database Collections
+## Shared Backend Architecture
 
-### discounts
-```json
-{
-  "discount_id": "disc_xxx",
-  "vendor_id": "user_xxx",
-  "name": "Summer Sale",
-  "type": "percentage|flat|bogo",
-  "value": 10,
-  "bogo_buy_product_id": "prod_xxx",
-  "bogo_buy_quantity": 2,
-  "bogo_get_product_id": "prod_yyy",
-  "bogo_get_quantity": 1,
-  "validity_type": "always|date_range",
-  "start_date": "2026-02-14T00:00:00Z",
-  "end_date": "2026-02-21T00:00:00Z",
-  "status": "active|scheduled|expired|disabled"
-}
-```
+**IMPORTANT**: The Wisher App, Vendor App, and Genie App all share the SAME backend database.
 
-### shop_timings
-```json
-{
-  "vendor_id": "user_xxx",
-  "weekly_schedule": [
-    {
-      "day": "monday",
-      "is_open": true,
-      "open_time": "09:00",
-      "close_time": "21:00",
-      "has_break": true,
-      "break_start": "13:00",
-      "break_end": "14:00"
-    }
-  ],
-  "delivery_cutoff_minutes": 30
-}
-```
+### Database Collections
+- `users` - User accounts (customers, vendors, genies)
+- `products` - Vendor products
+- `shop_orders` - Orders from customers
+- `discounts` - Vendor discount configurations
+- `shop_timings` - Shop operating hours
+- `shop_holidays` - Shop holiday schedules
+- `user_sessions` - Authentication sessions
 
-## Upcoming Tasks
+### API Endpoints by App
 
-### P1 - Shop QR Feature Enhancement
-- Expand QR code functionality for shop discovery
+**Vendor App Uses:**
+- `/api/vendor/*` - Vendor management endpoints
+- `/api/auth/*` - OTP authentication
 
-### P2 - Advanced Genie Assignment Algorithm
-- Implement smarter delivery assignment logic
+**Wisher App Uses:**
+- `/api/shops/{id}/discounts` - Get shop discounts (customer view)
+- `/api/shops/{id}/timings` - Get shop hours (customer view)
+- `/api/orders/apply-coupon` - Apply coupon to cart
+- `/api/wisher/*` - Customer order endpoints
 
-### P3 - Social Media Feed Engagement
-- Add commenting to Explore tab posts
-
-## API Endpoints
-
-### Discounts
-- `GET /api/vendor/discounts` - List all discounts
-- `POST /api/vendor/discounts` - Create discount
-- `PUT /api/vendor/discounts/{id}` - Update discount
-- `DELETE /api/vendor/discounts/{id}` - Delete discount
-- `POST /api/vendor/discounts/{id}/toggle` - Enable/disable
-
-### Timings
-- `GET /api/vendor/timings` - Get shop timings & holidays
-- `PUT /api/vendor/timings/day` - Update day schedule
-- `POST /api/vendor/timings/holidays` - Add holiday
-- `DELETE /api/vendor/timings/holidays/{id}` - Remove holiday
-- `POST /api/vendor/timings/close-early` - Close shop early today
+**Genie App Uses:**
+- `/api/genie/*` - Delivery agent endpoints
 
 ## Test Credentials
-- Phone: Any 10-digit number
-- OTP: `123456` (debug mode)
+- Phone: `9999999999`
+- OTP: `123456`
+
+## Pending/Upcoming Tasks
+
+### P0 - Critical
+- Ensure Wisher App BACKEND_URL points to shared backend
+
+### P1 - High Priority
+- Enhance Shop QR feature
+- Test full Vendor → Wisher discount flow
+
+### P2 - Future
+- Advanced Genie Assignment Algorithm
+- Social Media Feed Engagement (commenting)
+
+## Known Issues
+- OTP input component noted as flaky in web environment (not addressed - not in scope)
+
+## Changelog
+
+### Feb 15, 2026
+- Added customer-facing APIs for Wisher App integration:
+  - `/api/shops/{shop_id}/discounts`
+  - `/api/shops/{shop_id}/timings`
+  - `/api/orders/apply-coupon`
+- Verified API responses match Wisher App expectations
+
+### Feb 14, 2026
+- Fixed Discounts/Timings navigation buttons
+- Implemented BOGO (Buy X Get Y) functionality
+- Replaced text inputs with dial/wheel pickers
+- Generated Wisher App integration prompt
