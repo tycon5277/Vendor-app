@@ -47,6 +47,7 @@ const UNITS = [
 
 export default function AddProductScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { showAlert } = useAlert();
   const [isSubmitting, setIsSubmitting] = useState(false);
