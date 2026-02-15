@@ -759,6 +759,103 @@ async def require_vendor(request: Request, session_token: Optional[str] = Cookie
         raise HTTPException(status_code=403, detail="Vendor access required")
     return user
 
+# ===================== VENDOR SYNC TO HUB_VENDORS =====================
+# This syncs vendor data to hub_vendors collection for Wisher App to display
+
+async def sync_vendor_to_hub(user_id: str):
+    """
+    Sync vendor data from users collection to hub_vendors collection.
+    This ensures Wisher App customers can see all registered vendors.
+    """
+    # Get the vendor from users collection
+    vendor = await db.users.find_one({"user_id": user_id, "partner_type": "vendor"}, {"_id": 0})
+    
+    if not vendor:
+        logger.warning(f"Cannot sync - vendor not found: {user_id}")
+        return False
+    
+    # Build hub_vendor document matching Wisher App's HubVendor model
+    hub_vendor = {
+        "vendor_id": vendor["user_id"],
+        "name": vendor.get("vendor_shop_name") or vendor.get("name") or "Unnamed Shop",
+        "description": vendor.get("vendor_description") or f"Welcome to {vendor.get('vendor_shop_name', 'our shop')}",
+        "category": vendor.get("vendor_shop_type") or "Other",
+        "image": vendor.get("vendor_shop_image") or "",
+        "rating": vendor.get("partner_rating", 0.0),
+        "total_ratings": vendor.get("partner_total_tasks", 0),
+        "location": vendor.get("vendor_shop_location") or {
+            "lat": 0,
+            "lng": 0,
+            "address": vendor.get("vendor_shop_address") or "Address not set"
+        },
+        "contact_phone": vendor.get("phone"),
+        "opening_hours": vendor.get("vendor_opening_hours") or "9:00 AM - 9:00 PM",
+        "has_own_delivery": vendor.get("vendor_can_deliver", False),
+        "delivery_radius_km": 5.0,
+        "is_verified": vendor.get("vendor_is_verified", False),
+        "is_open": vendor.get("partner_status") == "available",
+        # Additional fields for richer data
+        "gst_number": vendor.get("vendor_gst_number"),
+        "license_number": vendor.get("vendor_license_number"),
+        "fssai_number": vendor.get("vendor_fssai_number"),
+        "categories": vendor.get("vendor_categories", []),
+        "created_at": vendor.get("created_at", datetime.now(timezone.utc)),
+        "updated_at": datetime.now(timezone.utc)
+    }
+    
+    # Ensure location has address field
+    if hub_vendor["location"] and "address" not in hub_vendor["location"]:
+        hub_vendor["location"]["address"] = vendor.get("vendor_shop_address") or "Address not set"
+    
+    # Upsert to hub_vendors collection
+    await db.hub_vendors.update_one(
+        {"vendor_id": user_id},
+        {"$set": hub_vendor},
+        upsert=True
+    )
+    
+    logger.info(f"Synced vendor {user_id} ({hub_vendor['name']}) to hub_vendors")
+    return True
+
+
+async def sync_vendor_products_to_hub(vendor_id: str):
+    """
+    Sync vendor products from products collection to hub_products collection.
+    This ensures Wisher App customers can see vendor's products.
+    """
+    # Get all products for this vendor
+    products = await db.products.find({"vendor_id": vendor_id}, {"_id": 0}).to_list(500)
+    
+    for product in products:
+        # Build hub_product document matching Wisher App's Product model
+        hub_product = {
+            "product_id": product["product_id"],
+            "vendor_id": product["vendor_id"],
+            "name": product["name"],
+            "description": product.get("description") or "",
+            "price": product["price"],
+            "discounted_price": product.get("discounted_price"),
+            "images": [product["image"]] if product.get("image") else [],
+            "category": product.get("category") or "General",
+            "stock": product.get("stock_quantity", 100),
+            "likes": 0,
+            "rating": 0.0,
+            "total_ratings": 0,
+            "is_available": product.get("in_stock", True),
+            "unit": product.get("unit", "piece"),
+            "created_at": product.get("created_at", datetime.now(timezone.utc))
+        }
+        
+        # Upsert to hub_products collection
+        await db.hub_products.update_one(
+            {"product_id": product["product_id"]},
+            {"$set": hub_product},
+            upsert=True
+        )
+    
+    logger.info(f"Synced {len(products)} products for vendor {vendor_id} to hub_products")
+    return len(products)
+
 # ===================== AUTH ENDPOINTS =====================
 
 # In-memory OTP storage
