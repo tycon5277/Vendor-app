@@ -179,18 +179,8 @@ export default function AddProductScreen() {
 
       await productAPI.create(productData);
       
-      // Reset form first
-      resetForm();
-      
-      // Show success message
-      showAlert({
-        type: 'success',
-        title: 'Success! 🎉',
-        message: 'Product added successfully',
-      });
-      
-      // Pop to top of the stack (go back to products index)
-      navigation.dispatch(StackActions.popToTop());
+      // Navigate to warehouse with success parameter - this exits the stack completely
+      router.replace('/(main)/warehouse?success=added');
     } catch (error: any) {
       showAlert({
         type: 'error',
