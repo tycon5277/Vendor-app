@@ -146,11 +146,8 @@ export default function EditProductScreen() {
 
       await productAPI.update(id!, productData);
       
-      // Show success message
-      Alert.alert('Success! ✅', 'Product updated successfully');
-      
-      // Pop to top of the stack (go back to products index)
-      navigation.dispatch(StackActions.popToTop());
+      // Navigate to warehouse with success parameter - this exits the stack completely
+      router.replace('/(main)/warehouse?success=updated');
     } catch (error: any) {
       Alert.alert('Error', error.response?.data?.detail || 'Failed to update product');
     } finally {
