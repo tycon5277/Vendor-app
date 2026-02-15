@@ -16,9 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { productAPI } from '../../../../src/utils/api';
-import { useAlert } from '../../../../src/context/AlertContext';
-import { useToastStore } from '../../../../src/store/toastStore';
+import { productAPI } from '../../src/utils/api';
+import { useAlert } from '../../src/context/AlertContext';
+import { useToastStore } from '../../src/store/toastStore';
 
 const PRODUCT_CATEGORIES = [
   { id: 'Groceries', icon: 'basket', label: 'Groceries' },
