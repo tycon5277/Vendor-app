@@ -179,8 +179,8 @@ export default function AddProductScreen() {
 
       await productAPI.create(productData);
       
-      // Navigate back immediately after successful creation
-      router.back();
+      // Navigate back to products list using replace to clear this screen from stack
+      router.replace('/(main)/(tabs)/products');
       
       // Show success message
       showAlert({
