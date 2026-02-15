@@ -19,6 +19,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { productAPI } from '../../src/utils/api';
 import { Product } from '../../src/types';
+import { useToastStore } from '../../src/store/toastStore';
 
 const { width } = Dimensions.get('window');
 
