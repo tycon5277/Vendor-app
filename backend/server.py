@@ -5877,6 +5877,161 @@ async def get_featured_shops(
     
     return {"featured_vendor_ids": featured_vendor_ids}
 
+# ===================== CUSTOMER-FACING DISCOUNTS & TIMINGS APIs =====================
+# These endpoints are used by the Wisher App (customer app) to fetch discounts and timings
+# The Wisher, Vendor, and Genie apps share the SAME database
+
+@api_router.get("/shops/{shop_id}/discounts")
+async def get_shop_discounts(shop_id: str):
+    """Get active discounts for a shop (customer-facing API)"""
+    now = datetime.now(timezone.utc)
+    
+    # Update any expired discounts
+    await db.discounts.update_many(
+        {
+            "vendor_id": shop_id,
+            "status": {"$in": ["active", "scheduled"]},
+            "validity_type": "date_range",
+            "end_date": {"$lt": now}
+        },
+        {"$set": {"status": "expired"}}
+    )
+    
+    # Activate any scheduled discounts
+    await db.discounts.update_many(
+        {
+            "vendor_id": shop_id,
+            "status": "scheduled",
+            "start_date": {"$lte": now}
+        },
+        {"$set": {"status": "active"}}
+    )
+    
+    # Fetch active discounts
+    discounts = await db.discounts.find(
+        {"vendor_id": shop_id, "status": "active"},
+        {"_id": 0}
+    ).to_list(100)
+    
+    # Convert datetime to string for JSON serialization
+    for d in discounts:
+        if d.get("start_date") and isinstance(d["start_date"], datetime):
+            d["start_date"] = d["start_date"].isoformat()
+        if d.get("end_date") and isinstance(d["end_date"], datetime):
+            d["end_date"] = d["end_date"].isoformat()
+        if d.get("created_at") and isinstance(d["created_at"], datetime):
+            d["created_at"] = d["created_at"].isoformat()
+    
+    return {"discounts": discounts}
+
+
+@api_router.get("/shops/{shop_id}/timings")
+async def get_shop_timings(shop_id: str):
+    """Get operating hours for a shop (customer-facing API)"""
+    # Get timings
+    timings = await db.shop_timings.find_one(
+        {"vendor_id": shop_id},
+        {"_id": 0}
+    )
+    
+    if not timings:
+        # Return default timings if not set
+        timings = {
+            "timings_id": None,
+            "vendor_id": shop_id,
+            "weekly_schedule": [
+                {"day": "monday", "is_open": True, "open_time": "09:00", "close_time": "21:00", "has_break": False},
+                {"day": "tuesday", "is_open": True, "open_time": "09:00", "close_time": "21:00", "has_break": False},
+                {"day": "wednesday", "is_open": True, "open_time": "09:00", "close_time": "21:00", "has_break": False},
+                {"day": "thursday", "is_open": True, "open_time": "09:00", "close_time": "21:00", "has_break": False},
+                {"day": "friday", "is_open": True, "open_time": "09:00", "close_time": "21:00", "has_break": False},
+                {"day": "saturday", "is_open": True, "open_time": "10:00", "close_time": "22:00", "has_break": False},
+                {"day": "sunday", "is_open": False, "open_time": "09:00", "close_time": "21:00", "has_break": False},
+            ],
+            "delivery_cutoff_minutes": 30
+        }
+    else:
+        # Convert datetime to string
+        if timings.get("created_at") and isinstance(timings["created_at"], datetime):
+            timings["created_at"] = timings["created_at"].isoformat()
+        if timings.get("updated_at") and isinstance(timings["updated_at"], datetime):
+            timings["updated_at"] = timings["updated_at"].isoformat()
+    
+    # Get holidays
+    holidays = await db.shop_holidays.find(
+        {"vendor_id": shop_id},
+        {"_id": 0}
+    ).sort("date", 1).to_list(50)
+    
+    # Convert datetime fields in holidays
+    for h in holidays:
+        if h.get("created_at") and isinstance(h["created_at"], datetime):
+            h["created_at"] = h["created_at"].isoformat()
+    
+    return {
+        "timings": timings,
+        "holidays": holidays
+    }
+
+
+class ApplyCouponRequest(BaseModel):
+    coupon_code: str
+    shop_id: str
+    order_total: float
+
+
+@api_router.post("/orders/apply-coupon")
+async def apply_coupon(data: ApplyCouponRequest):
+    """Apply a coupon code and get discount amount (customer-facing API)"""
+    coupon_code = data.coupon_code.upper().strip()
+    
+    # Find the discount with this coupon code
+    discount = await db.discounts.find_one({
+        "vendor_id": data.shop_id,
+        "coupon_code": coupon_code,
+        "status": "active"
+    })
+    
+    if not discount:
+        raise HTTPException(status_code=400, detail="Invalid or expired coupon code")
+    
+    # Check minimum order value
+    if data.order_total < discount.get("min_order_value", 0):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Minimum order value is ₹{discount['min_order_value']}"
+        )
+    
+    # Check validity dates
+    now = datetime.now(timezone.utc)
+    if discount.get("validity_type") == "date_range":
+        start = discount.get("start_date")
+        end = discount.get("end_date")
+        if start and isinstance(start, datetime) and start > now:
+            raise HTTPException(status_code=400, detail="Coupon is not yet active")
+        if end and isinstance(end, datetime) and end < now:
+            raise HTTPException(status_code=400, detail="Coupon has expired")
+    
+    # Check usage limit
+    if discount.get("usage_limit") and discount.get("usage_count", 0) >= discount["usage_limit"]:
+        raise HTTPException(status_code=400, detail="Coupon usage limit reached")
+    
+    # Calculate discount amount
+    discount_amount = 0
+    if discount["type"] == "percentage":
+        discount_amount = (data.order_total * discount["value"]) / 100
+        if discount.get("max_discount"):
+            discount_amount = min(discount_amount, discount["max_discount"])
+    elif discount["type"] == "flat":
+        discount_amount = min(discount["value"], data.order_total)
+    
+    return {
+        "valid": True,
+        "discount_amount": round(discount_amount, 2),
+        "message": f"Coupon applied! You save ₹{round(discount_amount, 2)}"
+    }
+
+
 # ===================== HEALTH CHECK =====================
 
 @api_router.get("/")
