@@ -178,14 +178,15 @@ export default function AddProductScreen() {
       };
 
       await productAPI.create(productData);
+      
+      // Navigate back immediately after successful creation
+      router.back();
+      
+      // Show success message
       showAlert({
         type: 'success',
         title: 'Success! 🎉',
         message: 'Product added successfully',
-        buttons: [
-          { text: 'Add Another', onPress: () => resetForm() },
-          { text: 'Done', onPress: () => router.back() },
-        ],
       });
     } catch (error: any) {
       showAlert({
