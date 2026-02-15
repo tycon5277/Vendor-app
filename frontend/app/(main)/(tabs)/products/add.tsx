@@ -179,8 +179,8 @@ export default function AddProductScreen() {
 
       await productAPI.create(productData);
       
-      // Navigate back to products list using replace to clear this screen from stack
-      router.replace('/(main)/(tabs)/products');
+      // Reset form first in case navigation fails
+      resetForm();
       
       // Show success message
       showAlert({
@@ -188,6 +188,9 @@ export default function AddProductScreen() {
         title: 'Success! 🎉',
         message: 'Product added successfully',
       });
+      
+      // Navigate back to products index - use dismissTo to clear stack
+      router.dismissTo('/(main)/(tabs)/products');
     } catch (error: any) {
       showAlert({
         type: 'error',
