@@ -6236,6 +6236,77 @@ async def get_all_hub_vendors():
     return {"count": len(vendors), "vendors": vendors}
 
 
+# ===================== LOCALHUB ENDPOINTS (FOR WISHER APP) =====================
+
+@api_router.get("/localhub/vendors")
+async def get_hub_vendors(
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    radius_km: float = 5.0,
+    category: Optional[str] = None
+):
+    """Get hub vendors with radius filtering (max 10km) - Wisher App compatibility"""
+    from math import radians, sin, cos, sqrt, atan2
+    
+    radius_km = min(radius_km, 10.0)  # Max 10km
+    
+    query = {}
+    if category:
+        query["category"] = category
+    
+    vendors = await db.hub_vendors.find(query, {"_id": 0}).to_list(100)
+    
+    # If location provided, filter by distance
+    if lat and lng:
+        def haversine(lat1, lng1, lat2, lng2):
+            R = 6371  # Earth's radius in km
+            dlat = radians(lat2 - lat1)
+            dlng = radians(lng2 - lng1)
+            a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlng/2)**2
+            c = 2 * atan2(sqrt(a), sqrt(1-a))
+            return R * c
+        
+        filtered = []
+        for vendor in vendors:
+            if "location" in vendor and vendor["location"]:
+                vlat = vendor["location"].get("lat", 0)
+                vlng = vendor["location"].get("lng", 0)
+                if vlat and vlng:
+                    distance = haversine(lat, lng, vlat, vlng)
+                    if distance <= radius_km:
+                        vendor["distance_km"] = round(distance, 2)
+                        filtered.append(vendor)
+        
+        # Sort by distance
+        filtered.sort(key=lambda x: x.get("distance_km", 999))
+        return {"vendors": filtered}
+    
+    return {"vendors": vendors}
+
+
+@api_router.get("/localhub/vendors/{vendor_id}")
+async def get_vendor_details(vendor_id: str):
+    """Get detailed vendor information - Wisher App compatibility"""
+    vendor = await db.hub_vendors.find_one({"vendor_id": vendor_id}, {"_id": 0})
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    return vendor
+
+
+@api_router.get("/localhub/vendors/{vendor_id}/products")
+async def get_vendor_products_for_wisher(
+    vendor_id: str,
+    category: Optional[str] = None
+):
+    """Get products for a vendor - Wisher App compatibility"""
+    query = {"vendor_id": vendor_id}
+    if category:
+        query["category"] = category
+    
+    products = await db.hub_products.find(query, {"_id": 0}).to_list(500)
+    return {"products": products}
+
+
 # ===================== HEALTH CHECK =====================
 
 @api_router.get("/")
