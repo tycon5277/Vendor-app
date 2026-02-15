@@ -129,6 +129,14 @@ Vendor App (users collection)     →  Wisher App (hub_vendors collection)
 
 ## Changelog
 
+### Dec 2025 (Current Session)
+- Added `DELETE /api/admin/clear-test-data` endpoint
+- Cleared all test data (2,444 documents total):
+  - 55 users, 612 products, 50 hub_vendors, 612 hub_products
+  - 277 orders, 209 sessions, 382 earnings records
+  - Plus discounts, timings, notifications, etc.
+- Database is now clean and ready for fresh development
+
 ### Feb 15, 2026
 - Implemented vendor sync logic to `hub_vendors` collection
 - Added product sync to `hub_products` collection
