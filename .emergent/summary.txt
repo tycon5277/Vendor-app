@@ -1,145 +1,122 @@
 <analysis>**original_problem_statement:**
-The user initially requested the removal of a demo order flow, which was completed. The project then pivoted to a new Order Timeline feature to synchronize order status across three applications: Wisher (customer), Genie (driver), and Vendor (shop), all using a shared backend. This was successfully implemented and tested.
+The user initially reported that the Discounts and Timings buttons in the Vendor App were not working. After fixing this navigation bug and another subsequent app-loading crash, the user requested several enhancements to the  feature, including full support for Buy X Get Y (BOGO) offers. The user then requested that all date and time inputs be changed from text fields to dial/wheel-style pickers.
 
-The user then requested feature ideation for the My Shop tab in the Vendor App, focusing on , , , and  buttons. After detailed planning and wireframing, the user prioritized the Promote feature.
-
-The user elaborated on their vision for promotions, specifying how they should appear in the Wisher App: as banners on the  tab and as promoted posts in a social-media-style  tab. The agent was tasked with building the backend and Vendor App UI for this feature and providing a direct integration prompt for the user to paste into the separate Wisher App repository.
+Finally, the user asked for a detailed prompt to be created, which could be used in a separate session with another agent to implement the corresponding  and  features in the customer-facing Wisher App. The user specified that the Wisher, Vendor, and Genie apps all share the same backend, and this logic must be preserved.
 
 **PRODUCT REQUIREMENTS:**
-1.  **Shared Backend for Promotions:** Implement APIs to create, manage, and retrieve various promotion types (Banners, Featured Listings, Explore Posts).
-2.  **Vendor App UI:** Build a Promote screen where vendors can create promotional campaigns, post updates to the Explore feed, and view analytics.
-3.  **Wisher App Integration:** Promotions created by vendors must be reflected in the Wisher App.
-    *   **Home Tab:** Display a carousel of paid banner ads.
-    *   **Local Hub Tab:** Show a Featured badge on promoted shops.
-    *   **Explore Tab:** Display promoted posts and organic shop updates in a social media-style feed, replacing the current hardcoded data.
-4.  **Cross-Repository Implementation:** Since the Wisher App is in an external repository, the agent must provide a comprehensive code prompt for the user to apply the necessary changes.
+1.  **BUG:** Fix non-functional  and  buttons. (DONE)
+2.  **BUG:** Fix app crash caused by missing dependency. (DONE)
+3.  **FEATURE:** Implement full BOGO (Buy X Get Y) functionality in the Create Discount form, including selectors for both the buy and get products. (DONE)
+4.  **IMPROVEMENT:** Replace all text-based date and time inputs in the  and  screens with interactive, dial/wheel-style pickers. (DONE)
+5.  **TASK:** Generate a comprehensive prompt for an AI agent to build the customer-facing  and  features in the Wisher App, based on detailed user specifications. (DONE)
 
 **User's preferred language**: English
 
 **what currently exists?**
-The shared FastAPI backend has been extended with new collections (, , ) and corresponding API endpoints to manage the entire promotion lifecycle. The Vendor App (React Native) now has a new Promote screen, accessible from the My Shop tab, which allows vendors to create Featured Listing, Visibility Boost, and Explore Promotion campaigns. The UI for creating these promotions is functional. The agent has also created a markdown file containing the integration prompt for the Wisher App but has not yet provided it to the user.
+The Vendor App, built with React Native (Expo) and a FastAPI backend, now has fully functional and user-verified  and  management features.
+
+Initially, a navigation bug preventing access to these screens was fixed by reorganizing the file structure to align with Expo Router's expectations. A subsequent app crash was resolved by removing a missing dependency () and replacing its functionality.
+
+The Discounts feature was significantly enhanced to support complex Buy X Get Y (BOGO) offers, with a UI for selecting both the product to buy and the product to get for free.
+
+Finally, based on user feedback, all date and time input fields across the  and  screens were replaced with custom, reusable dial/wheel-style picker components for a better user experience. The agent's last action was to generate a detailed prompt for implementing the client-side features in the separate Wisher App.
 
 **Last working item**:
--   **Last item agent was working:** The agent had just finished implementing and testing the Promote feature in the Vendor App. The final step was to provide the user with the integration prompt for the external Wisher App. The agent created the file  but then called the  tool without displaying the content of the file, despite the user's explicit request: 
--   **Status:** BLOCKED
--   **Agent Testing Done:** Y (for the Vendor App UI and backend APIs)
--   **Which testing method agent to use?** NA (The immediate task is to provide information, not test code). After the user applies the prompt, the  should be used for end-to-end verification across both apps.
--   **User Testing Done:** N
+-   **Last item agent was working:** The agent generated a detailed, copy-paste-ready prompt for another AI agent to implement the  and  features in the Wisher App. This prompt includes detailed requirements, API specifications, and UI/UX guidelines provided by the user.
+-   **Status:** FINISHED
+-   **Agent Testing Done:** N/A (The task was to generate a text prompt).
+-   **Which testing method agent to use?** N/A
+-   **User Testing Done:** Y (User has received the prompt).
 
 **All Pending/In progress Issue list**:
--   **Issue 1: (P0 - CRITICAL BLOCKER) User is waiting for the Wisher App integration prompt.**
-    -   **Attempted fixes:** The previous agent created the prompt in  but failed to output it to the user before finishing the job.
-    -   **Next debug checklist:**
-        1.  Read the content of .
-        2.  Provide the full content of the file to the user as their next message.
-    -   **Why fix this issue and what will be achieved with the fix?** This is the user's last and most direct request. Fulfilling it will unblock the user and allow them to connect the new Promote feature to their Wisher App, making the feature functional from end-to-end.
-    -   **Status:** NOT STARTED
-    -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Both. A full end-to-end test will be required after the user applies the prompt.
-    -   **Blocked on other issue:** None.
+None. All issues from this session have been resolved and verified by the user.
 
 **In progress Task List**:
 None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   **(P1) Implement  Feature:** Design and build the UI and backend logic for vendors to create and manage various discount types (percentage, flat, BOGO).
-    -   **(P1) Implement  Feature:** Build the UI and backend logic for vendors to manage their shop's operating hours, holidays, and temporary closures.
-    -   **(P2) Enhance  Feature:** Expand the existing QR code functionality with more options like product-specific codes, customizable designs, and analytics.
-
+    -   **(P0) Wisher App: Discounts & Timings Integration:** Implement the customer-facing features in the Wisher App using the generated prompt. This is the next logical step.
+    -   **(P1) Enhance  Feature:** Expand the existing QR code functionality in the Vendor App.
 -   **Future Tasks:**
-    -   **(P2) Advanced Genie Assignment Algorithm:** Implement a more complex algorithm (based on nearness, rating, etc.) to determine which genie is offered a delivery job first.
-    -   **(P3) Social Media Feed Engagement:** Add more social features to the Explore tab, such as commenting on posts and user-to-user interactions.
+    -   **(P2) Advanced Genie Assignment Algorithm:** Implement a more complex algorithm for assigning delivery jobs in the Genie App.
+    -   **(P3) Social Media Feed Engagement:** Add features like commenting to the Explore tab in the Wisher App.
 
 **Completed work in this session**
--   **Feature Ideation & Wireframing:** Brainstormed and created detailed wireframes for the My Shop tab features (, , , ).
--   **External Code Analysis:** Analyzed the external Wisher App repository to understand its tab structure, navigation, and the state of the , , and  screens.
--   **Backend Promotion APIs:** Implemented new endpoints in  to handle creation and retrieval of banners, shop posts, and promotions.
--   **Vendor App Promote UI:** Created a new screen at  with a UI for creating and viewing promotions.
--   **Navigation Update:** Modified  to link the Promote button to the new screen and updated  to include the route.
--   **Documentation:** Created  and . Updated .
+-   **Navigation Bug Fix:** Resolved non-functional Discounts & Timings buttons by moving screen files into the correct folder structure for Expo Router (e.g.,  -> ).
+-   **App Crash Fix:** Removed the missing  dependency and replaced its usage with web-compatible  components.
+-   **BOGO Feature Implementation:** Enhanced the Discounts backend model and frontend form to fully support Buy X Get Y offers, including fetching and displaying product lists for selection.
+-   **UI/UX Enhancement:** Replaced all text-based date and time inputs with custom, reusable dial/wheel-style picker components (, ) in both the  and  screens.
+-   **Wisher App Prompt Generation:** Created a comprehensive prompt with detailed requirements for implementing the corresponding features in the Wisher App.
 
 **Earlier issues found/mentioned but not fixed**
-None.
+-   **OTP Input Flakiness:** The OTP input component was noted as being flaky and difficult to test in the web environment in a previous session. This was not addressed as it was not part of the user's requests.
 
 **Known issue recurrence from previous fork**
-None.
+-   None.
 
 **Code Architecture**
+The frontend uses Expo Router with a file-based navigation system, including a root Stack Navigator and a nested Tab Navigator. A new reusable component has been introduced.
 
 
 **Key Technical Concepts**
--   **Multi-App Architecture:** A single backend serves three distinct frontend applications.
--   **Cross-Repository Development:** The agent analyzes external code and provides integration prompts for the user to implement changes in separate projects.
--   **API-Driven UI:** The Wisher App's UI (e.g., Explore feed, banners) is designed to be populated by API calls, decoupling it from hardcoded data.
+-   **Expo Router:** Deep understanding of file-based routing, including how folder structures () map to route names.
+-   **State Management (React):** Extensive use of  and  to manage complex form state, including conditional UI for BOGO discounts and fetching product lists.
+-   **Custom Components:** Creation of a reusable, styled  component for a better date/time selection experience on mobile.
+-   **API Integration:** Modifications to the FastAPI backend (Pydantic models, API endpoints) to support new data fields for BOGO offers.
 
 **key DB schema**
+-   **discounts:** Updated to include BOGO-specific fields: , , , .
+-   **shop_timings:** Stores shop operating hours, breaks, and holidays.
 -   **shop_orders:** Manages the order lifecycle.
--   **banners:** (New) Stores data for banner ads on the Wisher App's Home tab. .
--   **promotions:** (New) Manages featured listings and visibility boosts. .
--   **shop_posts:** (New) Stores organic and promoted content for the Wisher App's Explore feed. .
+-   **products:** Stores vendor products (used for BOGO selectors).
 
 **changes in tech stack**
-None.
+-   None.
 
 **All files of reference**
--   : **(CRITICAL)** Contains the code prompt the user is waiting for.
--   : Updated with new promotion endpoints.
--   : The new UI screen for the Promote feature.
--   : The My Shop screen, modified to navigate to the promote screen.
--   : Updated to register the new  route.
--   : Updated product requirements document.
-
-**Areas that need refactoring**:
--   The Wisher App's  file currently uses hardcoded mock data for its feed. The integration prompt in  is designed to replace this with live API calls.
-
-**key api endpoints**
--   : Fetches banner ads for the Wisher App home screen.
--   : Fetches the main content feed for the Explore tab.
--   : Fetches highlighted promotions for the Explore tab.
--   : Creates a new promotion campaign.
--   : Creates a new banner ad.
--   : Creates a new shop post for the Explore feed.
+-   : Backend models and API logic for discounts were updated.
+-   : Major UI and logic changes for BOGO and the new date picker.
+-   : UI changes to implement the new date and time pickers.
+-   : New reusable component for dial-style date/time selection.
+-   : The generated prompt for the next phase of work on the Wisher App.
 
 **Critical Info for New Agent**
--   Your absolute first priority is to fulfill the user's last request. Read the file  and provide its full content to the user. Do not attempt any other action until this is done.
--   The Promote feature is only half-complete. It is built in the Vendor App, but it provides no value until the Wisher App is integrated to display the promotions.
--   After the user confirms they have applied the prompt, you should propose a full end-to-end test using the  to verify that creating a promotion in the Vendor App correctly displays it in the Wisher App.
+-   **Vendor App work is complete:** All requested features and fixes for the Vendor App in this session are done and have been confirmed as working by the user.
+-   **Next Task is Wisher App:** The immediate next step is to work on the Wisher App. A detailed prompt has been generated and is located at . This prompt contains all the necessary context, requirements, and API details.
+-   **Shared Backend:** Remember that the Wisher, Vendor, and Genie apps all share the same backend. The required APIs for discounts and timings are already built and should be consumed, not recreated.
 
 **documents and test reports created in this job**
 -   
--   
--   
--   
--   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  ** (PENDING)**: The user is explicitly asking for the Wisher App integration prompt. This is the current, unresolved task.
-2.  ****: User approved the plan to build the Vendor App feature and provide the Wisher App integration prompt.
-3.  ****: Agent confirmed alignment on the implementation plan after analyzing the Wisher App repo.
-4.  ****: User confirmed the agent's understanding was mostly correct but requested the agent analyze the Wisher App's GitHub repo before implementation to ensure accuracy.
-5.  ****: Agent presented a detailed breakdown of the promotion system and its architecture across all apps.
-6.  ****: User provided detailed requirements for the  and  tabs in the Wisher App and how promotions should be reflected there.
-7.  ****: User asked for clarification on where the promotions would appear for the end-user (the wisher).
-8.  ****: Agent summarized the wireframes created.
-9.  ****: User requested the agent to create wireframes/mockups for the proposed features.
-10. ****: Agent presented detailed feature ideas for all four My Shop buttons and asked the user for prioritization.
+1.  **User:** Requests a prompt to reflect the  and  changes in the Wisher App. (RESOLVED)
+2.  **Agent:** Asks clarifying questions about how discounts and timings should appear and function in the Wisher App. (RESOLVED)
+3.  **User:** Provides detailed answers to all of the agent's questions, specifying UI/UX details like BOGO popups and savings summaries. (RESOLVED)
+4.  **User:** Clarifies that the prompt should be for an Emergent AI agent and that all three apps (Wisher, Vendor, Genie) share a backend. Provides a GitHub link for the Wisher app. (RESOLVED)
+5.  **Agent:** Generates and provides the comprehensive, copy-paste-ready prompt for the Wisher App integration, saving it to a file as well. (RESOLVED)
+6.  **User:** Asks for markers indicating where the prompt starts and ends for copying. (RESOLVED)
+7.  **Agent:** Updates the response to clearly delineate the start and end of the prompt content. (RESOLVED)
+8.  **User:**  (Confirms the dial-picker feature is working correctly). (RESOLVED)
+9.  **User:**  (Requests the wheel/dial picker feature). (RESOLVED)
+10. **User:**  (Reports a bug in the BOGO implementation). (RESOLVED)
 
 **Project Health Check:**
--   **Broken:** None
--   **Mocked:** The  file in the external Wisher App uses mocked data, which the pending integration prompt aims to fix.
+-   **Broken:** None. The Vendor app features are working.
+-   **Mocked:** The  file in the Wisher App codebase likely still uses mocked data (as per the previous fork's summary).
 
 **3rd Party Integrations**
 -   **Expo:** Framework for universal React applications.
 
 **Testing status**
--   **Testing agent used after significant changes:** NO (Only self-testing via screenshots was performed for the Vendor App UI).
+-   **Testing agent used after significant changes:** NO (for the most recent changes).
 -   **Troubleshoot agent used after agent stuck in loop:** NO
--   **Test files created:** None.
--   **Known regressions:** None.
+-   **Test files created:** None in this session.
+-   **Known regressions:** None. The user manually tested and confirmed the final features are working as expected.
 
 **Credentials to test flow:**
-Login is OTP-based. A phone number like  can be used to receive a mock OTP.
+-   Phone number: 
+-   OTP: 
 
 **What agent forgot to execute**
-The previous agent failed to execute the most critical final step: providing the user with the contents of . The agent created the file but then finished the session, leaving the user waiting for the prompt they had just requested.</analysis>
+-   None. The agent successfully followed all user requests in this session, leading to user confirmation of the completed work.</analysis>

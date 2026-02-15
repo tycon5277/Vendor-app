@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://vendor-shop-nav-fix.preview.emergentagent.com"
+    BASE_URL = "https://wheel-picker-timings.preview.emergentagent.com"
 
 VENDOR_PHONE = "9999999999"
 OTP = "123456"

@@ -10,7 +10,7 @@ import sys
 from datetime import datetime
 
 # Backend URL from frontend/.env
-BACKEND_URL = "https://vendor-shop-nav-fix.preview.emergentagent.com/api"
+BACKEND_URL = "https://wheel-picker-timings.preview.emergentagent.com/api"
 
 # Test credentials
 TEST_PHONE = "9876543210"
