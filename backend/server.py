@@ -6762,6 +6762,56 @@ async def get_vendor_products_for_wisher(
     return {"products": products}
 
 
+@api_router.get("/localhub/search")
+async def search_vendors_and_products(
+    q: str,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None
+):
+    """Search vendors and products by name - Wisher App"""
+    if not q or len(q) < 2:
+        return {"vendors": [], "products": []}
+    
+    # Search vendors by name
+    vendors = await db.hub_vendors.find(
+        {"name": {"$regex": q, "$options": "i"}},
+        {"_id": 0}
+    ).to_list(20)
+    
+    # Search products by name
+    products = await db.hub_products.find(
+        {"name": {"$regex": q, "$options": "i"}},
+        {"_id": 0}
+    ).to_list(50)
+    
+    return {"vendors": vendors, "products": products}
+
+
+@api_router.get("/localhub/categories")
+async def get_vendor_categories():
+    """Get all available vendor categories - Wisher App"""
+    vendors = await db.hub_vendors.find({}, {"category": 1, "_id": 0}).to_list(1000)
+    categories = list(set([v.get("category") for v in vendors if v.get("category")]))
+    return {"categories": sorted(categories)}
+
+
+@api_router.get("/localhub/products")
+async def get_all_hub_products(
+    category: Optional[str] = None,
+    in_stock: Optional[bool] = None,
+    limit: int = 50
+):
+    """Get all products from hub - Wisher App"""
+    query = {}
+    if category:
+        query["category"] = category
+    if in_stock is not None:
+        query["is_available"] = in_stock
+    
+    products = await db.hub_products.find(query, {"_id": 0}).to_list(limit)
+    return {"products": products, "count": len(products)}
+
+
 # ===================== HEALTH CHECK =====================
 
 @api_router.get("/")
