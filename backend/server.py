@@ -6236,6 +6236,56 @@ async def get_all_hub_vendors():
     return {"count": len(vendors), "vendors": vendors}
 
 
+@api_router.delete("/admin/clear-test-data")
+async def clear_all_test_data():
+    """
+    Clear all test data from the database.
+    WARNING: This permanently deletes all vendors, products, orders, and related data.
+    Use with caution - primarily for development/testing purposes.
+    """
+    deleted_counts = {}
+    
+    # List of collections to clear
+    collections_to_clear = [
+        "users",           # Vendor/user accounts
+        "products",        # Vendor products  
+        "hub_vendors",     # Synced vendor data for Wisher App
+        "hub_products",    # Synced products for Wisher App
+        "shop_orders",     # Orders
+        "discounts",       # Vendor discounts
+        "shop_timings",    # Shop operating hours
+        "shop_holidays",   # Holidays
+        "earnings",        # Earnings records
+        "user_sessions",   # User sessions
+        "notifications",   # Notifications
+        "analytics_events", # Analytics
+        "delivery_requests", # Delivery requests
+        "agent_profiles",  # Genie/agent profiles
+        "chat_rooms",      # Chat rooms
+        "messages",        # Chat messages
+        "vendor_posts",    # Vendor posts
+        "vendor_banners",  # Vendor banners
+        "promotions",      # Promotions
+    ]
+    
+    for collection_name in collections_to_clear:
+        try:
+            result = await db[collection_name].delete_many({})
+            deleted_counts[collection_name] = result.deleted_count
+            logger.info(f"Cleared {result.deleted_count} documents from {collection_name}")
+        except Exception as e:
+            deleted_counts[collection_name] = f"Error: {str(e)}"
+            logger.error(f"Error clearing {collection_name}: {e}")
+    
+    total_deleted = sum(v for v in deleted_counts.values() if isinstance(v, int))
+    
+    return {
+        "message": "Test data cleared successfully",
+        "total_deleted": total_deleted,
+        "details": deleted_counts
+    }
+
+
 # ===================== LOCALHUB ENDPOINTS (FOR WISHER APP) =====================
 
 @api_router.get("/localhub/vendors")
