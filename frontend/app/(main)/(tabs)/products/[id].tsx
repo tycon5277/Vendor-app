@@ -146,10 +146,10 @@ export default function EditProductScreen() {
 
       await productAPI.update(id!, productData);
       
-      // Navigate back immediately after successful update
-      router.back();
+      // Navigate back to products list using replace to clear this screen from stack
+      router.replace('/(main)/(tabs)/products');
       
-      // Show success message (will appear on previous screen or as toast)
+      // Show success message (will appear on products list screen)
       Alert.alert('Success! ✅', 'Product updated successfully');
     } catch (error: any) {
       Alert.alert('Error', error.response?.data?.detail || 'Failed to update product');
