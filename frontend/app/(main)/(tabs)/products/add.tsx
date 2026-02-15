@@ -181,8 +181,15 @@ export default function AddProductScreen() {
 
       await productAPI.create(productData);
       
-      // Navigate to warehouse with success parameter - this exits the stack completely
-      router.replace('/(main)/warehouse?success=added');
+      // Set pending toast for warehouse to display
+      setPendingToast({
+        type: 'success',
+        title: 'Success! 🎉',
+        message: 'Product added successfully!',
+      });
+      
+      // Go back to previous screen (properly pops the navigation stack)
+      router.back();
     } catch (error: any) {
       showAlert({
         type: 'error',
