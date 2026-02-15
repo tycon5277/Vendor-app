@@ -6196,6 +6196,46 @@ async def apply_coupon(data: ApplyCouponRequest):
     }
 
 
+# ===================== ADMIN: SYNC ALL VENDORS TO HUB =====================
+
+@api_router.post("/admin/sync-all-vendors")
+async def sync_all_vendors_to_hub():
+    """
+    Admin endpoint to sync all existing vendors to hub_vendors collection.
+    This is a one-time migration utility for existing data.
+    """
+    # Get all vendors from users collection
+    vendors = await db.users.find(
+        {"partner_type": "vendor"},
+        {"_id": 0}
+    ).to_list(10000)
+    
+    synced_count = 0
+    product_count = 0
+    
+    for vendor in vendors:
+        # Sync vendor to hub_vendors
+        await sync_vendor_to_hub(vendor["user_id"])
+        synced_count += 1
+        
+        # Sync their products to hub_products
+        count = await sync_vendor_products_to_hub(vendor["user_id"])
+        product_count += count
+    
+    return {
+        "message": f"Synced {synced_count} vendors and {product_count} products to hub collections",
+        "vendors_synced": synced_count,
+        "products_synced": product_count
+    }
+
+
+@api_router.get("/admin/hub-vendors")
+async def get_all_hub_vendors():
+    """Get all vendors in hub_vendors collection (for debugging)"""
+    vendors = await db.hub_vendors.find({}, {"_id": 0}).to_list(100)
+    return {"count": len(vendors), "vendors": vendors}
+
+
 # ===================== HEALTH CHECK =====================
 
 @api_router.get("/")
