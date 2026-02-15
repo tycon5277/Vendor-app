@@ -6236,6 +6236,411 @@ async def get_all_hub_vendors():
     return {"count": len(vendors), "vendors": vendors}
 
 
+@api_router.post("/admin/seed-demo-data")
+async def seed_demo_data():
+    """
+    Create comprehensive demo data with 7 vendors, 15+ products each,
+    various discount types, and shop timings for testing.
+    """
+    import random
+    
+    created_vendors = []
+    total_products = 0
+    total_discounts = 0
+    
+    # ==================== VENDOR DEFINITIONS ====================
+    vendors_data = [
+        {
+            "name": "Rajesh Kumar",
+            "shop_name": "Fresh Mart Grocery",
+            "shop_type": "Grocery",
+            "description": "Your neighborhood grocery store with fresh daily essentials, spices, and household items at competitive prices.",
+            "address": "Shop 12, Market Complex, Sector 15, Gurugram",
+            "location": {"lat": 28.4595, "lng": 77.0266},
+            "can_deliver": True,
+            "opening_hours": "7:00 AM - 10:00 PM",
+            "categories": ["Groceries", "Spices", "Dairy", "Snacks"],
+            "products": [
+                {"name": "Basmati Rice (5kg)", "price": 450, "category": "Groceries", "unit": "bag"},
+                {"name": "Toor Dal (1kg)", "price": 180, "category": "Groceries", "unit": "kg"},
+                {"name": "Refined Oil (1L)", "price": 165, "category": "Groceries", "unit": "liter"},
+                {"name": "Sugar (1kg)", "price": 48, "category": "Groceries", "unit": "kg"},
+                {"name": "Atta Whole Wheat (10kg)", "price": 520, "category": "Groceries", "unit": "bag"},
+                {"name": "Red Chilli Powder (200g)", "price": 85, "category": "Spices", "unit": "pack"},
+                {"name": "Turmeric Powder (200g)", "price": 65, "category": "Spices", "unit": "pack"},
+                {"name": "Garam Masala (100g)", "price": 95, "category": "Spices", "unit": "pack"},
+                {"name": "Cumin Seeds (200g)", "price": 110, "category": "Spices", "unit": "pack"},
+                {"name": "Amul Butter (500g)", "price": 285, "category": "Dairy", "unit": "pack"},
+                {"name": "Milk (1L)", "price": 62, "category": "Dairy", "unit": "liter"},
+                {"name": "Paneer (200g)", "price": 95, "category": "Dairy", "unit": "pack"},
+                {"name": "Lays Chips Classic", "price": 20, "category": "Snacks", "unit": "pack"},
+                {"name": "Parle-G Biscuits", "price": 25, "category": "Snacks", "unit": "pack"},
+                {"name": "Maggi Noodles (Pack of 4)", "price": 56, "category": "Snacks", "unit": "pack"},
+                {"name": "Tea (500g)", "price": 320, "category": "Groceries", "unit": "pack"},
+            ],
+            "discounts": [
+                {"name": "Weekend Special", "type": "percentage", "value": 10, "min_order": 500},
+                {"name": "Dairy Deal", "type": "flat", "value": 50, "min_order": 300, "categories": ["Dairy"]},
+                {"name": "WELCOME20", "type": "percentage", "value": 20, "coupon_code": "WELCOME20", "min_order": 200, "max_discount": 100},
+            ]
+        },
+        {
+            "name": "Priya Sharma",
+            "shop_name": "Spice Kitchen Restaurant",
+            "shop_type": "Restaurant",
+            "description": "Authentic North Indian cuisine with a modern twist. Famous for our butter chicken and fresh tandoori items.",
+            "address": "45, Food Street, Cyber Hub, Gurugram",
+            "location": {"lat": 28.4940, "lng": 77.0880},
+            "can_deliver": True,
+            "opening_hours": "11:00 AM - 11:00 PM",
+            "categories": ["North Indian", "Tandoori", "Biryani", "Desserts"],
+            "products": [
+                {"name": "Butter Chicken", "price": 350, "category": "North Indian", "unit": "plate"},
+                {"name": "Dal Makhani", "price": 220, "category": "North Indian", "unit": "plate"},
+                {"name": "Paneer Butter Masala", "price": 280, "category": "North Indian", "unit": "plate"},
+                {"name": "Chicken Biryani", "price": 320, "category": "Biryani", "unit": "plate"},
+                {"name": "Veg Biryani", "price": 240, "category": "Biryani", "unit": "plate"},
+                {"name": "Mutton Biryani", "price": 420, "category": "Biryani", "unit": "plate"},
+                {"name": "Tandoori Chicken (Full)", "price": 480, "category": "Tandoori", "unit": "plate"},
+                {"name": "Tandoori Chicken (Half)", "price": 260, "category": "Tandoori", "unit": "plate"},
+                {"name": "Seekh Kebab (6 pcs)", "price": 320, "category": "Tandoori", "unit": "plate"},
+                {"name": "Garlic Naan", "price": 65, "category": "North Indian", "unit": "piece"},
+                {"name": "Butter Naan", "price": 55, "category": "North Indian", "unit": "piece"},
+                {"name": "Laccha Paratha", "price": 60, "category": "North Indian", "unit": "piece"},
+                {"name": "Gulab Jamun (2 pcs)", "price": 80, "category": "Desserts", "unit": "plate"},
+                {"name": "Rasmalai (2 pcs)", "price": 100, "category": "Desserts", "unit": "plate"},
+                {"name": "Kheer", "price": 90, "category": "Desserts", "unit": "bowl"},
+                {"name": "Raita", "price": 50, "category": "North Indian", "unit": "bowl"},
+            ],
+            "discounts": [
+                {"name": "Lunch Special", "type": "percentage", "value": 15, "min_order": 400},
+                {"name": "Free Dessert", "type": "bogo", "buy_product": "Butter Chicken", "get_product": "Gulab Jamun (2 pcs)"},
+                {"name": "BIRYANI50", "type": "flat", "value": 50, "coupon_code": "BIRYANI50", "min_order": 300, "categories": ["Biryani"]},
+                {"name": "Family Feast", "type": "percentage", "value": 20, "min_order": 1000, "max_discount": 300},
+            ]
+        },
+        {
+            "name": "Dr. Amit Verma",
+            "shop_name": "HealthPlus Pharmacy",
+            "shop_type": "Pharmacy",
+            "description": "Licensed pharmacy with genuine medicines, health supplements, and personal care products. Free health advice available.",
+            "address": "Medical Plaza, Near City Hospital, Sector 22",
+            "location": {"lat": 28.4680, "lng": 77.0350},
+            "can_deliver": True,
+            "opening_hours": "8:00 AM - 10:00 PM",
+            "categories": ["Medicines", "Supplements", "Personal Care", "Baby Care"],
+            "products": [
+                {"name": "Paracetamol 500mg (10 tabs)", "price": 25, "category": "Medicines", "unit": "strip"},
+                {"name": "Vitamin C 1000mg (30 tabs)", "price": 280, "category": "Supplements", "unit": "bottle"},
+                {"name": "Multivitamin Daily (60 tabs)", "price": 450, "category": "Supplements", "unit": "bottle"},
+                {"name": "Omega-3 Fish Oil (60 caps)", "price": 520, "category": "Supplements", "unit": "bottle"},
+                {"name": "Calcium + D3 (30 tabs)", "price": 180, "category": "Supplements", "unit": "bottle"},
+                {"name": "Dettol Antiseptic (250ml)", "price": 95, "category": "Personal Care", "unit": "bottle"},
+                {"name": "Band-Aid (Pack of 10)", "price": 45, "category": "Personal Care", "unit": "pack"},
+                {"name": "Digital Thermometer", "price": 250, "category": "Personal Care", "unit": "piece"},
+                {"name": "Blood Pressure Monitor", "price": 1800, "category": "Personal Care", "unit": "piece"},
+                {"name": "Glucose Monitor Kit", "price": 1200, "category": "Personal Care", "unit": "kit"},
+                {"name": "Baby Diapers (Pack of 30)", "price": 650, "category": "Baby Care", "unit": "pack"},
+                {"name": "Baby Wipes (Pack of 80)", "price": 180, "category": "Baby Care", "unit": "pack"},
+                {"name": "Baby Lotion (200ml)", "price": 220, "category": "Baby Care", "unit": "bottle"},
+                {"name": "Cerelac Baby Food (300g)", "price": 320, "category": "Baby Care", "unit": "pack"},
+                {"name": "ORS Sachets (10 pcs)", "price": 50, "category": "Medicines", "unit": "pack"},
+                {"name": "Protein Powder (1kg)", "price": 1800, "category": "Supplements", "unit": "jar"},
+            ],
+            "discounts": [
+                {"name": "Health Month", "type": "percentage", "value": 12, "min_order": 500, "categories": ["Supplements"]},
+                {"name": "FIRSTMED", "type": "flat", "value": 100, "coupon_code": "FIRSTMED", "min_order": 400},
+                {"name": "Baby Care Bundle", "type": "percentage", "value": 15, "min_order": 800, "categories": ["Baby Care"]},
+            ]
+        },
+        {
+            "name": "Vikram Electronics",
+            "shop_name": "TechZone Electronics",
+            "shop_type": "Electronics",
+            "description": "Your one-stop shop for smartphones, accessories, gadgets and home electronics. Authorized dealer for major brands.",
+            "address": "123, Electronics Market, Nehru Place",
+            "location": {"lat": 28.5494, "lng": 77.2530},
+            "can_deliver": True,
+            "opening_hours": "10:00 AM - 9:00 PM",
+            "categories": ["Smartphones", "Accessories", "Audio", "Home Electronics"],
+            "products": [
+                {"name": "Wireless Earbuds Pro", "price": 2999, "discounted_price": 2499, "category": "Audio", "unit": "piece"},
+                {"name": "Bluetooth Speaker 20W", "price": 1999, "category": "Audio", "unit": "piece"},
+                {"name": "Noise Cancelling Headphones", "price": 4999, "discounted_price": 4499, "category": "Audio", "unit": "piece"},
+                {"name": "USB-C Fast Charger 65W", "price": 1499, "category": "Accessories", "unit": "piece"},
+                {"name": "Power Bank 20000mAh", "price": 1799, "discounted_price": 1499, "category": "Accessories", "unit": "piece"},
+                {"name": "Tempered Glass (Universal)", "price": 199, "category": "Accessories", "unit": "piece"},
+                {"name": "Phone Case Premium", "price": 499, "category": "Accessories", "unit": "piece"},
+                {"name": "Wireless Charging Pad", "price": 899, "category": "Accessories", "unit": "piece"},
+                {"name": "Smart Watch Basic", "price": 3499, "discounted_price": 2999, "category": "Smartphones", "unit": "piece"},
+                {"name": "Fitness Band Pro", "price": 2499, "category": "Smartphones", "unit": "piece"},
+                {"name": "LED Desk Lamp", "price": 799, "category": "Home Electronics", "unit": "piece"},
+                {"name": "WiFi Router Dual Band", "price": 1999, "category": "Home Electronics", "unit": "piece"},
+                {"name": "USB Hub 7-Port", "price": 699, "category": "Accessories", "unit": "piece"},
+                {"name": "Laptop Stand Adjustable", "price": 1299, "category": "Accessories", "unit": "piece"},
+                {"name": "Webcam HD 1080p", "price": 2499, "category": "Home Electronics", "unit": "piece"},
+                {"name": "Smart Plug WiFi", "price": 599, "category": "Home Electronics", "unit": "piece"},
+            ],
+            "discounts": [
+                {"name": "Tech Tuesday", "type": "percentage", "value": 10, "min_order": 2000},
+                {"name": "AUDIO20", "type": "percentage", "value": 20, "coupon_code": "AUDIO20", "min_order": 1500, "categories": ["Audio"], "max_discount": 500},
+                {"name": "Free Charger", "type": "bogo", "buy_product": "Power Bank 20000mAh", "get_product": "USB-C Fast Charger 65W"},
+                {"name": "Mega Electronics Sale", "type": "flat", "value": 500, "min_order": 5000},
+            ]
+        },
+        {
+            "name": "Meena Fashions",
+            "shop_name": "Style Studio Boutique",
+            "shop_type": "Fashion",
+            "description": "Trendy fashion for men and women. Ethnic wear, western outfits, and accessories for every occasion.",
+            "address": "Fashion Street, South Extension Part 2",
+            "location": {"lat": 28.5682, "lng": 77.2210},
+            "can_deliver": True,
+            "opening_hours": "11:00 AM - 9:00 PM",
+            "categories": ["Men's Wear", "Women's Wear", "Ethnic", "Accessories"],
+            "products": [
+                {"name": "Men's Cotton Shirt", "price": 1299, "discounted_price": 999, "category": "Men's Wear", "unit": "piece"},
+                {"name": "Men's Formal Trousers", "price": 1599, "category": "Men's Wear", "unit": "piece"},
+                {"name": "Men's Casual T-Shirt", "price": 699, "discounted_price": 499, "category": "Men's Wear", "unit": "piece"},
+                {"name": "Men's Denim Jeans", "price": 1899, "category": "Men's Wear", "unit": "piece"},
+                {"name": "Women's Kurti Cotton", "price": 899, "discounted_price": 699, "category": "Women's Wear", "unit": "piece"},
+                {"name": "Women's Palazzo Pants", "price": 799, "category": "Women's Wear", "unit": "piece"},
+                {"name": "Women's Western Top", "price": 999, "category": "Women's Wear", "unit": "piece"},
+                {"name": "Women's Maxi Dress", "price": 1999, "discounted_price": 1599, "category": "Women's Wear", "unit": "piece"},
+                {"name": "Saree Silk (Party Wear)", "price": 3499, "category": "Ethnic", "unit": "piece"},
+                {"name": "Saree Cotton (Daily Wear)", "price": 1299, "category": "Ethnic", "unit": "piece"},
+                {"name": "Lehenga Set", "price": 5999, "discounted_price": 4999, "category": "Ethnic", "unit": "set"},
+                {"name": "Men's Kurta Pajama Set", "price": 1999, "category": "Ethnic", "unit": "set"},
+                {"name": "Leather Belt Men's", "price": 599, "category": "Accessories", "unit": "piece"},
+                {"name": "Women's Handbag", "price": 1499, "category": "Accessories", "unit": "piece"},
+                {"name": "Sunglasses Unisex", "price": 899, "discounted_price": 699, "category": "Accessories", "unit": "piece"},
+                {"name": "Scarf/Stole Women's", "price": 499, "category": "Accessories", "unit": "piece"},
+            ],
+            "discounts": [
+                {"name": "Ethnic Festival Sale", "type": "percentage", "value": 25, "min_order": 2000, "categories": ["Ethnic"], "max_discount": 1000},
+                {"name": "STYLE500", "type": "flat", "value": 500, "coupon_code": "STYLE500", "min_order": 3000},
+                {"name": "Buy 2 Get 1 Free", "type": "bogo", "buy_product": "Women's Kurti Cotton", "get_product": "Women's Kurti Cotton"},
+                {"name": "Accessory Deal", "type": "percentage", "value": 30, "min_order": 1000, "categories": ["Accessories"]},
+            ]
+        },
+        {
+            "name": "Suresh Baker",
+            "shop_name": "Golden Crust Bakery",
+            "shop_type": "Bakery",
+            "description": "Fresh baked goods daily! Artisan breads, cakes, pastries, and custom celebration cakes made with love.",
+            "address": "15, Baker's Lane, Model Town",
+            "location": {"lat": 28.7150, "lng": 77.1920},
+            "can_deliver": True,
+            "opening_hours": "7:00 AM - 9:00 PM",
+            "categories": ["Breads", "Cakes", "Pastries", "Cookies"],
+            "products": [
+                {"name": "White Bread Loaf", "price": 45, "category": "Breads", "unit": "loaf"},
+                {"name": "Whole Wheat Bread", "price": 55, "category": "Breads", "unit": "loaf"},
+                {"name": "Multigrain Bread", "price": 75, "category": "Breads", "unit": "loaf"},
+                {"name": "Garlic Bread (6 pcs)", "price": 120, "category": "Breads", "unit": "pack"},
+                {"name": "Chocolate Truffle Cake (500g)", "price": 450, "category": "Cakes", "unit": "piece"},
+                {"name": "Black Forest Cake (500g)", "price": 420, "category": "Cakes", "unit": "piece"},
+                {"name": "Red Velvet Cake (500g)", "price": 550, "category": "Cakes", "unit": "piece"},
+                {"name": "Vanilla Sponge Cake (500g)", "price": 350, "category": "Cakes", "unit": "piece"},
+                {"name": "Pineapple Cake (500g)", "price": 380, "category": "Cakes", "unit": "piece"},
+                {"name": "Croissant (Plain)", "price": 60, "category": "Pastries", "unit": "piece"},
+                {"name": "Chocolate Croissant", "price": 80, "category": "Pastries", "unit": "piece"},
+                {"name": "Danish Pastry", "price": 70, "category": "Pastries", "unit": "piece"},
+                {"name": "Puff Pastry Veg", "price": 45, "category": "Pastries", "unit": "piece"},
+                {"name": "Butter Cookies (250g)", "price": 180, "category": "Cookies", "unit": "box"},
+                {"name": "Chocolate Chip Cookies (12 pcs)", "price": 220, "category": "Cookies", "unit": "box"},
+                {"name": "Almond Cookies (250g)", "price": 250, "category": "Cookies", "unit": "box"},
+            ],
+            "discounts": [
+                {"name": "Morning Fresh", "type": "percentage", "value": 10, "min_order": 200},
+                {"name": "Cake Celebration", "type": "flat", "value": 100, "min_order": 500, "categories": ["Cakes"]},
+                {"name": "SWEET15", "type": "percentage", "value": 15, "coupon_code": "SWEET15", "min_order": 300, "max_discount": 150},
+                {"name": "Free Cookies", "type": "bogo", "buy_product": "Chocolate Truffle Cake (500g)", "get_product": "Butter Cookies (250g)"},
+            ]
+        },
+        {
+            "name": "Ramesh Vegetable Trader",
+            "shop_name": "Farm Fresh Veggies",
+            "shop_type": "Vegetables & Fruits",
+            "description": "Direct from farm to your table! Fresh organic vegetables and seasonal fruits at wholesale prices.",
+            "address": "Stall 45, Sabzi Mandi, Azadpur",
+            "location": {"lat": 28.7041, "lng": 77.1654},
+            "can_deliver": True,
+            "opening_hours": "5:00 AM - 8:00 PM",
+            "categories": ["Vegetables", "Fruits", "Leafy Greens", "Exotic"],
+            "products": [
+                {"name": "Tomatoes (1kg)", "price": 40, "category": "Vegetables", "unit": "kg"},
+                {"name": "Onions (1kg)", "price": 35, "category": "Vegetables", "unit": "kg"},
+                {"name": "Potatoes (1kg)", "price": 30, "category": "Vegetables", "unit": "kg"},
+                {"name": "Cauliflower (1 pc)", "price": 45, "category": "Vegetables", "unit": "piece"},
+                {"name": "Cabbage (1 pc)", "price": 35, "category": "Vegetables", "unit": "piece"},
+                {"name": "Carrots (500g)", "price": 40, "category": "Vegetables", "unit": "pack"},
+                {"name": "Green Peas (500g)", "price": 60, "category": "Vegetables", "unit": "pack"},
+                {"name": "Spinach Bunch", "price": 25, "category": "Leafy Greens", "unit": "bunch"},
+                {"name": "Coriander Bunch", "price": 15, "category": "Leafy Greens", "unit": "bunch"},
+                {"name": "Mint Bunch", "price": 20, "category": "Leafy Greens", "unit": "bunch"},
+                {"name": "Apples (1kg)", "price": 180, "category": "Fruits", "unit": "kg"},
+                {"name": "Bananas (1 dozen)", "price": 60, "category": "Fruits", "unit": "dozen"},
+                {"name": "Oranges (1kg)", "price": 80, "category": "Fruits", "unit": "kg"},
+                {"name": "Grapes (500g)", "price": 90, "category": "Fruits", "unit": "pack"},
+                {"name": "Broccoli (1 pc)", "price": 80, "category": "Exotic", "unit": "piece"},
+                {"name": "Zucchini (500g)", "price": 70, "category": "Exotic", "unit": "pack"},
+                {"name": "Bell Peppers Mixed (500g)", "price": 120, "category": "Exotic", "unit": "pack"},
+            ],
+            "discounts": [
+                {"name": "Early Bird Special", "type": "percentage", "value": 15, "min_order": 200},
+                {"name": "Fruit Basket Deal", "type": "flat", "value": 30, "min_order": 300, "categories": ["Fruits"]},
+                {"name": "FRESH10", "type": "percentage", "value": 10, "coupon_code": "FRESH10", "min_order": 150, "max_discount": 50},
+                {"name": "Exotic Veggies Offer", "type": "percentage", "value": 20, "min_order": 250, "categories": ["Exotic"]},
+            ]
+        },
+    ]
+    
+    # ==================== CREATE VENDORS, PRODUCTS & DISCOUNTS ====================
+    
+    for vendor_data in vendors_data:
+        # Create user/vendor
+        user_id = f"vendor_{uuid.uuid4().hex[:12]}"
+        phone = f"98{random.randint(10000000, 99999999)}"
+        
+        user_doc = {
+            "user_id": user_id,
+            "phone": phone,
+            "name": vendor_data["name"],
+            "email": f"{vendor_data['name'].lower().replace(' ', '.')}@demo.com",
+            "partner_type": "vendor",
+            "partner_status": "available",
+            "partner_rating": round(random.uniform(4.0, 5.0), 1),
+            "partner_total_tasks": random.randint(50, 500),
+            "partner_total_earnings": random.uniform(50000, 500000),
+            "vendor_shop_name": vendor_data["shop_name"],
+            "vendor_shop_type": vendor_data["shop_type"],
+            "vendor_shop_address": vendor_data["address"],
+            "vendor_shop_location": vendor_data["location"],
+            "vendor_can_deliver": vendor_data["can_deliver"],
+            "vendor_categories": vendor_data["categories"],
+            "vendor_is_verified": True,
+            "vendor_opening_hours": vendor_data["opening_hours"],
+            "vendor_description": vendor_data["description"],
+            "created_at": datetime.now(timezone.utc)
+        }
+        
+        await db.users.insert_one(user_doc)
+        
+        # Sync to hub_vendors
+        await sync_vendor_to_hub(user_id)
+        
+        # Create products
+        product_ids = {}
+        for prod_data in vendor_data["products"]:
+            product_id = f"prod_{uuid.uuid4().hex[:12]}"
+            product_ids[prod_data["name"]] = product_id
+            
+            product_doc = {
+                "product_id": product_id,
+                "vendor_id": user_id,
+                "name": prod_data["name"],
+                "description": f"Fresh {prod_data['name']} from {vendor_data['shop_name']}",
+                "price": prod_data["price"],
+                "discounted_price": prod_data.get("discounted_price"),
+                "category": prod_data["category"],
+                "in_stock": True,
+                "stock_quantity": random.randint(20, 100),
+                "unit": prod_data.get("unit", "piece"),
+                "created_at": datetime.now(timezone.utc)
+            }
+            await db.products.insert_one(product_doc)
+            total_products += 1
+        
+        # Sync products to hub_products
+        await sync_vendor_products_to_hub(user_id)
+        
+        # Create discounts
+        for disc_data in vendor_data.get("discounts", []):
+            discount_id = f"disc_{uuid.uuid4().hex[:12]}"
+            
+            discount_doc = {
+                "discount_id": discount_id,
+                "vendor_id": user_id,
+                "name": disc_data["name"],
+                "type": disc_data["type"],
+                "value": disc_data.get("value", 0),
+                "coupon_code": disc_data.get("coupon_code"),
+                "min_order_value": disc_data.get("min_order", 0),
+                "max_discount": disc_data.get("max_discount"),
+                "apply_to": "categories" if disc_data.get("categories") else "all",
+                "categories": disc_data.get("categories", []),
+                "product_ids": [],
+                "validity_type": "always",
+                "status": "active",
+                "usage_count": random.randint(0, 50),
+                "created_at": datetime.now(timezone.utc)
+            }
+            
+            # Handle BOGO discounts
+            if disc_data["type"] == "bogo":
+                buy_prod = disc_data.get("buy_product")
+                get_prod = disc_data.get("get_product")
+                if buy_prod and buy_prod in product_ids:
+                    discount_doc["bogo_buy_product_id"] = product_ids[buy_prod]
+                    discount_doc["bogo_buy_quantity"] = 1
+                if get_prod and get_prod in product_ids:
+                    discount_doc["bogo_get_product_id"] = product_ids[get_prod]
+                    discount_doc["bogo_get_quantity"] = 1
+            
+            await db.discounts.insert_one(discount_doc)
+            total_discounts += 1
+        
+        # Create shop timings
+        timings_id = f"time_{uuid.uuid4().hex[:12]}"
+        weekly_schedule = []
+        days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        
+        for day in days:
+            schedule = {
+                "day": day,
+                "is_open": True if day != "sunday" else random.choice([True, False]),
+                "open_time": "09:00" if vendor_data["shop_type"] != "Vegetables & Fruits" else "05:00",
+                "close_time": "21:00" if vendor_data["shop_type"] != "Vegetables & Fruits" else "20:00",
+                "has_break": random.choice([True, False]),
+            }
+            if schedule["has_break"]:
+                schedule["break_start"] = "14:00"
+                schedule["break_end"] = "15:00"
+            weekly_schedule.append(schedule)
+        
+        timings_doc = {
+            "timings_id": timings_id,
+            "vendor_id": user_id,
+            "weekly_schedule": weekly_schedule,
+            "delivery_cutoff_minutes": 30,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        }
+        await db.shop_timings.insert_one(timings_doc)
+        
+        created_vendors.append({
+            "vendor_id": user_id,
+            "shop_name": vendor_data["shop_name"],
+            "shop_type": vendor_data["shop_type"],
+            "products_count": len(vendor_data["products"]),
+            "discounts_count": len(vendor_data.get("discounts", []))
+        })
+    
+    return {
+        "message": "Demo data created successfully!",
+        "summary": {
+            "vendors_created": len(created_vendors),
+            "total_products": total_products,
+            "total_discounts": total_discounts
+        },
+        "vendors": created_vendors,
+        "test_credentials": {
+            "note": "Use OTP 123456 for any phone number to login"
+        }
+    }
+
+
 @api_router.delete("/admin/clear-test-data")
 async def clear_all_test_data():
     """
