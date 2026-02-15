@@ -1200,6 +1200,27 @@ async def create_product(data: ProductCreate, current_user: User = Depends(requi
     
     await db.products.insert_one(product)
     product.pop("_id", None)
+    
+    # SYNC: Also add to hub_products for Wisher App visibility
+    hub_product = {
+        "product_id": product_id,
+        "vendor_id": current_user.user_id,
+        "name": data.name,
+        "description": data.description or "",
+        "price": data.price,
+        "discounted_price": data.discounted_price,
+        "images": [data.image] if data.image else [],
+        "category": data.category,
+        "stock": data.stock_quantity,
+        "likes": 0,
+        "rating": 0.0,
+        "total_ratings": 0,
+        "is_available": data.in_stock,
+        "unit": data.unit,
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.hub_products.insert_one(hub_product)
+    
     return product
 
 @api_router.get("/vendor/products")
