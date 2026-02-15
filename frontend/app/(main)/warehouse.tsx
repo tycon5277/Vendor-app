@@ -42,7 +42,8 @@ type FilterType = 'all' | 'in_stock' | 'low_stock' | 'out_of_stock';
 export default function WarehouseScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ filter?: string; success?: string }>();
+  const params = useLocalSearchParams<{ filter?: string }>();
+  const { pendingToast, clearPendingToast } = useToastStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,17 +60,15 @@ export default function WarehouseScreen() {
     }
   }, [params?.filter]);
 
-  // Show success toast when navigated from add/edit product
-  useEffect(() => {
-    if (params?.success) {
-      const message = params.success === 'added' 
-        ? 'Product added successfully!' 
-        : 'Product updated successfully!';
-      showClaymorphismAlert('success', 'Success! 🎉', message);
-      // Clear the param by navigating to same route without params
-      router.setParams({ success: undefined });
-    }
-  }, [params?.success]);
+  // Check for pending toast from add/edit product screens
+  useFocusEffect(
+    useCallback(() => {
+      if (pendingToast) {
+        showClaymorphismAlert(pendingToast.type, pendingToast.title, pendingToast.message);
+        clearPendingToast();
+      }
+    }, [pendingToast])
+  );
 
   // Claymorphism Alert State
   const [alertVisible, setAlertVisible] = useState(false);
