@@ -271,7 +271,7 @@ export default function PerformanceScreen() {
                     <Text style={styles.lowStockName} numberOfLines={1}>{product.name}</Text>
                     <TouchableOpacity
                       style={styles.addStockBtn}
-                      onPress={() => router.push(`/(main)/products/${product.product_id}`)}
+                      onPress={() => router.push(`/(main)/product-edit/${product.product_id}`)}
                     >
                       <Text style={styles.addStockBtnText}>Add Stock</Text>
                     </TouchableOpacity>
