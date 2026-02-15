@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 
 # Get base URL from environment
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://wheel-picker-timings.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://vendor-wisher-sync.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_PHONE = "9999999999"
