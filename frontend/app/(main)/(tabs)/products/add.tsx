@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { productAPI } from '../../../../src/utils/api';
 import { useAlert } from '../../../../src/context/AlertContext';
+import { useToastStore } from '../../../../src/store/toastStore';
 
 const PRODUCT_CATEGORIES = [
   { id: 'Groceries', icon: 'basket', label: 'Groceries' },
