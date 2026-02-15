@@ -145,9 +145,12 @@ export default function EditProductScreen() {
       };
 
       await productAPI.update(id!, productData);
-      Alert.alert('Success! ✅', 'Product updated successfully', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      
+      // Navigate back immediately after successful update
+      router.back();
+      
+      // Show success message (will appear on previous screen or as toast)
+      Alert.alert('Success! ✅', 'Product updated successfully');
     } catch (error: any) {
       Alert.alert('Error', error.response?.data?.detail || 'Failed to update product');
     } finally {
