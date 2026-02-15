@@ -1104,6 +1104,9 @@ async def update_vendor_profile(data: VendorProfileUpdate, current_user: User = 
             {"user_id": current_user.user_id},
             {"$set": update_fields}
         )
+        
+        # SYNC: Update vendor in hub_vendors for Wisher App visibility
+        await sync_vendor_to_hub(current_user.user_id)
     
     updated_user = await db.users.find_one({"user_id": current_user.user_id}, {"_id": 0})
     return {"user": updated_user}
