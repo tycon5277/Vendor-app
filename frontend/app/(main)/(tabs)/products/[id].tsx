@@ -46,7 +46,6 @@ const UNITS = [
 
 export default function EditProductScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(true);
