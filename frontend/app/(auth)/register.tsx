@@ -196,21 +196,22 @@ export default function RegisterScreen() {
   const [showMapModal, setShowMapModal] = useState(false);
   const [tempMapLocation, setTempMapLocation] = useState<{ lat: number; lng: number } | null>(null);
 
+  // Pre-populate form with existing user data (for users who started but didn't complete registration)
   const [formData, setFormData] = useState({
     name: user?.name || '',
-    shop_name: '',
-    shop_type: '',
+    shop_name: user?.vendor_shop_name || '',
+    shop_type: user?.vendor_shop_type || '',
     custom_shop_type: '',
-    shop_address: '',
-    shop_location: null as { lat: number; lng: number } | null,
-    can_deliver: false,
-    opening_time: '09:00',
-    closing_time: '21:00',
-    description: '',
-    shop_image: null as string | null,
-    gst_number: '',
-    license_number: '',
-    fssai_number: '',
+    shop_address: user?.vendor_shop_address || '',
+    shop_location: user?.vendor_shop_location || null as { lat: number; lng: number } | null,
+    can_deliver: user?.vendor_can_deliver || false,
+    opening_time: user?.vendor_opening_time || '09:00',
+    closing_time: user?.vendor_closing_time || '21:00',
+    description: user?.vendor_description || '',
+    shop_image: user?.vendor_shop_image || null as string | null,
+    gst_number: user?.vendor_gst_number || '',
+    license_number: user?.vendor_license_number || '',
+    fssai_number: user?.vendor_fssai_number || '',
   });
 
   // Calculate progress percentage
