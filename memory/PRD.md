@@ -118,7 +118,8 @@ Vendor App (users collection)     →  Wisher App (hub_vendors collection)
 ## Pending/Upcoming Tasks
 
 ### P0 - Critical
-- Wisher App: Fix `EXPO_PUBLIC_BACKEND_URL` to point to shared backend
+- ~~Wisher App: Fix `EXPO_PUBLIC_BACKEND_URL` to point to shared backend~~ (User confirmed fix applied)
+- **Next**: Test full end-to-end integration between Vendor and Wisher apps
 
 ### P1 - High Priority
 - Test full Vendor → Wisher discount flow
@@ -127,6 +128,7 @@ Vendor App (users collection)     →  Wisher App (hub_vendors collection)
 ### P2 - Future
 - Advanced Genie Assignment Algorithm
 - Social Media Feed Engagement (commenting)
+- Vendor Verification Workflow (document upload, admin approval)
 
 ## Changelog
 
