@@ -395,7 +395,7 @@ export default function WarehouseScreen() {
   };
 
   return (
-    <Animated.View style={[styles.container, { paddingTop: insets.top, opacity: fadeAnim }]}>
+    <Animated.View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, opacity: fadeAnim }]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
