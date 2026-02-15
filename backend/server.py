@@ -1309,6 +1309,10 @@ async def delete_product(product_id: str, current_user: User = Depends(require_v
     )
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Product not found")
+    
+    # SYNC: Also delete from hub_products for Wisher App
+    await db.hub_products.delete_one({"product_id": product_id})
+    
     return {"message": "Product deleted"}
 
 @api_router.put("/vendor/products/{product_id}/stock")
