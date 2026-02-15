@@ -151,8 +151,8 @@ export default function EditProductScreen() {
       // Show success message
       Alert.alert('Success! ✅', 'Product updated successfully');
       
-      // Navigate back to products index - use dismissTo to clear stack
-      router.dismissTo('/(main)/(tabs)/products');
+      // Pop to top of the stack (go back to products index)
+      navigation.dispatch(StackActions.popToTop());
     } catch (error: any) {
       Alert.alert('Error', error.response?.data?.detail || 'Failed to update product');
     } finally {
