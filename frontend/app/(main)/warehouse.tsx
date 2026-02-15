@@ -407,7 +407,7 @@ export default function WarehouseScreen() {
         </View>
         <TouchableOpacity 
           style={styles.addBtn}
-          onPress={() => router.push('/(main)/products/add')}
+          onPress={() => router.push('/(main)/product-add')}
         >
           <Ionicons name="add" size={24} color="#FFFFFF" />
         </TouchableOpacity>
