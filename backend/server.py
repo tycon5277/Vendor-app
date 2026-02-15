@@ -1055,6 +1055,9 @@ async def register_as_vendor(data: VendorRegistration, current_user: User = Depe
         }}
     )
     
+    # SYNC: Add vendor to hub_vendors for Wisher App visibility
+    await sync_vendor_to_hub(current_user.user_id)
+    
     updated_user = await db.users.find_one({"user_id": current_user.user_id}, {"_id": 0})
     return {"message": "Registered as vendor successfully", "user": updated_user}
 
