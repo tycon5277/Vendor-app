@@ -51,14 +51,20 @@ export default function VerifyScreen() {
     setLoading(true);
     try {
       const response = await authAPI.verifyOTP(phone || '', otpString);
-      const { user, session_token, is_vendor } = response.data;
+      const { user, session_token, is_new_user, is_vendor } = response.data;
       
       setToken(session_token);
       setUser(user);
 
+      // Navigation logic:
+      // 1. If user is already a registered vendor -> go to dashboard
+      // 2. If existing user but not a vendor yet -> go to register
+      // 3. If brand new user -> go to register
       if (is_vendor) {
+        // Existing vendor - go directly to dashboard
         router.replace('/(main)/(tabs)/home');
       } else {
+        // New user OR existing user who hasn't completed vendor registration
         router.replace('/(auth)/register');
       }
     } catch (error: any) {
