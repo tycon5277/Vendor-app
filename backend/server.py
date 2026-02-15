@@ -1130,6 +1130,15 @@ async def update_vendor_status(data: StatusUpdate, current_user: User = Depends(
         }}
     )
     
+    # SYNC: Update vendor status in hub_vendors for Wisher App visibility
+    await db.hub_vendors.update_one(
+        {"vendor_id": current_user.user_id},
+        {"$set": {
+            "is_open": data.status == "available",
+            "updated_at": datetime.now(timezone.utc)
+        }}
+    )
+    
     # Log status change for analytics
     await db.analytics_events.insert_one({
         "event_id": f"evt_{uuid.uuid4().hex[:12]}",
