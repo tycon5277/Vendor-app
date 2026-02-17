@@ -118,3 +118,29 @@ export const timingsAPI = {
   deleteHoliday: (id: string) => api.delete(`/vendor/timings/holidays/${id}`),
   closeEarly: (data: { close_time: string; reason?: string }) => api.post('/vendor/timings/close-early', data),
 };
+
+// Wisher Order APIs (Orders from Local Hub)
+export const wisherOrderAPI = {
+  // Get all wisher orders for this vendor
+  getAll: () => api.get('/vendor/wisher-orders'),
+  
+  // Get single order details
+  getOne: (orderId: string) => api.get(`/vendor/wisher-orders/${orderId}`),
+  
+  // Update order status
+  updateStatus: (orderId: string, status: string, note?: string) => 
+    api.put(`/vendor/wisher-orders/${orderId}/status`, { status, note }),
+  
+  // Modify order (remove/reduce items)
+  modifyOrder: (orderId: string, data: {
+    modified_items: Array<{
+      product_id: string;
+      new_quantity: number;
+      reason: string;
+    }>;
+    modification_reason: string;
+  }) => api.put(`/vendor/wisher-orders/${orderId}/modify`, data),
+  
+  // Process refund
+  processRefund: (orderId: string) => api.post(`/vendor/wisher-orders/${orderId}/process-refund`),
+};
