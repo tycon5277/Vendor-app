@@ -6870,15 +6870,19 @@ async def add_to_cart(item: CartItemAdd):
     if existing:
         # Update quantity
         new_quantity = existing.get("quantity", 1) + item.quantity
+        update_data = {"quantity": new_quantity, "updated_at": datetime.now(timezone.utc).isoformat()}
+        if item.user_info:
+            update_data["user_info"] = item.user_info.dict()
         await db.wisher_carts.update_one(
             {"user_id": item.user_id, "product_id": item.product_id},
-            {"$set": {"quantity": new_quantity, "updated_at": datetime.now(timezone.utc).isoformat()}}
+            {"$set": update_data}
         )
         return {"message": "Cart updated", "quantity": new_quantity}
     else:
         # Add new item
         cart_item = {
             "user_id": item.user_id,
+            "user_info": item.user_info.dict() if item.user_info else None,
             "product_id": product.get("product_id"),
             "vendor_id": product.get("vendor_id"),
             "name": product.get("name"),
