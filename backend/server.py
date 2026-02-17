@@ -4694,7 +4694,7 @@ async def seed_vendor_data(current_user: User = Depends(require_auth)):
                 {"product_id": "p4", "name": "Eggs (12 pcs)", "price": 75, "quantity": 1}
             ],
             "total_amount": 165,
-            "delivery_address": {"address": "Tower C, Apt 105, Green Park", "lat": 12.9718, "lng": 77.5948},
+            "delivery_address": {"address": "Tower C, Apt 105, Green Park", "lat": 11.8497, "lng": 75.4269},
             "delivery_type": "self_pickup",
             "delivery_fee": 0,
             "status": "confirmed",
@@ -4718,7 +4718,7 @@ async def seed_vendor_data(current_user: User = Depends(require_auth)):
                 {"product_id": "p7", "name": "Tea Powder (250g)", "price": 99, "quantity": 1}
             ],
             "total_amount": 389,
-            "delivery_address": {"address": "Rose Garden, Villa 12", "lat": 12.9722, "lng": 77.5952},
+            "delivery_address": {"address": "Rose Garden, Villa 12", "lat": 11.8452, "lng": 75.4278},
             "delivery_type": "agent_delivery",
             "delivery_fee": 40,
             "status": "preparing",
