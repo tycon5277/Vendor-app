@@ -13,6 +13,11 @@ The Wisher App's Local Hub needs to fetch vendors and products from the Vendor A
 https://nav-stack-repair-1.preview.emergentagent.com
 ```
 
+### Default GPS Location (Kerala, India)
+All vendors are located near Kerala with coordinates around:
+- Latitude: ~11.85
+- Longitude: ~75.43
+
 ### Required Changes
 
 #### 1. Create a Vendor API utility file
