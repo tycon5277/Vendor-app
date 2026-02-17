@@ -6816,6 +6816,212 @@ async def get_all_hub_products(
     return {"products": products, "count": len(products)}
 
 
+# ===================== WISHER CART APIs =====================
+
+class CartItemAdd(BaseModel):
+    user_id: str
+    product_id: str
+    quantity: int = 1
+
+class CartItemUpdate(BaseModel):
+    quantity: int
+
+class WisherOrderCreate(BaseModel):
+    user_id: str
+    user_name: str
+    user_phone: str
+    delivery_address: dict
+    payment_method: str = "cod"
+
+
+@api_router.post("/localhub/cart/add")
+async def add_to_cart(item: CartItemAdd):
+    """Add product to user's cart - Wisher App"""
+    # Find product in hub_products
+    product = await db.hub_products.find_one({"product_id": item.product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Check if item already in cart
+    existing = await db.wisher_carts.find_one({
+        "user_id": item.user_id,
+        "product_id": item.product_id
+    })
+    
+    if existing:
+        # Update quantity
+        new_quantity = existing.get("quantity", 1) + item.quantity
+        await db.wisher_carts.update_one(
+            {"user_id": item.user_id, "product_id": item.product_id},
+            {"$set": {"quantity": new_quantity, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        return {"message": "Cart updated", "quantity": new_quantity}
+    else:
+        # Add new item
+        cart_item = {
+            "user_id": item.user_id,
+            "product_id": product.get("product_id"),
+            "vendor_id": product.get("vendor_id"),
+            "name": product.get("name"),
+            "price": product.get("price"),
+            "discounted_price": product.get("discounted_price"),
+            "image": product.get("images", [None])[0] if product.get("images") else None,
+            "quantity": item.quantity,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.wisher_carts.insert_one(cart_item)
+        return {"message": "Added to cart", "quantity": item.quantity}
+
+
+@api_router.get("/localhub/cart/{user_id}")
+async def get_cart(user_id: str):
+    """Get user's cart - Wisher App"""
+    cart_items = await db.wisher_carts.find({"user_id": user_id}, {"_id": 0}).to_list(100)
+    
+    # Calculate totals
+    subtotal = 0
+    for item in cart_items:
+        price = item.get("discounted_price") or item.get("price", 0)
+        subtotal += price * item.get("quantity", 1)
+    
+    # Group by vendor
+    vendors = {}
+    for item in cart_items:
+        vendor_id = item.get("vendor_id")
+        if vendor_id not in vendors:
+            vendor = await db.hub_vendors.find_one({"vendor_id": vendor_id}, {"_id": 0, "name": 1, "vendor_id": 1})
+            vendors[vendor_id] = {
+                "vendor_id": vendor_id,
+                "vendor_name": vendor.get("name") if vendor else "Unknown",
+                "items": []
+            }
+        vendors[vendor_id]["items"].append(item)
+    
+    return {
+        "cart_items": cart_items,
+        "vendors": list(vendors.values()),
+        "item_count": len(cart_items),
+        "subtotal": subtotal
+    }
+
+
+@api_router.put("/localhub/cart/{user_id}/{product_id}")
+async def update_cart_item(user_id: str, product_id: str, update: CartItemUpdate):
+    """Update cart item quantity - Wisher App"""
+    if update.quantity <= 0:
+        # Remove item if quantity is 0 or less
+        await db.wisher_carts.delete_one({"user_id": user_id, "product_id": product_id})
+        return {"message": "Item removed from cart"}
+    
+    result = await db.wisher_carts.update_one(
+        {"user_id": user_id, "product_id": product_id},
+        {"$set": {"quantity": update.quantity, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Cart item not found")
+    
+    return {"message": "Cart updated", "quantity": update.quantity}
+
+
+@api_router.delete("/localhub/cart/{user_id}/{product_id}")
+async def remove_from_cart(user_id: str, product_id: str):
+    """Remove item from cart - Wisher App"""
+    result = await db.wisher_carts.delete_one({"user_id": user_id, "product_id": product_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Cart item not found")
+    
+    return {"message": "Item removed from cart"}
+
+
+@api_router.delete("/localhub/cart/{user_id}")
+async def clear_cart(user_id: str):
+    """Clear user's entire cart - Wisher App"""
+    result = await db.wisher_carts.delete_many({"user_id": user_id})
+    return {"message": f"Cart cleared, {result.deleted_count} items removed"}
+
+
+@api_router.post("/localhub/orders")
+async def create_wisher_order(order_data: WisherOrderCreate):
+    """Create order from cart - Wisher App"""
+    # Get cart items
+    cart_items = await db.wisher_carts.find({"user_id": order_data.user_id}, {"_id": 0}).to_list(100)
+    
+    if not cart_items:
+        raise HTTPException(status_code=400, detail="Cart is empty")
+    
+    # Group items by vendor
+    vendor_orders = {}
+    for item in cart_items:
+        vendor_id = item.get("vendor_id")
+        if vendor_id not in vendor_orders:
+            vendor = await db.hub_vendors.find_one({"vendor_id": vendor_id}, {"_id": 0})
+            vendor_orders[vendor_id] = {
+                "vendor_id": vendor_id,
+                "vendor_name": vendor.get("name") if vendor else "Unknown",
+                "vendor_phone": vendor.get("contact_phone") if vendor else "",
+                "items": [],
+                "subtotal": 0
+            }
+        
+        price = item.get("discounted_price") or item.get("price", 0)
+        item_total = price * item.get("quantity", 1)
+        vendor_orders[vendor_id]["items"].append(item)
+        vendor_orders[vendor_id]["subtotal"] += item_total
+    
+    # Create separate order for each vendor
+    created_orders = []
+    for vendor_id, vendor_data in vendor_orders.items():
+        order_id = f"wisher_order_{uuid.uuid4().hex[:12]}"
+        order = {
+            "order_id": order_id,
+            "user_id": order_data.user_id,
+            "customer_name": order_data.user_name,
+            "customer_phone": order_data.user_phone,
+            "vendor_id": vendor_id,
+            "vendor_name": vendor_data["vendor_name"],
+            "items": vendor_data["items"],
+            "subtotal": vendor_data["subtotal"],
+            "delivery_fee": 30,  # Fixed delivery fee
+            "total": vendor_data["subtotal"] + 30,
+            "delivery_address": order_data.delivery_address,
+            "payment_method": order_data.payment_method,
+            "payment_status": "pending",
+            "status": "pending",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.wisher_orders.insert_one(order)
+        created_orders.append({"order_id": order_id, "vendor_name": vendor_data["vendor_name"], "total": order["total"]})
+    
+    # Clear cart after order
+    await db.wisher_carts.delete_many({"user_id": order_data.user_id})
+    
+    return {
+        "message": "Order placed successfully",
+        "orders": created_orders,
+        "total_orders": len(created_orders)
+    }
+
+
+@api_router.get("/localhub/orders/{user_id}")
+async def get_wisher_orders(user_id: str):
+    """Get user's orders - Wisher App"""
+    orders = await db.wisher_orders.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return {"orders": orders, "count": len(orders)}
+
+
+@api_router.get("/localhub/order/{order_id}")
+async def get_wisher_order_detail(order_id: str):
+    """Get single order details - Wisher App"""
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
+
+
 # ===================== HEALTH CHECK =====================
 
 @api_router.get("/")
