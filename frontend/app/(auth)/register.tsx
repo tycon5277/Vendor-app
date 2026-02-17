@@ -264,8 +264,8 @@ export default function RegisterScreen() {
   };
 
   const openMapForManualSelection = async () => {
-    // Default to Bangalore if no location is set
-    const defaultLocation = formData.shop_location || { lat: 12.9716, lng: 77.5946 };
+    // Default to Kerala if no location is set
+    const defaultLocation = formData.shop_location || { lat: 11.85, lng: 75.43 };
     setTempMapLocation(defaultLocation);
     setShowMapModal(true);
   };
