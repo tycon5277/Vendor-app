@@ -2101,11 +2101,15 @@ async def assign_delivery_partner(
             "created_at": now
         }
         
-        # Calculate distances
-        vendor_lat = vendor_location.get("lat", 11.85)  # Default to Kerala
-        vendor_lng = vendor_location.get("lng", 75.43)
-        customer_lat = customer_location.get("lat", 11.85)
-        customer_lng = customer_location.get("lng", 75.43)
+        # Calculate distances - only if both locations exist
+        vendor_lat = vendor_location.get("lat") if vendor_location else None
+        vendor_lng = vendor_location.get("lng") if vendor_location else None
+        customer_lat = customer_location.get("lat") if customer_location else None
+        customer_lng = customer_location.get("lng") if customer_location else None
+        
+        # Skip distance calculation if locations are missing
+        if not all([vendor_lat, vendor_lng, customer_lat, customer_lng]):
+            raise HTTPException(status_code=400, detail="Vendor or customer location is missing")
         
         vendor_to_customer_km = calculate_distance_km(
             vendor_lat, vendor_lng,
