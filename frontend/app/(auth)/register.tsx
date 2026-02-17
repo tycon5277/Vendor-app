@@ -264,9 +264,30 @@ export default function RegisterScreen() {
   };
 
   const openMapForManualSelection = async () => {
-    // Default to Kerala if no location is set
-    const defaultLocation = formData.shop_location || { lat: 11.85, lng: 75.43 };
-    setTempMapLocation(defaultLocation);
+    // Use existing location if set, otherwise try to get current location
+    if (formData.shop_location) {
+      setTempMapLocation(formData.shop_location);
+      setShowMapModal(true);
+      return;
+    }
+    
+    // Try to get current location as starting point
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const location = await Location.getCurrentPositionAsync({});
+        setTempMapLocation({
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+        });
+      } else {
+        // No permission - user will need to search/navigate on map
+        setTempMapLocation(null);
+      }
+    } catch (error) {
+      // Location failed - user will need to search/navigate on map
+      setTempMapLocation(null);
+    }
     setShowMapModal(true);
   };
 
