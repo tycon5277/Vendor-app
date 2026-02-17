@@ -7084,6 +7084,279 @@ async def get_wisher_order_detail(order_id: str):
     return order
 
 
+@api_router.get("/localhub/order/{order_id}/history")
+async def get_order_history(order_id: str):
+    """Get order modification and status history - Wisher App"""
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    return {
+        "order_id": order_id,
+        "is_modified": order.get("is_modified", False),
+        "modification_history": order.get("modification_history", []),
+        "status_history": order.get("status_history", []),
+        "refund_amount": order.get("refund_amount", 0),
+        "refund_reason": order.get("refund_reason"),
+        "refund_status": order.get("refund_status")
+    }
+
+
+# ===================== VENDOR ORDER MANAGEMENT APIs =====================
+
+@api_router.get("/vendor/wisher-orders")
+async def get_vendor_wisher_orders(current_user: User = Depends(get_current_user)):
+    """Get all orders from Wisher App for this vendor - Vendor App"""
+    if current_user.partner_type != "vendor":
+        raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
+    
+    orders = await db.wisher_orders.find(
+        {"vendor_id": current_user.user_id}, 
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    # Group by status for dashboard
+    pending = [o for o in orders if o.get("status") == "pending"]
+    confirmed = [o for o in orders if o.get("status") == "confirmed"]
+    preparing = [o for o in orders if o.get("status") == "preparing"]
+    out_for_delivery = [o for o in orders if o.get("status") == "out_for_delivery"]
+    delivered = [o for o in orders if o.get("status") == "delivered"]
+    cancelled = [o for o in orders if o.get("status") == "cancelled"]
+    
+    return {
+        "orders": orders,
+        "total": len(orders),
+        "summary": {
+            "pending": len(pending),
+            "confirmed": len(confirmed),
+            "preparing": len(preparing),
+            "out_for_delivery": len(out_for_delivery),
+            "delivered": len(delivered),
+            "cancelled": len(cancelled)
+        }
+    }
+
+
+@api_router.get("/vendor/wisher-orders/{order_id}")
+async def get_vendor_wisher_order_detail(order_id: str, current_user: User = Depends(get_current_user)):
+    """Get single Wisher order details - Vendor App"""
+    if current_user.partner_type != "vendor":
+        raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
+    
+    order = await db.wisher_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id}, 
+        {"_id": 0}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found or not authorized")
+    
+    return order
+
+
+@api_router.put("/vendor/wisher-orders/{order_id}/status")
+async def update_wisher_order_status(
+    order_id: str, 
+    status_update: OrderStatusUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Update order status - Vendor App"""
+    if current_user.partner_type != "vendor":
+        raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
+    
+    valid_statuses = ["pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled"]
+    if status_update.status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
+    
+    order = await db.wisher_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found or not authorized")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Add to status history
+    status_entry = {
+        "status": status_update.status,
+        "timestamp": now,
+        "note": status_update.note or f"Status changed to {status_update.status}"
+    }
+    
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "status": status_update.status,
+                "updated_at": now
+            },
+            "$push": {"status_history": status_entry}
+        }
+    )
+    
+    return {"message": f"Order status updated to {status_update.status}", "order_id": order_id}
+
+
+@api_router.put("/vendor/wisher-orders/{order_id}/modify")
+async def modify_wisher_order(
+    order_id: str,
+    modification: OrderModify,
+    current_user: User = Depends(get_current_user)
+):
+    """Modify order items (e.g., remove out-of-stock items) - Vendor App"""
+    if current_user.partner_type != "vendor":
+        raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
+    
+    order = await db.wisher_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found or not authorized")
+    
+    # Can only modify pending or confirmed orders
+    if order.get("status") not in ["pending", "confirmed"]:
+        raise HTTPException(status_code=400, detail="Can only modify pending or confirmed orders")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    current_items = order.get("items", [])
+    original_total = order.get("original_total", 0)
+    
+    # Process modifications
+    removed_items = []
+    modified_items_log = []
+    refund_amount = 0
+    
+    for mod in modification.modified_items:
+        for item in current_items:
+            if item.get("product_id") == mod.product_id:
+                original_qty = item.get("quantity", 0)
+                price = item.get("discounted_price") or item.get("price", 0)
+                
+                if mod.new_quantity == 0:
+                    # Remove item completely
+                    removed_items.append(item)
+                    refund_amount += price * original_qty
+                    modified_items_log.append({
+                        "product_id": mod.product_id,
+                        "product_name": item.get("name"),
+                        "action": "removed",
+                        "original_quantity": original_qty,
+                        "new_quantity": 0,
+                        "refund_amount": price * original_qty,
+                        "reason": mod.reason
+                    })
+                elif mod.new_quantity < original_qty:
+                    # Reduce quantity
+                    qty_diff = original_qty - mod.new_quantity
+                    item["quantity"] = mod.new_quantity
+                    item["item_total"] = price * mod.new_quantity
+                    refund_amount += price * qty_diff
+                    modified_items_log.append({
+                        "product_id": mod.product_id,
+                        "product_name": item.get("name"),
+                        "action": "quantity_reduced",
+                        "original_quantity": original_qty,
+                        "new_quantity": mod.new_quantity,
+                        "refund_amount": price * qty_diff,
+                        "reason": mod.reason
+                    })
+                break
+    
+    # Remove items that were marked for removal
+    for removed in removed_items:
+        current_items.remove(removed)
+    
+    # Calculate new totals
+    new_subtotal = sum(item.get("discounted_price") or item.get("price", 0) * item.get("quantity", 1) for item in current_items)
+    new_total = new_subtotal + order.get("delivery_fee", 30)
+    
+    # Create modification entry
+    modification_entry = {
+        "timestamp": now,
+        "reason": modification.modification_reason,
+        "modified_items": modified_items_log,
+        "refund_amount": refund_amount,
+        "previous_total": order.get("total"),
+        "new_total": new_total
+    }
+    
+    # Update order
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "items": current_items,
+                "subtotal": new_subtotal,
+                "total": new_total,
+                "is_modified": True,
+                "refund_amount": order.get("refund_amount", 0) + refund_amount,
+                "refund_reason": modification.modification_reason,
+                "refund_status": "pending" if refund_amount > 0 else None,
+                "updated_at": now
+            },
+            "$push": {
+                "modification_history": modification_entry,
+                "status_history": {
+                    "status": "modified",
+                    "timestamp": now,
+                    "note": f"Order modified: {modification.modification_reason}"
+                }
+            }
+        }
+    )
+    
+    return {
+        "message": "Order modified successfully",
+        "order_id": order_id,
+        "modifications": modified_items_log,
+        "refund_amount": refund_amount,
+        "new_total": new_total
+    }
+
+
+@api_router.post("/vendor/wisher-orders/{order_id}/process-refund")
+async def process_wisher_order_refund(
+    order_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Mark refund as processed - Vendor App"""
+    if current_user.partner_type != "vendor":
+        raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
+    
+    order = await db.wisher_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found or not authorized")
+    
+    if order.get("refund_amount", 0) == 0:
+        raise HTTPException(status_code=400, detail="No refund amount on this order")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "refund_status": "processed",
+                "updated_at": now
+            },
+            "$push": {
+                "status_history": {
+                    "status": "refund_processed",
+                    "timestamp": now,
+                    "note": f"Refund of ₹{order.get('refund_amount')} processed"
+                }
+            }
+        }
+    )
+    
+    return {
+        "message": "Refund marked as processed",
+        "order_id": order_id,
+        "refund_amount": order.get("refund_amount")
+    }
+
+
 # ===================== HEALTH CHECK =====================
 
 @api_router.get("/")
