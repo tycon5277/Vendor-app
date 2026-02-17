@@ -6818,8 +6818,14 @@ async def get_all_hub_products(
 
 # ===================== WISHER CART APIs =====================
 
+class UserInfo(BaseModel):
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
 class CartItemAdd(BaseModel):
     user_id: str
+    user_info: Optional[UserInfo] = None
     product_id: str
     quantity: int = 1
 
@@ -6828,10 +6834,23 @@ class CartItemUpdate(BaseModel):
 
 class WisherOrderCreate(BaseModel):
     user_id: str
-    user_name: str
-    user_phone: str
+    user_info: UserInfo
     delivery_address: dict
     payment_method: str = "cod"
+    notes: Optional[str] = None
+
+class OrderItemModify(BaseModel):
+    product_id: str
+    new_quantity: int  # 0 to remove item
+    reason: str
+
+class OrderModify(BaseModel):
+    modified_items: List[OrderItemModify]
+    modification_reason: str
+
+class OrderStatusUpdate(BaseModel):
+    status: str  # pending, confirmed, preparing, out_for_delivery, delivered, cancelled
+    note: Optional[str] = None
 
 
 @api_router.post("/localhub/cart/add")
