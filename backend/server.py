@@ -2102,10 +2102,10 @@ async def assign_delivery_partner(
         }
         
         # Calculate distances
-        vendor_lat = vendor_location.get("lat", 12.9716)  # Default to Bangalore
-        vendor_lng = vendor_location.get("lng", 77.5946)
-        customer_lat = customer_location.get("lat", 12.9716)
-        customer_lng = customer_location.get("lng", 77.5946)
+        vendor_lat = vendor_location.get("lat", 11.85)  # Default to Kerala
+        vendor_lng = vendor_location.get("lng", 75.43)
+        customer_lat = customer_location.get("lat", 11.85)
+        customer_lng = customer_location.get("lng", 75.43)
         
         vendor_to_customer_km = calculate_distance_km(
             vendor_lat, vendor_lng,
@@ -4591,7 +4591,7 @@ async def seed_vendor_data(current_user: User = Depends(require_auth)):
                 "vendor_shop_name": "Fresh Mart Grocery",
                 "vendor_shop_type": "Grocery",
                 "vendor_shop_address": "123 Main Street, Block A, Sector 5",
-                "vendor_shop_location": {"lat": 12.9716, "lng": 77.5946},
+                "vendor_shop_location": {"lat": 11.85, "lng": 75.43},
                 "vendor_can_deliver": False,
                 "vendor_categories": ["Groceries", "Dairy", "Snacks", "Beverages"],
                 "vendor_opening_hours": "9:00 AM - 9:00 PM",
@@ -4673,7 +4673,7 @@ async def seed_vendor_data(current_user: User = Depends(require_auth)):
                 {"product_id": "p2", "name": "Fresh Milk (1L)", "price": 65, "quantity": 2}
             ],
             "total_amount": 529,
-            "delivery_address": {"address": "Block B, Flat 302, Sector 5", "lat": 12.9720, "lng": 77.5950},
+            "delivery_address": {"address": "Block B, Flat 302, Sector 5", "lat": 11.8480, "lng": 75.4290},
             "delivery_type": "agent_delivery",
             "delivery_fee": 30,
             "status": "pending",
