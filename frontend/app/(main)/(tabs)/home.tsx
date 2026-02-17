@@ -603,6 +603,45 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255,255,255,0.6)',
   },
+  // Local Hub Card
+  localHubCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  localHubIcon: {
+    width: 52,
+    height: 52,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  localHubContent: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  localHubTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#312E81',
+  },
+  localHubSubtitle: {
+    fontSize: 13,
+    color: '#6366F1',
+    marginTop: 2,
+  },
   // Orders Section
   ordersSection: {
     paddingHorizontal: 16,
