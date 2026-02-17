@@ -6991,33 +6991,72 @@ async def create_wisher_order(order_data: WisherOrderCreate):
         
         price = item.get("discounted_price") or item.get("price", 0)
         item_total = price * item.get("quantity", 1)
-        vendor_orders[vendor_id]["items"].append(item)
+        # Add item_total to each item for tracking
+        item_with_total = {**item, "item_total": item_total}
+        vendor_orders[vendor_id]["items"].append(item_with_total)
         vendor_orders[vendor_id]["subtotal"] += item_total
     
     # Create separate order for each vendor
     created_orders = []
     for vendor_id, vendor_data in vendor_orders.items():
         order_id = f"wisher_order_{uuid.uuid4().hex[:12]}"
+        now = datetime.now(timezone.utc).isoformat()
+        
         order = {
             "order_id": order_id,
             "user_id": order_data.user_id,
-            "customer_name": order_data.user_name,
-            "customer_phone": order_data.user_phone,
+            "user_info": order_data.user_info.dict(),
+            "customer_name": order_data.user_info.name,
+            "customer_email": order_data.user_info.email,
+            "customer_phone": order_data.user_info.phone,
             "vendor_id": vendor_id,
             "vendor_name": vendor_data["vendor_name"],
+            "vendor_phone": vendor_data["vendor_phone"],
+            
+            # Items - original and current
+            "original_items": vendor_data["items"],
             "items": vendor_data["items"],
+            
+            # Totals - original and current
+            "original_subtotal": vendor_data["subtotal"],
             "subtotal": vendor_data["subtotal"],
-            "delivery_fee": 30,  # Fixed delivery fee
+            "delivery_fee": 30,
+            "original_total": vendor_data["subtotal"] + 30,
             "total": vendor_data["subtotal"] + 30,
+            
+            # Refund tracking
+            "refund_amount": 0,
+            "refund_reason": None,
+            "refund_status": None,
+            
+            # Delivery
             "delivery_address": order_data.delivery_address,
+            "notes": order_data.notes,
+            
+            # Payment
             "payment_method": order_data.payment_method,
             "payment_status": "pending",
+            
+            # Order status
             "status": "pending",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
+            "status_history": [
+                {"status": "pending", "timestamp": now, "note": "Order placed"}
+            ],
+            
+            # Modification tracking
+            "is_modified": False,
+            "modification_history": [],
+            
+            # Timestamps
+            "created_at": now,
+            "updated_at": now
         }
         await db.wisher_orders.insert_one(order)
-        created_orders.append({"order_id": order_id, "vendor_name": vendor_data["vendor_name"], "total": order["total"]})
+        created_orders.append({
+            "order_id": order_id, 
+            "vendor_name": vendor_data["vendor_name"], 
+            "total": order["total"]
+        })
     
     # Clear cart after order
     await db.wisher_carts.delete_many({"user_id": order_data.user_id})
