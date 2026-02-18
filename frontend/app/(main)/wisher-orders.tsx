@@ -107,6 +107,7 @@ export default function WisherOrdersScreen() {
       const response = await wisherOrderAPI.getAll();
       setOrders(response.data.orders || []);
       setSummary(response.data.summary || {});
+      setVendorHasOwnDelivery(response.data.vendor_has_own_delivery || false);
     } catch (error: any) {
       console.error('Error fetching wisher orders:', error);
       showAlert({
