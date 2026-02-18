@@ -527,7 +527,7 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
                   </View>
                   <View style={styles.infoItem}>
                     <Text style={styles.infoLabel}>Total</Text>
-                    <Text style={styles.totalValue}>₹{currentNewOrder?.total_amount || 0}</Text>
+                    <Text style={styles.totalValue}>₹{Number(currentNewOrder?.total_amount || 0).toFixed(2)}</Text>
                   </View>
                 </View>
                 
