@@ -74,10 +74,14 @@ export default function WisherOrdersScreen() {
     pending: 0,
     confirmed: 0,
     preparing: 0,
+    ready_for_pickup: 0,
     out_for_delivery: 0,
     delivered: 0,
     cancelled: 0,
   });
+  
+  // Delivery assignment modal
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   
   // Order detail modal
   const [selectedOrder, setSelectedOrder] = useState<WisherOrder | null>(null);
