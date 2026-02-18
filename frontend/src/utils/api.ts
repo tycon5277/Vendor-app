@@ -140,7 +140,7 @@ export const orderAPI = {
     api.post(`/vendor/wisher-orders/${id}/assign-delivery`, { delivery_type: deliveryType, notes }),
   track: (id: string) => api.get(`/localhub/order/${id}/track`),
   // Item management
-  updateItems: (id: string, data: { items: any[], adjusted_total: number }) =>
+  updateItems: (id: string, data: { modified_items: Array<{product_id: string, new_quantity: number, reason: string}>, modification_reason: string }) =>
     api.put(`/vendor/wisher-orders/${id}/modify`, data),
 };
 
