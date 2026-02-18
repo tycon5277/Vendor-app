@@ -59,6 +59,11 @@ interface WisherOrder {
   genie_status?: string;
   genie_name?: string;
   genie_phone?: string;
+  // Multi-order fields
+  is_multi_order?: boolean;
+  group_order_id?: string;
+  vendor_sequence?: number;
+  total_vendors?: number;
 }
 
 export default function WisherOrdersScreen() {
