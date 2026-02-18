@@ -2,7 +2,7 @@
 
 ## API Base URL
 ```
-https://vendor-api-hub.preview.emergentagent.com
+https://order-grouping-api.preview.emergentagent.com
 ```
 
 ## Available Endpoints
@@ -147,7 +147,7 @@ GET /api/localhub/products
 
 ```typescript
 // src/utils/vendorApi.ts
-const VENDOR_API_URL = 'https://vendor-api-hub.preview.emergentagent.com';
+const VENDOR_API_URL = 'https://order-grouping-api.preview.emergentagent.com';
 
 export const vendorApi = {
   // Get all vendors
