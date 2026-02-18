@@ -70,6 +70,7 @@ export const productAPI = {
 
 // Helper to transform wisher order response to UI Order format
 const transformWisherOrders = (orders: any[]) => {
+  if (!orders || !Array.isArray(orders)) return [];
   return orders.map((o: any) => ({
     order_id: o.order_id,
     status: o.status,
@@ -90,20 +91,35 @@ const transformWisherOrders = (orders: any[]) => {
 // Order APIs - Now uses wisher-orders (Local Hub orders) as primary
 export const orderAPI = {
   getAll: async (status?: string) => {
-    const response = await api.get('/vendor/wisher-orders', { params: { status } });
-    const orders = response.data.orders || [];
-    return { data: transformWisherOrders(orders) };
+    try {
+      const response = await api.get('/vendor/wisher-orders', { params: { status } });
+      const orders = response.data?.orders || [];
+      return { data: transformWisherOrders(orders) };
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      return { data: [] };
+    }
   },
   getPending: async () => {
-    const response = await api.get('/vendor/wisher-orders');
-    const orders = (response.data.orders || []).filter((o: any) => o.status === 'pending');
-    return { data: transformWisherOrders(orders) };
+    try {
+      const response = await api.get('/vendor/wisher-orders');
+      const orders = (response.data?.orders || []).filter((o: any) => o.status === 'pending');
+      return { data: transformWisherOrders(orders) };
+    } catch (error) {
+      console.error('Error fetching pending orders:', error);
+      return { data: [] };
+    }
   },
   getActive: async () => {
-    const response = await api.get('/vendor/wisher-orders');
-    const activeStatuses = ['confirmed', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery'];
-    const orders = (response.data.orders || []).filter((o: any) => activeStatuses.includes(o.status));
-    return { data: transformWisherOrders(orders) };
+    try {
+      const response = await api.get('/vendor/wisher-orders');
+      const activeStatuses = ['confirmed', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery'];
+      const orders = (response.data?.orders || []).filter((o: any) => activeStatuses.includes(o.status));
+      return { data: transformWisherOrders(orders) };
+    } catch (error) {
+      console.error('Error fetching active orders:', error);
+      return { data: [] };
+    }
   },
   getOne: (id: string) => api.get(`/vendor/wisher-orders/${id}`),
   getDetails: (id: string) => api.get(`/vendor/wisher-orders/${id}`),
