@@ -1194,12 +1194,37 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textAlign: 'center',
   },
+  autoSearchNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    gap: 8,
+  },
+  autoSearchText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#6366F1',
+  },
   genieInfoBox: {
     backgroundColor: '#EEF2FF',
     padding: 16,
     borderRadius: 12,
     marginTop: 10,
     alignItems: 'center',
+  },
+  genieAssignedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  genieAssignedTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#10B981',
   },
   genieInfoTitle: {
     fontSize: 14,
