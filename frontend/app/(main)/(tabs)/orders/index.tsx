@@ -663,7 +663,7 @@ export default function OrdersScreen() {
                     <Text style={styles.orderSummaryId}>
                       #{newOrderData.order_id.slice(-8).toUpperCase()}
                     </Text>
-                    <Text style={styles.orderSummaryTotal}>₹{newOrderData.total_amount}</Text>
+                    <Text style={styles.orderSummaryTotal}>₹{Number(newOrderData.total_amount).toFixed(2)}</Text>
                   </View>
                   
                   <View style={styles.orderSummaryCustomer}>
