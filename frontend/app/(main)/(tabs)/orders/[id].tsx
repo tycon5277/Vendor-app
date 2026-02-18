@@ -599,26 +599,26 @@ export default function OrderDetailScreen() {
           <View style={styles.totalsSection}>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>₹{currentTotal.toFixed(0)}</Text>
+              <Text style={styles.totalValue}>₹{currentTotal.toFixed(2)}</Text>
             </View>
             {order.delivery_fee > 0 && (
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Delivery Fee</Text>
-                <Text style={styles.totalValue}>₹{order.delivery_fee}</Text>
+                <Text style={styles.totalLabel}>Service Fee</Text>
+                <Text style={styles.totalValue}>₹{Number(order.delivery_fee).toFixed(2)}</Text>
               </View>
             )}
             {hasChanges && (
               <View style={styles.totalRow}>
                 <Text style={[styles.totalLabel, { color: '#DC2626' }]}>Adjustment</Text>
                 <Text style={[styles.totalValue, { color: '#DC2626' }]}>
-                  -₹{(originalTotal - currentTotal - (order.delivery_fee || 0)).toFixed(0)}
+                  -₹{(originalTotal - currentTotal - (order.delivery_fee || 0)).toFixed(2)}
                 </Text>
               </View>
             )}
             <View style={[styles.totalRow, styles.grandTotalRow]}>
               <Text style={styles.grandTotalLabel}>Total</Text>
               <Text style={styles.grandTotalValue}>
-                ₹{(currentTotal + (order.delivery_fee || 0)).toFixed(0)}
+                ₹{(currentTotal + (order.delivery_fee || 0)).toFixed(2)}
               </Text>
             </View>
           </View>
