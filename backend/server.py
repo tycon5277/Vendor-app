@@ -7136,6 +7136,8 @@ async def get_order_history(order_id: str):
 @api_router.get("/vendor/wisher-orders")
 async def get_vendor_wisher_orders(current_user: User = Depends(get_current_user)):
     """Get all orders from Wisher App for this vendor - Vendor App"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     if current_user.partner_type != "vendor":
         raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
     
