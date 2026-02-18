@@ -8078,8 +8078,45 @@ async def track_wisher_order(order_id: str):
     # Add modification details if order was modified
     if order.get("is_modified"):
         modification_history = order.get("modification_history", [])
+        original_total = order.get("original_total", 0)
+        current_total = order.get("total", 0)
+        refund_amount = order.get("refund_amount", 0)
+        service_fee = order.get("delivery_fee", 0)
+        
         if modification_history:
             latest_modification = modification_history[-1]
+            
+            # Build invoice breakdown
+            tracking_info["invoice_breakdown"] = {
+                "original": {
+                    "subtotal": round(original_total - service_fee, 2),
+                    "service_fee": round(service_fee, 2),
+                    "total": round(original_total, 2)
+                },
+                "adjustments": [],
+                "current": {
+                    "subtotal": round(current_total - service_fee, 2),
+                    "service_fee": round(service_fee, 2),
+                    "total": round(current_total, 2)
+                },
+                "savings": round(refund_amount, 2),
+                "you_pay": round(current_total, 2)
+            }
+            
+            # Add each adjustment as a line item
+            for item_change in latest_modification.get("modified_items", []):
+                adjustment = {
+                    "item_name": item_change.get("product_name", "Item"),
+                    "type": item_change.get("action"),
+                    "deduction": round(item_change.get("refund_amount", 0), 2)
+                }
+                if item_change.get("action") == "removed":
+                    adjustment["description"] = f"{item_change.get('product_name')} removed"
+                elif item_change.get("action") == "quantity_reduced":
+                    qty_diff = item_change.get("original_quantity", 0) - item_change.get("new_quantity", 0)
+                    adjustment["description"] = f"{item_change.get('product_name')} (-{qty_diff})"
+                tracking_info["invoice_breakdown"]["adjustments"].append(adjustment)
+            
             tracking_info["modification_details"] = {
                 "reason": latest_modification.get("reason", "Items adjusted by vendor"),
                 "modified_at": latest_modification.get("timestamp"),
