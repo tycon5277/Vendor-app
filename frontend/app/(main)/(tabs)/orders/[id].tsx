@@ -1896,6 +1896,13 @@ const styles = StyleSheet.create({
   actionBtnTextDestructive: {
     color: '#DC2626',
   },
+  actionBtnDisabled: {
+    backgroundColor: '#E5E7EB',
+    opacity: 0.7,
+  },
+  actionBtnTextDisabled: {
+    color: '#9CA3AF',
+  },
   // Modal Styles
   modalOverlay: {
     flex: 1,
