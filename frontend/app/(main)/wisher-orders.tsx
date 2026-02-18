@@ -289,6 +289,7 @@ export default function WisherOrdersScreen() {
   const renderOrderCard = ({ item }: { item: WisherOrder }) => {
     const statusColor = getStatusColor(item.status);
     const itemCount = item.items.reduce((sum, i) => sum + i.quantity, 0);
+    const isSearchingGenie = item.genie_status === 'searching';
     
     return (
       <TouchableOpacity
@@ -307,6 +308,12 @@ export default function WisherOrdersScreen() {
                 <Text style={styles.modifiedText}>Modified</Text>
               </View>
             )}
+            {item.is_multi_order && (
+              <View style={styles.multiOrderBadge}>
+                <Ionicons name="layers-outline" size={12} color="#6366F1" />
+                <Text style={styles.multiOrderText}>{item.vendor_sequence}/{item.total_vendors}</Text>
+              </View>
+            )}
           </View>
           <View style={[styles.statusBadge, { backgroundColor: `${statusColor}15` }]}>
             <Ionicons name={getStatusIcon(item.status) as any} size={14} color={statusColor} />
@@ -315,6 +322,14 @@ export default function WisherOrdersScreen() {
             </Text>
           </View>
         </View>
+        
+        {/* Genie Searching Indicator */}
+        {isSearchingGenie && (
+          <View style={styles.searchingGenieBar}>
+            <ActivityIndicator size="small" color="#6366F1" />
+            <Text style={styles.searchingGenieText}>Finding delivery partner...</Text>
+          </View>
+        )}
         
         <View style={styles.customerInfo}>
           <Ionicons name="person-outline" size={16} color="#6B7280" />
