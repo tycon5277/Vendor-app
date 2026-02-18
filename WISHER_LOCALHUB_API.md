@@ -2,7 +2,7 @@
 
 ## API Base URL
 ```
-https://nav-stack-repair-1.preview.emergentagent.com
+https://vendor-api-hub.preview.emergentagent.com
 ```
 
 ## Available Endpoints
@@ -147,7 +147,7 @@ GET /api/localhub/products
 
 ```typescript
 // src/utils/vendorApi.ts
-const VENDOR_API_URL = 'https://nav-stack-repair-1.preview.emergentagent.com';
+const VENDOR_API_URL = 'https://vendor-api-hub.preview.emergentagent.com';
 
 export const vendorApi = {
   // Get all vendors
