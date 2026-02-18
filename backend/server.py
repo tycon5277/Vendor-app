@@ -7177,7 +7177,7 @@ async def get_vendor_wisher_orders(current_user: User = Depends(get_current_user
 
 @api_router.get("/vendor/wisher-orders/{order_id}")
 async def get_vendor_wisher_order_detail(order_id: str, current_user: User = Depends(get_current_user)):
-    """Get single Wisher order details - Vendor App"""
+    """Get single Wisher order details with checkpoints and actions - Vendor App"""
     if current_user.partner_type != "vendor":
         raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
     
@@ -7188,7 +7188,110 @@ async def get_vendor_wisher_order_detail(order_id: str, current_user: User = Dep
     if not order:
         raise HTTPException(status_code=404, detail="Order not found or not authorized")
     
-    return order
+    # Get vendor info for delivery capabilities
+    vendor = await db.users.find_one({"user_id": current_user.user_id}, {"_id": 0})
+    
+    # Build response matching shop orders format
+    return {
+        "order": order,
+        "status_checkpoints": get_wisher_status_checkpoints(order),
+        "vendor_can_deliver": vendor.get("vendor_can_deliver", False) if vendor else False,
+        "delivery_options": get_wisher_delivery_options(order, vendor),
+        "next_actions": get_wisher_next_actions(order, vendor)
+    }
+
+def get_wisher_status_checkpoints(order: dict) -> list:
+    """Generate status checkpoint data for wisher orders"""
+    current_status = order.get("status", "pending")
+    status_history = {s["status"]: s for s in order.get("status_history", [])}
+    
+    checkpoints = [
+        {"key": "pending", "label": "Order Placed", "icon": "cart", "description": "Customer placed the order"},
+        {"key": "confirmed", "label": "Accepted", "icon": "checkmark-circle", "description": "You accepted the order"},
+        {"key": "preparing", "label": "Preparing", "icon": "restaurant", "description": "Preparing the order"},
+        {"key": "ready_for_pickup", "label": "Ready", "icon": "bag-check", "description": "Order is ready for pickup"},
+        {"key": "out_for_delivery", "label": "On The Way", "icon": "navigate", "description": "Out for delivery"},
+        {"key": "delivered", "label": "Delivered", "icon": "home", "description": "Delivered to customer"},
+    ]
+    
+    status_order = ["pending", "confirmed", "preparing", "ready_for_pickup", "out_for_delivery", "delivered"]
+    current_index = status_order.index(current_status) if current_status in status_order else -1
+    
+    for i, cp in enumerate(checkpoints):
+        if i <= current_index:
+            cp["completed"] = True
+            cp["current"] = (i == current_index)
+            if cp["key"] in status_history:
+                cp["timestamp"] = status_history[cp["key"]].get("timestamp")
+        else:
+            cp["completed"] = False
+            cp["current"] = False
+    
+    return checkpoints
+
+def get_wisher_delivery_options(order: dict, vendor: dict) -> list:
+    """Get available delivery options for wisher order"""
+    options = []
+    delivery_type = order.get("delivery_type", "")
+    
+    # Vendor's own delivery
+    if vendor and vendor.get("vendor_can_deliver", False):
+        options.append({
+            "type": "self_delivery",
+            "label": "Own Delivery",
+            "description": "Deliver using your own delivery service",
+            "available": True,
+            "selected": delivery_type == "vendor_delivery"
+        })
+    
+    # Carpet Genie delivery
+    options.append({
+        "type": "carpet_genie",
+        "label": "Carpet Genie",
+        "description": "Assign to Carpet Genie delivery partner",
+        "available": True,
+        "selected": delivery_type == "carpet_genie" or bool(order.get("delivery_info", {}).get("genie_id")),
+        "icon": "bicycle",
+        "color": "#22C55E"
+    })
+    
+    return options
+
+def get_wisher_next_actions(order: dict, vendor: dict) -> list:
+    """Get available next actions for wisher order"""
+    status = order.get("status", "pending")
+    delivery_type = order.get("delivery_type", "")
+    delivery_info = order.get("delivery_info", {})
+    is_carpet_genie = delivery_type == "carpet_genie" or delivery_info.get("genie_id")
+    vendor_can_deliver = vendor.get("vendor_can_deliver", False) if vendor else False
+    
+    actions = []
+    
+    if status == "pending":
+        actions.append({"action": "confirmed", "label": "Accept Order", "primary": True})
+        actions.append({"action": "cancelled", "label": "Reject", "primary": False, "destructive": True})
+    
+    elif status == "confirmed":
+        actions.append({"action": "preparing", "label": "Start Preparing", "primary": True})
+    
+    elif status == "preparing":
+        actions.append({"action": "ready_for_pickup", "label": "Mark Ready", "primary": True})
+    
+    elif status == "ready_for_pickup":
+        if is_carpet_genie:
+            # Waiting for Carpet Genie - no actions
+            pass
+        elif vendor_can_deliver:
+            actions.append({"action": "out_for_delivery", "label": "Out for Delivery", "primary": True})
+        else:
+            # Need to assign delivery
+            actions.append({"action": "assign_delivery", "label": "Assign Delivery", "primary": True})
+    
+    elif status == "out_for_delivery":
+        if not is_carpet_genie:
+            actions.append({"action": "delivered", "label": "Mark Delivered", "primary": True})
+    
+    return actions
 
 
 @api_router.put("/vendor/wisher-orders/{order_id}/status")
