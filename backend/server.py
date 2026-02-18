@@ -6977,6 +6977,7 @@ async def create_wisher_order(order_data: WisherOrderCreate):
     
     # Group items by vendor
     vendor_orders = {}
+    total_weight = 0
     for item in cart_items:
         vendor_id = item.get("vendor_id")
         if vendor_id not in vendor_orders:
@@ -6985,8 +6986,10 @@ async def create_wisher_order(order_data: WisherOrderCreate):
                 "vendor_id": vendor_id,
                 "vendor_name": vendor.get("name") if vendor else "Unknown",
                 "vendor_phone": vendor.get("contact_phone") if vendor else "",
+                "vendor_location": vendor.get("location") if vendor else {},
                 "items": [],
-                "subtotal": 0
+                "subtotal": 0,
+                "categories": set()
             }
         
         price = item.get("discounted_price") or item.get("price", 0)
@@ -6995,12 +6998,28 @@ async def create_wisher_order(order_data: WisherOrderCreate):
         item_with_total = {**item, "item_total": item_total}
         vendor_orders[vendor_id]["items"].append(item_with_total)
         vendor_orders[vendor_id]["subtotal"] += item_total
+        
+        # Track categories and estimate weight
+        if item.get("category"):
+            vendor_orders[vendor_id]["categories"].add(item.get("category"))
+        total_weight += item.get("weight", 0.5) * item.get("quantity", 1)  # Default 0.5kg per item
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Check if this is a multi-order (multiple vendors)
+    is_multi_order = len(vendor_orders) > 1
+    group_order_id = f"group_{uuid.uuid4().hex[:12]}" if is_multi_order else None
     
     # Create separate order for each vendor
     created_orders = []
+    vendor_sequence = 1
+    total_vendors = len(vendor_orders)
+    
     for vendor_id, vendor_data in vendor_orders.items():
         order_id = f"wisher_order_{uuid.uuid4().hex[:12]}"
-        now = datetime.now(timezone.utc).isoformat()
+        
+        # Calculate estimated weight for this vendor's items
+        vendor_weight = sum(item.get("weight", 0.5) * item.get("quantity", 1) for item in vendor_data["items"])
         
         order = {
             "order_id": order_id,
@@ -7012,10 +7031,20 @@ async def create_wisher_order(order_data: WisherOrderCreate):
             "vendor_id": vendor_id,
             "vendor_name": vendor_data["vendor_name"],
             "vendor_phone": vendor_data["vendor_phone"],
+            "vendor_location": vendor_data["vendor_location"],
+            
+            # Multi-order info
+            "is_multi_order": is_multi_order,
+            "group_order_id": group_order_id,
+            "vendor_sequence": vendor_sequence if is_multi_order else None,
+            "total_vendors": total_vendors if is_multi_order else 1,
             
             # Items - original and current
             "original_items": vendor_data["items"],
             "items": vendor_data["items"],
+            "item_categories": list(vendor_data["categories"]),
+            "item_count": sum(item.get("quantity", 1) for item in vendor_data["items"]),
+            "estimated_weight_kg": round(vendor_weight, 2),
             
             # Totals - original and current
             "original_subtotal": vendor_data["subtotal"],
