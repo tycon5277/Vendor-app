@@ -898,7 +898,7 @@ export default function OrderDetailScreen() {
                 <View style={styles.selectedItemCard}>
                   <Text style={styles.selectedItemName}>{selectedItem.name}</Text>
                   <Text style={styles.selectedItemDetails}>
-                    {selectedItem.quantity} × ₹{selectedItem.price} = ₹{selectedItem.quantity * selectedItem.price}
+                    {selectedItem.quantity} × ₹{Number(selectedItem.price).toFixed(2)} = ₹{(selectedItem.quantity * selectedItem.price).toFixed(2)}
                   </Text>
                 </View>
 
