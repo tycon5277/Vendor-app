@@ -845,31 +845,41 @@ export default function OrderDetailScreen() {
       {/* Bottom Action Buttons */}
       {nextActions.length > 0 && (
         <View style={[styles.bottomActions, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          {nextActions.map((action, index) => (
-            <TouchableOpacity
-              key={action.action}
-              style={[
-                styles.actionBtn,
-                action.primary && styles.actionBtnPrimary,
-                action.destructive && styles.actionBtnDestructive,
-                index > 0 && { marginLeft: 12 },
-              ]}
-              onPress={() => handleAction(action.action)}
-              disabled={actionLoading}
-            >
-              {actionLoading ? (
-                <ActivityIndicator size="small" color={action.primary ? '#FFFFFF' : '#6366F1'} />
-              ) : (
-                <Text style={[
-                  styles.actionBtnText,
-                  action.primary && styles.actionBtnTextPrimary,
-                  action.destructive && styles.actionBtnTextDestructive,
-                ]}>
-                  {action.label}
-                </Text>
-              )}
-            </TouchableOpacity>
-          ))}
+          {nextActions.map((action, index) => {
+            // Disable "Mark Ready" if not all items are picked during preparing stage
+            const isMarkReady = action.action === 'ready_for_pickup';
+            const isDisabled = actionLoading || action.disabled || (isMarkReady && order?.status === 'preparing' && !allItemsPicked);
+            
+            return (
+              <TouchableOpacity
+                key={action.action}
+                style={[
+                  styles.actionBtn,
+                  action.primary && styles.actionBtnPrimary,
+                  action.destructive && styles.actionBtnDestructive,
+                  isDisabled && styles.actionBtnDisabled,
+                  index > 0 && { marginLeft: 12 },
+                ]}
+                onPress={() => handleAction(action.action)}
+                disabled={isDisabled}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color={action.primary ? '#FFFFFF' : '#6366F1'} />
+                ) : (
+                  <Text style={[
+                    styles.actionBtnText,
+                    action.primary && styles.actionBtnTextPrimary,
+                    action.destructive && styles.actionBtnTextDestructive,
+                    isDisabled && styles.actionBtnTextDisabled,
+                  ]}>
+                    {isMarkReady && order?.status === 'preparing' && !allItemsPicked 
+                      ? `Pick all items (${pickedItems.size}/${orderItems.filter(i => !i.unavailable).length})`
+                      : action.label}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
