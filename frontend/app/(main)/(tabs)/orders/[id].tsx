@@ -589,7 +589,7 @@ export default function OrderDetailScreen() {
                       {item.unavailable_reason || 'Not available'}
                     </Text>
                   </View>
-                  <Text style={styles.unavailablePrice}>-₹{(item.quantity * item.price).toFixed(0)}</Text>
+                  <Text style={styles.unavailablePrice}>-₹{(item.quantity * item.price).toFixed(2)}</Text>
                 </View>
               ))}
             </View>
