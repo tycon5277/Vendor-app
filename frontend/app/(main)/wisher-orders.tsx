@@ -176,6 +176,45 @@ export default function WisherOrdersScreen() {
     }
   };
 
+  const handleReadyForPickup = async (orderId: string) => {
+    try {
+      await wisherOrderAPI.readyForPickup(orderId);
+      showAlert({
+        type: 'success',
+        title: 'Ready for Pickup',
+        message: 'Order is ready for delivery assignment',
+      });
+      setShowOrderModal(false);
+      fetchOrders();
+    } catch (error: any) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: error.response?.data?.detail || 'Failed to update status',
+      });
+    }
+  };
+
+  const handleAssignDelivery = async (orderId: string, deliveryType: 'own' | 'genie') => {
+    try {
+      const response = await wisherOrderAPI.assignDelivery(orderId, deliveryType);
+      showAlert({
+        type: 'success',
+        title: deliveryType === 'own' ? 'Self Delivery' : 'Carpet Genie Requested',
+        message: response.data.message,
+      });
+      setShowDeliveryModal(false);
+      setShowOrderModal(false);
+      fetchOrders();
+    } catch (error: any) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: error.response?.data?.detail || 'Failed to assign delivery',
+      });
+    }
+  };
+
   const handleModifyOrder = async () => {
     if (!selectedOrder) return;
     
