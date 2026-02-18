@@ -474,12 +474,23 @@ export default function WisherOrdersScreen() {
               <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Order Info */}
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Order #{selectedOrder.order_id.slice(-8)}</Text>
+                  <View style={styles.orderTitleRow}>
+                    <Text style={styles.sectionTitle}>Order #{selectedOrder.order_id.slice(-8)}</Text>
+                    {selectedOrder.is_multi_order && (
+                      <View style={styles.multiOrderInfoBadge}>
+                        <Ionicons name="layers" size={14} color="#6366F1" />
+                        <Text style={styles.multiOrderInfoText}>Multi-Order ({selectedOrder.vendor_sequence}/{selectedOrder.total_vendors})</Text>
+                      </View>
+                    )}
+                  </View>
                   <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(selectedOrder.status)}15`, alignSelf: 'flex-start' }]}>
                     <Text style={[styles.statusText, { color: getStatusColor(selectedOrder.status) }]}>
                       {selectedOrder.status.replace(/_/g, ' ')}
                     </Text>
                   </View>
+                  {selectedOrder.is_multi_order && (
+                    <Text style={styles.multiOrderNote}>This is part of a multi-vendor order. Customer ordered from {selectedOrder.total_vendors} shops.</Text>
+                  )}
                 </View>
                 
                 {/* Customer Info */}
