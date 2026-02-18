@@ -8084,8 +8084,6 @@ async def track_wisher_order(order_id: str):
         service_fee = order.get("delivery_fee", 0)
         
         if modification_history:
-            latest_modification = modification_history[-1]
-            
             # Build invoice breakdown
             tracking_info["invoice_breakdown"] = {
                 "original": {
@@ -8103,44 +8101,60 @@ async def track_wisher_order(order_id: str):
                 "you_pay": round(current_total, 2)
             }
             
-            # Add each adjustment as a line item
-            for item_change in latest_modification.get("modified_items", []):
-                adjustment = {
-                    "item_name": item_change.get("product_name", "Item"),
-                    "type": item_change.get("action"),
-                    "deduction": round(item_change.get("refund_amount", 0), 2)
-                }
-                if item_change.get("action") == "removed":
-                    adjustment["description"] = f"{item_change.get('product_name')} removed"
-                elif item_change.get("action") == "quantity_reduced":
-                    qty_diff = item_change.get("original_quantity", 0) - item_change.get("new_quantity", 0)
-                    adjustment["description"] = f"{item_change.get('product_name')} (-{qty_diff})"
-                tracking_info["invoice_breakdown"]["adjustments"].append(adjustment)
+            # Collect ALL changes from ALL modifications
+            all_changes = []
+            
+            for modification in modification_history:
+                for item_change in modification.get("modified_items", []):
+                    # Add to invoice adjustments
+                    adjustment = {
+                        "item_name": item_change.get("product_name", "Item"),
+                        "type": item_change.get("action"),
+                        "deduction": round(item_change.get("refund_amount", 0), 2),
+                        "original_quantity": item_change.get("original_quantity"),
+                        "new_quantity": item_change.get("new_quantity")
+                    }
+                    if item_change.get("action") == "removed":
+                        adjustment["description"] = f"{item_change.get('product_name')} removed"
+                        adjustment["icon"] = "close-circle"
+                        adjustment["icon_color"] = "#EF4444"
+                    elif item_change.get("action") == "quantity_reduced":
+                        qty_diff = item_change.get("original_quantity", 0) - item_change.get("new_quantity", 0)
+                        adjustment["description"] = f"{item_change.get('product_name')} (qty: {item_change.get('original_quantity')} → {item_change.get('new_quantity')})"
+                        adjustment["icon"] = "remove-circle"
+                        adjustment["icon_color"] = "#F59E0B"
+                    tracking_info["invoice_breakdown"]["adjustments"].append(adjustment)
+                    
+                    # Add to changes list
+                    change_desc = {
+                        "product_name": item_change.get("product_name", "Item"),
+                        "action": item_change.get("action"),
+                        "original_quantity": item_change.get("original_quantity"),
+                        "new_quantity": item_change.get("new_quantity"),
+                        "refund_for_item": round(item_change.get("refund_amount", 0), 2),
+                        "reason": item_change.get("reason", ""),
+                        "timestamp": modification.get("timestamp")
+                    }
+                    # Create user-friendly message
+                    if item_change.get("action") == "removed":
+                        change_desc["message"] = f"{item_change.get('product_name')} was removed (not available)"
+                        change_desc["icon"] = "close-circle"
+                        change_desc["icon_color"] = "#EF4444"
+                    elif item_change.get("action") == "quantity_reduced":
+                        change_desc["message"] = f"{item_change.get('product_name')} quantity reduced from {item_change.get('original_quantity')} to {item_change.get('new_quantity')}"
+                        change_desc["short_message"] = f"Qty: {item_change.get('original_quantity')} → {item_change.get('new_quantity')}"
+                        change_desc["icon"] = "remove-circle"
+                        change_desc["icon_color"] = "#F59E0B"
+                    all_changes.append(change_desc)
             
             tracking_info["modification_details"] = {
-                "reason": latest_modification.get("reason", "Items adjusted by vendor"),
-                "modified_at": latest_modification.get("timestamp"),
-                "changes": [],
-                "original_total": round(latest_modification.get("previous_total", 0), 2),
-                "new_total": round(latest_modification.get("new_total", 0), 2),
-                "refund_amount": round(latest_modification.get("refund_amount", 0), 2)
+                "reason": "Some items were adjusted by the shop",
+                "total_modifications": len(modification_history),
+                "changes": all_changes,
+                "original_total": round(original_total, 2),
+                "new_total": round(current_total, 2),
+                "total_refund": round(refund_amount, 2)
             }
-            # Build user-friendly change descriptions
-            for item_change in latest_modification.get("modified_items", []):
-                change_desc = {
-                    "product_name": item_change.get("product_name", "Item"),
-                    "action": item_change.get("action"),
-                    "original_quantity": item_change.get("original_quantity"),
-                    "new_quantity": item_change.get("new_quantity"),
-                    "refund_for_item": round(item_change.get("refund_amount", 0), 2),
-                    "reason": item_change.get("reason", "")
-                }
-                # Create user-friendly message
-                if item_change.get("action") == "removed":
-                    change_desc["message"] = f"{item_change.get('product_name')} was removed (not available)"
-                elif item_change.get("action") == "quantity_reduced":
-                    change_desc["message"] = f"{item_change.get('product_name')} quantity changed from {item_change.get('original_quantity')} to {item_change.get('new_quantity')}"
-                tracking_info["modification_details"]["changes"].append(change_desc)
             
             # Add refund status
             if order.get("refund_amount", 0) > 0:
