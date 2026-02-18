@@ -1077,10 +1077,44 @@ const styles = StyleSheet.create({
   refundBtn: {
     backgroundColor: '#EF4444',
   },
+  genieBtn: {
+    backgroundColor: '#6366F1',
+  },
   actionBtnText: {
     color: '#FFF',
     fontSize: 15,
     fontWeight: '600',
+  },
+  deliveryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  genieInfoBox: {
+    backgroundColor: '#EEF2FF',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  genieInfoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6366F1',
+    marginBottom: 8,
+  },
+  genieInfoText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#111827',
+  },
+  genieStatusText: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 6,
+    textTransform: 'capitalize',
   },
   modifyHint: {
     fontSize: 13,
