@@ -7148,17 +7148,24 @@ async def get_vendor_wisher_orders(current_user: User = Depends(get_current_user
     pending = [o for o in orders if o.get("status") == "pending"]
     confirmed = [o for o in orders if o.get("status") == "confirmed"]
     preparing = [o for o in orders if o.get("status") == "preparing"]
+    ready_for_pickup = [o for o in orders if o.get("status") == "ready_for_pickup"]
     out_for_delivery = [o for o in orders if o.get("status") == "out_for_delivery"]
     delivered = [o for o in orders if o.get("status") == "delivered"]
     cancelled = [o for o in orders if o.get("status") == "cancelled"]
     
+    # Get vendor info for delivery capability display
+    vendor = await db.users.find_one({"user_id": current_user.user_id})
+    has_own_delivery = vendor.get("vendor_can_deliver", False)
+    
     return {
         "orders": orders,
         "total": len(orders),
+        "vendor_has_own_delivery": has_own_delivery,
         "summary": {
             "pending": len(pending),
             "confirmed": len(confirmed),
             "preparing": len(preparing),
+            "ready_for_pickup": len(ready_for_pickup),
             "out_for_delivery": len(out_for_delivery),
             "delivered": len(delivered),
             "cancelled": len(cancelled)
