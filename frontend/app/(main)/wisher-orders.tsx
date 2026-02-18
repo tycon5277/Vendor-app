@@ -1094,6 +1094,32 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 20,
   },
+  orderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  multiOrderInfoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  multiOrderInfoText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6366F1',
+  },
+  multiOrderNote: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
