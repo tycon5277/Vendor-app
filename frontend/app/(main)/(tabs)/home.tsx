@@ -359,10 +359,6 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.emptyTitle}>No orders yet</Text>
                 <Text style={styles.emptySubtitle}>Orders will appear here when customers place them</Text>
-                <TouchableOpacity style={styles.seedBtn} onPress={handleSeedData}>
-                  <Ionicons name="sparkles" size={18} color="#6366F1" />
-                  <Text style={styles.seedBtnText}>Load Demo Data</Text>
-                </TouchableOpacity>
               </View>
             )}
           </View>
