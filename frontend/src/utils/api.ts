@@ -122,66 +122,12 @@ export const orderAPI = {
     }
   },
   getOne: async (id: string) => {
-    try {
-      const response = await api.get(`/vendor/wisher-orders/${id}`);
-      const o = response.data;
-      return { 
-        data: {
-          order_id: o.order_id,
-          status: o.status,
-          customer_name: o.customer_name,
-          customer_phone: o.customer_phone,
-          customer_email: o.customer_email,
-          total_amount: o.total,
-          subtotal: o.subtotal,
-          delivery_fee: o.delivery_fee,
-          items: o.items || o.original_items,
-          created_at: o.created_at,
-          delivery_type: o.delivery_type,
-          delivery_address: o.delivery_address,
-          is_multi_order: o.is_multi_order,
-          group_order_id: o.group_order_id,
-          vendor_sequence: o.vendor_sequence,
-          total_vendors: o.total_vendors,
-          notes: o.notes,
-          status_history: o.status_history,
-        }
-      };
-    } catch (error) {
-      console.error('Error fetching order:', error);
-      throw error;
-    }
+    const response = await api.get(`/vendor/wisher-orders/${id}`);
+    return response;
   },
   getDetails: async (id: string) => {
-    try {
-      const response = await api.get(`/vendor/wisher-orders/${id}`);
-      const o = response.data;
-      return { 
-        data: {
-          order_id: o.order_id,
-          status: o.status,
-          customer_name: o.customer_name,
-          customer_phone: o.customer_phone,
-          customer_email: o.customer_email,
-          total_amount: o.total,
-          subtotal: o.subtotal,
-          delivery_fee: o.delivery_fee,
-          items: o.items || o.original_items,
-          created_at: o.created_at,
-          delivery_type: o.delivery_type,
-          delivery_address: o.delivery_address,
-          is_multi_order: o.is_multi_order,
-          group_order_id: o.group_order_id,
-          vendor_sequence: o.vendor_sequence,
-          total_vendors: o.total_vendors,
-          notes: o.notes,
-          status_history: o.status_history,
-        }
-      };
-    } catch (error) {
-      console.error('Error fetching order details:', error);
-      throw error;
-    }
+    const response = await api.get(`/vendor/wisher-orders/${id}`);
+    return response;
   },
   accept: (id: string) => api.put(`/vendor/wisher-orders/${id}/status`, { status: 'confirmed' }),
   reject: (id: string, reason?: string) => api.put(`/vendor/wisher-orders/${id}/status`, { status: 'cancelled', reason }),
