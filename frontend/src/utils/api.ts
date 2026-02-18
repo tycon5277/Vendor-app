@@ -68,32 +68,43 @@ export const productAPI = {
   getCategories: () => api.get('/vendor/categories'),
 };
 
+// Helper to transform wisher order response to UI Order format
+const transformWisherOrders = (orders: any[]) => {
+  return orders.map((o: any) => ({
+    order_id: o.order_id,
+    status: o.status,
+    customer_name: o.customer_name,
+    customer_phone: o.customer_phone,
+    total_amount: o.total,
+    items: o.items,
+    created_at: o.created_at,
+    delivery_type: o.delivery_type,
+    is_multi_order: o.is_multi_order,
+    group_order_id: o.group_order_id,
+    vendor_sequence: o.vendor_sequence,
+    total_vendors: o.total_vendors,
+    auto_accept_seconds: 180,
+  }));
+};
+
 // Order APIs - Now uses wisher-orders (Local Hub orders) as primary
 export const orderAPI = {
   getAll: async (status?: string) => {
     const response = await api.get('/vendor/wisher-orders', { params: { status } });
-    // Transform response to match Order type expected by UI
     const orders = response.data.orders || [];
-    return { 
-      data: orders.map((o: any) => ({
-        order_id: o.order_id,
-        status: o.status,
-        customer_name: o.customer_name,
-        customer_phone: o.customer_phone,
-        total_amount: o.total,
-        items: o.items,
-        created_at: o.created_at,
-        delivery_type: o.delivery_type,
-        is_multi_order: o.is_multi_order,
-        group_order_id: o.group_order_id,
-        vendor_sequence: o.vendor_sequence,
-        total_vendors: o.total_vendors,
-        auto_accept_seconds: 180,
-      }))
-    };
+    return { data: transformWisherOrders(orders) };
   },
-  getPending: () => api.get('/vendor/wisher-orders', { params: { status: 'pending' } }),
-  getActive: () => api.get('/vendor/wisher-orders', { params: { status: 'active' } }),
+  getPending: async () => {
+    const response = await api.get('/vendor/wisher-orders');
+    const orders = (response.data.orders || []).filter((o: any) => o.status === 'pending');
+    return { data: transformWisherOrders(orders) };
+  },
+  getActive: async () => {
+    const response = await api.get('/vendor/wisher-orders');
+    const activeStatuses = ['confirmed', 'preparing', 'ready', 'ready_for_pickup', 'out_for_delivery'];
+    const orders = (response.data.orders || []).filter((o: any) => activeStatuses.includes(o.status));
+    return { data: transformWisherOrders(orders) };
+  },
   getOne: (id: string) => api.get(`/vendor/wisher-orders/${id}`),
   getDetails: (id: string) => api.get(`/vendor/wisher-orders/${id}`),
   accept: (id: string) => api.put(`/vendor/wisher-orders/${id}/status`, { status: 'confirmed' }),
