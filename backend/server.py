@@ -7357,6 +7357,513 @@ async def process_wisher_order_refund(
     }
 
 
+# ===================== DELIVERY ASSIGNMENT APIs =====================
+
+class DeliveryAssignment(BaseModel):
+    delivery_type: str  # "own" or "genie"
+    notes: Optional[str] = None
+
+
+@api_router.put("/vendor/wisher-orders/{order_id}/ready-for-pickup")
+async def mark_ready_for_pickup(
+    order_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Mark order as ready for pickup - Vendor App"""
+    if current_user.partner_type != "vendor":
+        raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
+    
+    order = await db.wisher_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found or not authorized")
+    
+    if order.get("status") not in ["confirmed", "preparing"]:
+        raise HTTPException(status_code=400, detail="Order must be confirmed or preparing to mark as ready")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "status": "ready_for_pickup",
+                "updated_at": now
+            },
+            "$push": {
+                "status_history": {
+                    "status": "ready_for_pickup",
+                    "timestamp": now,
+                    "note": "Order packed and ready for pickup"
+                }
+            }
+        }
+    )
+    
+    return {"message": "Order marked as ready for pickup", "order_id": order_id}
+
+
+@api_router.post("/vendor/wisher-orders/{order_id}/assign-delivery")
+async def assign_wisher_order_delivery(
+    order_id: str,
+    assignment: DeliveryAssignment,
+    current_user: User = Depends(get_current_user)
+):
+    """Assign delivery for order - Vendor App"""
+    if current_user.partner_type != "vendor":
+        raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
+    
+    order = await db.wisher_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found or not authorized")
+    
+    if order.get("status") not in ["ready_for_pickup", "preparing", "confirmed"]:
+        raise HTTPException(status_code=400, detail="Order must be ready for pickup to assign delivery")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    if assignment.delivery_type == "own":
+        # Vendor will deliver themselves
+        await db.wisher_orders.update_one(
+            {"order_id": order_id},
+            {
+                "$set": {
+                    "delivery_type": "vendor_delivery",
+                    "status": "out_for_delivery",
+                    "delivery_assigned_at": now,
+                    "updated_at": now
+                },
+                "$push": {
+                    "status_history": {
+                        "status": "out_for_delivery",
+                        "timestamp": now,
+                        "note": "Vendor is delivering the order"
+                    }
+                }
+            }
+        )
+        return {
+            "message": "Order assigned for vendor delivery",
+            "order_id": order_id,
+            "delivery_type": "vendor_delivery"
+        }
+    
+    elif assignment.delivery_type == "genie":
+        # Request Carpet Genie
+        # Get vendor location
+        vendor = await db.users.find_one({"user_id": current_user.user_id})
+        vendor_location = vendor.get("vendor_shop_location", {})
+        
+        if not vendor_location.get("lat") or not vendor_location.get("lng"):
+            raise HTTPException(status_code=400, detail="Vendor location not set")
+        
+        # Find available genies nearby
+        available_genies = await db.users.find({
+            "partner_type": "genie",
+            "partner_status": "available",
+            "current_location": {"$exists": True}
+        }).to_list(20)
+        
+        if not available_genies:
+            # No genies available - create open request
+            await db.wisher_orders.update_one(
+                {"order_id": order_id},
+                {
+                    "$set": {
+                        "delivery_type": "genie_delivery",
+                        "genie_status": "searching",
+                        "genie_request_time": now,
+                        "updated_at": now
+                    },
+                    "$push": {
+                        "status_history": {
+                            "status": "searching_genie",
+                            "timestamp": now,
+                            "note": "Looking for available delivery partner"
+                        }
+                    }
+                }
+            )
+            
+            # Create delivery request for genies to see
+            delivery_request = {
+                "request_id": f"delivery_{uuid.uuid4().hex[:12]}",
+                "order_id": order_id,
+                "vendor_id": current_user.user_id,
+                "vendor_name": vendor.get("vendor_shop_name", "Unknown"),
+                "vendor_location": vendor_location,
+                "customer_location": order.get("delivery_address", {}),
+                "items_count": len(order.get("items", [])),
+                "order_total": order.get("total", 0),
+                "delivery_fee": order.get("delivery_fee", 30),
+                "status": "open",
+                "created_at": now
+            }
+            await db.genie_delivery_requests.insert_one(delivery_request)
+            
+            return {
+                "message": "Searching for delivery partner",
+                "order_id": order_id,
+                "delivery_type": "genie_delivery",
+                "genie_status": "searching"
+            }
+        
+        # Find closest genie
+        closest_genie = None
+        min_distance = float('inf')
+        
+        for genie in available_genies:
+            genie_loc = genie.get("current_location", {})
+            if genie_loc.get("lat") and genie_loc.get("lng"):
+                distance = calculate_distance_km(
+                    vendor_location["lat"], vendor_location["lng"],
+                    genie_loc["lat"], genie_loc["lng"]
+                )
+                if distance < min_distance and distance <= 5:  # Within 5km
+                    min_distance = distance
+                    closest_genie = genie
+        
+        if not closest_genie:
+            # No genie within range - create open request
+            await db.wisher_orders.update_one(
+                {"order_id": order_id},
+                {
+                    "$set": {
+                        "delivery_type": "genie_delivery",
+                        "genie_status": "searching",
+                        "genie_request_time": now,
+                        "updated_at": now
+                    },
+                    "$push": {
+                        "status_history": {
+                            "status": "searching_genie",
+                            "timestamp": now,
+                            "note": "Looking for nearby delivery partner"
+                        }
+                    }
+                }
+            )
+            
+            delivery_request = {
+                "request_id": f"delivery_{uuid.uuid4().hex[:12]}",
+                "order_id": order_id,
+                "vendor_id": current_user.user_id,
+                "vendor_name": vendor.get("vendor_shop_name", "Unknown"),
+                "vendor_location": vendor_location,
+                "customer_location": order.get("delivery_address", {}),
+                "items_count": len(order.get("items", [])),
+                "order_total": order.get("total", 0),
+                "delivery_fee": order.get("delivery_fee", 30),
+                "status": "open",
+                "created_at": now
+            }
+            await db.genie_delivery_requests.insert_one(delivery_request)
+            
+            return {
+                "message": "Searching for nearby delivery partner",
+                "order_id": order_id,
+                "delivery_type": "genie_delivery",
+                "genie_status": "searching"
+            }
+        
+        # Assign to closest genie
+        await db.wisher_orders.update_one(
+            {"order_id": order_id},
+            {
+                "$set": {
+                    "delivery_type": "genie_delivery",
+                    "genie_status": "assigned",
+                    "genie_id": closest_genie["user_id"],
+                    "genie_name": closest_genie.get("name", "Delivery Partner"),
+                    "genie_phone": closest_genie.get("phone", ""),
+                    "genie_assigned_at": now,
+                    "updated_at": now
+                },
+                "$push": {
+                    "status_history": {
+                        "status": "genie_assigned",
+                        "timestamp": now,
+                        "note": f"Delivery partner {closest_genie.get('name', 'assigned')}"
+                    }
+                }
+            }
+        )
+        
+        # Update genie status
+        await db.users.update_one(
+            {"user_id": closest_genie["user_id"]},
+            {
+                "$set": {
+                    "partner_status": "busy",
+                    "current_order_id": order_id
+                }
+            }
+        )
+        
+        return {
+            "message": "Delivery partner assigned",
+            "order_id": order_id,
+            "delivery_type": "genie_delivery",
+            "genie_status": "assigned",
+            "genie_name": closest_genie.get("name"),
+            "genie_phone": closest_genie.get("phone")
+        }
+    
+    else:
+        raise HTTPException(status_code=400, detail="Invalid delivery type. Use 'own' or 'genie'")
+
+
+# ===================== GENIE ORDER APIs (For Wisher Orders) =====================
+
+@api_router.get("/genie/wisher-deliveries")
+async def get_available_wisher_deliveries(current_user: User = Depends(get_current_user)):
+    """Get available delivery requests for Genie - Genie App"""
+    if current_user.partner_type != "genie":
+        raise HTTPException(status_code=403, detail="Only genies can access this endpoint")
+    
+    # Get open delivery requests
+    requests = await db.genie_delivery_requests.find(
+        {"status": "open"},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(20)
+    
+    # Also get orders assigned to this genie
+    assigned_orders = await db.wisher_orders.find(
+        {"genie_id": current_user.user_id, "status": {"$nin": ["delivered", "cancelled"]}},
+        {"_id": 0}
+    ).to_list(10)
+    
+    return {
+        "open_requests": requests,
+        "assigned_orders": assigned_orders
+    }
+
+
+@api_router.post("/genie/wisher-deliveries/{order_id}/accept")
+async def accept_wisher_delivery(
+    order_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Accept a delivery request - Genie App"""
+    if current_user.partner_type != "genie":
+        raise HTTPException(status_code=403, detail="Only genies can access this endpoint")
+    
+    order = await db.wisher_orders.find_one({"order_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("genie_status") not in ["searching", None]:
+        raise HTTPException(status_code=400, detail="Order already has a delivery partner")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Assign genie to order
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "genie_status": "accepted",
+                "genie_id": current_user.user_id,
+                "genie_name": current_user.name,
+                "genie_phone": current_user.phone,
+                "genie_accepted_at": now,
+                "updated_at": now
+            },
+            "$push": {
+                "status_history": {
+                    "status": "genie_accepted",
+                    "timestamp": now,
+                    "note": f"Delivery partner {current_user.name} accepted"
+                }
+            }
+        }
+    )
+    
+    # Update genie status
+    await db.users.update_one(
+        {"user_id": current_user.user_id},
+        {
+            "$set": {
+                "partner_status": "busy",
+                "current_order_id": order_id
+            }
+        }
+    )
+    
+    # Remove from open requests
+    await db.genie_delivery_requests.delete_one({"order_id": order_id})
+    
+    return {"message": "Delivery accepted", "order_id": order_id}
+
+
+@api_router.post("/genie/wisher-deliveries/{order_id}/pickup")
+async def pickup_wisher_order(
+    order_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Mark order as picked up from vendor - Genie App"""
+    if current_user.partner_type != "genie":
+        raise HTTPException(status_code=403, detail="Only genies can access this endpoint")
+    
+    order = await db.wisher_orders.find_one(
+        {"order_id": order_id, "genie_id": current_user.user_id}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found or not assigned to you")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "status": "out_for_delivery",
+                "genie_status": "picked_up",
+                "genie_pickup_at": now,
+                "updated_at": now
+            },
+            "$push": {
+                "status_history": {
+                    "status": "out_for_delivery",
+                    "timestamp": now,
+                    "note": "Order picked up, on the way to customer"
+                }
+            }
+        }
+    )
+    
+    return {"message": "Order picked up", "order_id": order_id}
+
+
+@api_router.post("/genie/wisher-deliveries/{order_id}/deliver")
+async def deliver_wisher_order(
+    order_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Mark order as delivered - Genie App"""
+    if current_user.partner_type != "genie":
+        raise HTTPException(status_code=403, detail="Only genies can access this endpoint")
+    
+    order = await db.wisher_orders.find_one(
+        {"order_id": order_id, "genie_id": current_user.user_id}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found or not assigned to you")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "status": "delivered",
+                "genie_status": "delivered",
+                "genie_delivered_at": now,
+                "updated_at": now
+            },
+            "$push": {
+                "status_history": {
+                    "status": "delivered",
+                    "timestamp": now,
+                    "note": "Order delivered to customer"
+                }
+            }
+        }
+    )
+    
+    # Free up the genie
+    await db.users.update_one(
+        {"user_id": current_user.user_id},
+        {
+            "$set": {
+                "partner_status": "available",
+                "current_order_id": None
+            }
+        }
+    )
+    
+    return {"message": "Order delivered successfully", "order_id": order_id}
+
+
+@api_router.post("/genie/location-update")
+async def update_genie_location(
+    location: dict,
+    current_user: User = Depends(get_current_user)
+):
+    """Update genie's current location - Genie App"""
+    if current_user.partner_type != "genie":
+        raise HTTPException(status_code=403, detail="Only genies can access this endpoint")
+    
+    await db.users.update_one(
+        {"user_id": current_user.user_id},
+        {
+            "$set": {
+                "current_location": {
+                    "lat": location.get("lat"),
+                    "lng": location.get("lng"),
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        }
+    )
+    
+    # If genie has an active order, update the order with genie location
+    if current_user.current_order_id:
+        await db.wisher_orders.update_one(
+            {"order_id": current_user.current_order_id},
+            {
+                "$set": {
+                    "genie_location": {
+                        "lat": location.get("lat"),
+                        "lng": location.get("lng"),
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }
+                }
+            }
+        )
+    
+    return {"message": "Location updated"}
+
+
+# ===================== WISHER ORDER TRACKING =====================
+
+@api_router.get("/localhub/order/{order_id}/track")
+async def track_wisher_order(order_id: str):
+    """Track order with delivery details - Wisher App"""
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    tracking_info = {
+        "order_id": order_id,
+        "status": order.get("status"),
+        "status_history": order.get("status_history", []),
+        "vendor_name": order.get("vendor_name"),
+        "delivery_type": order.get("delivery_type"),
+        "delivery_address": order.get("delivery_address"),
+        "total": order.get("total"),
+        "is_modified": order.get("is_modified", False),
+        "refund_amount": order.get("refund_amount", 0)
+    }
+    
+    # Add genie info only if genie has accepted
+    if order.get("genie_status") in ["accepted", "picked_up", "delivered"]:
+        tracking_info["genie"] = {
+            "name": order.get("genie_name"),
+            "phone": order.get("genie_phone"),
+            "status": order.get("genie_status")
+        }
+        
+        # Add live location only if out for delivery
+        if order.get("status") == "out_for_delivery" and order.get("genie_location"):
+            tracking_info["genie"]["location"] = order.get("genie_location")
+    
+    return tracking_info
+
+
 # ===================== HEALTH CHECK =====================
 
 @api_router.get("/")
