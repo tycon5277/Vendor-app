@@ -68,26 +68,47 @@ export const productAPI = {
   getCategories: () => api.get('/vendor/categories'),
 };
 
-// Order APIs
+// Order APIs - Now uses wisher-orders (Local Hub orders) as primary
 export const orderAPI = {
-  getAll: (status?: string) => api.get('/vendor/orders', { params: { status } }),
-  getPending: () => api.get('/vendor/orders/pending'),
-  getActive: () => api.get('/vendor/orders/active'),
-  getOne: (id: string) => api.get(`/vendor/orders/${id}`),
-  getDetails: (id: string) => api.get(`/vendor/orders/${id}/details`),
-  accept: (id: string) => api.post(`/vendor/orders/${id}/accept`),
-  reject: (id: string, reason?: string) => api.post(`/vendor/orders/${id}/reject`, { reason }),
-  updateStatus: (id: string, status: string) => api.put(`/vendor/orders/${id}/status`, { status }),
-  requestAgent: (id: string) => api.post(`/vendor/orders/${id}/assign-agent`),
+  getAll: async (status?: string) => {
+    const response = await api.get('/vendor/wisher-orders', { params: { status } });
+    // Transform response to match Order type expected by UI
+    const orders = response.data.orders || [];
+    return { 
+      data: orders.map((o: any) => ({
+        order_id: o.order_id,
+        status: o.status,
+        customer_name: o.customer_name,
+        customer_phone: o.customer_phone,
+        total_amount: o.total,
+        items: o.items,
+        created_at: o.created_at,
+        delivery_type: o.delivery_type,
+        is_multi_order: o.is_multi_order,
+        group_order_id: o.group_order_id,
+        vendor_sequence: o.vendor_sequence,
+        total_vendors: o.total_vendors,
+        auto_accept_seconds: 180,
+      }))
+    };
+  },
+  getPending: () => api.get('/vendor/wisher-orders', { params: { status: 'pending' } }),
+  getActive: () => api.get('/vendor/wisher-orders', { params: { status: 'active' } }),
+  getOne: (id: string) => api.get(`/vendor/wisher-orders/${id}`),
+  getDetails: (id: string) => api.get(`/vendor/wisher-orders/${id}`),
+  accept: (id: string) => api.put(`/vendor/wisher-orders/${id}/status`, { status: 'confirmed' }),
+  reject: (id: string, reason?: string) => api.put(`/vendor/wisher-orders/${id}/status`, { status: 'cancelled', reason }),
+  updateStatus: (id: string, status: string) => api.put(`/vendor/wisher-orders/${id}/status`, { status }),
+  requestAgent: (id: string) => api.post(`/vendor/wisher-orders/${id}/assign-delivery`, { delivery_type: 'carpet_genie' }),
   // New workflow APIs
   executeAction: (id: string, action: string, notes?: string) => 
-    api.post(`/vendor/orders/${id}/workflow/${action}`, { notes }),
+    api.put(`/vendor/wisher-orders/${id}/status`, { status: action, notes }),
   assignDelivery: (id: string, deliveryType: string, notes?: string) =>
-    api.post(`/vendor/orders/${id}/assign-delivery`, { delivery_type: deliveryType, notes }),
-  track: (id: string) => api.get(`/vendor/orders/${id}/track`),
+    api.post(`/vendor/wisher-orders/${id}/assign-delivery`, { delivery_type: deliveryType, notes }),
+  track: (id: string) => api.get(`/localhub/order/${id}/track`),
   // Item management
   updateItems: (id: string, data: { items: any[], adjusted_total: number }) =>
-    api.put(`/vendor/orders/${id}/items`, data),
+    api.put(`/vendor/wisher-orders/${id}/modify`, data),
 };
 
 // Chat APIs
