@@ -131,6 +131,14 @@ export const wisherOrderAPI = {
   updateStatus: (orderId: string, status: string, note?: string) => 
     api.put(`/vendor/wisher-orders/${orderId}/status`, { status, note }),
   
+  // Mark as ready for pickup
+  readyForPickup: (orderId: string) =>
+    api.put(`/vendor/wisher-orders/${orderId}/ready-for-pickup`),
+  
+  // Assign delivery
+  assignDelivery: (orderId: string, deliveryType: 'own' | 'genie', notes?: string) =>
+    api.post(`/vendor/wisher-orders/${orderId}/assign-delivery`, { delivery_type: deliveryType, notes }),
+  
   // Modify order (remove/reduce items)
   modifyOrder: (orderId: string, data: {
     modified_items: Array<{
