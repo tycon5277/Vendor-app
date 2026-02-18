@@ -428,7 +428,7 @@ export default function OrdersScreen() {
               <Text style={styles.customerPhone}>{item.customer_phone}</Text>
             )}
           </View>
-          <Text style={styles.totalAmount}>₹{item.total_amount}</Text>
+          <Text style={styles.totalAmount}>₹{Number(item.total_amount).toFixed(2)}</Text>
         </View>
 
         {/* Items Preview */}
