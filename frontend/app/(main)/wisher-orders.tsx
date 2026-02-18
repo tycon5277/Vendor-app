@@ -543,6 +543,7 @@ export default function WisherOrdersScreen() {
                       <TouchableOpacity
                         style={[styles.actionBtn, styles.confirmBtn]}
                         onPress={() => handleStatusUpdate(selectedOrder.order_id, 'confirmed')}
+                        data-testid="confirm-order-btn"
                       >
                         <Ionicons name="checkmark-circle" size={20} color="#FFF" />
                         <Text style={styles.actionBtnText}>Confirm</Text>
@@ -557,6 +558,7 @@ export default function WisherOrdersScreen() {
                           setItemsToModify(initial);
                           setShowModifyModal(true);
                         }}
+                        data-testid="modify-order-btn"
                       >
                         <Ionicons name="create-outline" size={20} color="#FFF" />
                         <Text style={styles.actionBtnText}>Modify</Text>
@@ -565,38 +567,62 @@ export default function WisherOrdersScreen() {
                   )}
                   
                   {selectedOrder.status === 'confirmed' && (
-                    <TouchableOpacity
-                      style={[styles.actionBtn, styles.confirmBtn]}
-                      onPress={() => handleStatusUpdate(selectedOrder.order_id, 'preparing')}
-                    >
-                      <Ionicons name="restaurant" size={20} color="#FFF" />
-                      <Text style={styles.actionBtnText}>Start Preparing</Text>
-                    </TouchableOpacity>
+                    <>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, styles.confirmBtn]}
+                        onPress={() => handleStatusUpdate(selectedOrder.order_id, 'preparing')}
+                        data-testid="start-preparing-btn"
+                      >
+                        <Ionicons name="restaurant" size={20} color="#FFF" />
+                        <Text style={styles.actionBtnText}>Start Preparing</Text>
+                      </TouchableOpacity>
+                      {!vendorHasOwnDelivery && (
+                        <View style={styles.autoSearchNote}>
+                          <Ionicons name="information-circle-outline" size={16} color="#6366F1" />
+                          <Text style={styles.autoSearchText}>We'll start finding a delivery partner once you begin preparing</Text>
+                        </View>
+                      )}
+                    </>
                   )}
                   
                   {selectedOrder.status === 'preparing' && (
-                    <TouchableOpacity
-                      style={[styles.actionBtn, styles.confirmBtn]}
-                      onPress={() => handleReadyForPickup(selectedOrder.order_id)}
-                    >
-                      <Ionicons name="cube" size={20} color="#FFF" />
-                      <Text style={styles.actionBtnText}>Ready for Pickup</Text>
-                    </TouchableOpacity>
-                  )}
-                  
-                  {selectedOrder.status === 'ready_for_pickup' && (
                     <>
-                      <Text style={styles.deliveryLabel}>Choose Delivery Method:</Text>
+                      {/* Show genie search status if auto-searching */}
+                      {selectedOrder.genie_status === 'searching' && (
+                        <View style={styles.genieInfoBox}>
+                          <ActivityIndicator size="small" color="#6366F1" />
+                          <Text style={styles.genieInfoTitle}>Finding Delivery Partner...</Text>
+                          <Text style={styles.genieStatusText}>We're looking for the best partner for this order</Text>
+                        </View>
+                      )}
                       <TouchableOpacity
                         style={[styles.actionBtn, styles.confirmBtn]}
-                        onPress={() => handleAssignDelivery(selectedOrder.order_id, 'own')}
+                        onPress={() => handleReadyForPickup(selectedOrder.order_id)}
+                        data-testid="ready-for-pickup-btn"
                       >
-                        <Ionicons name="car" size={20} color="#FFF" />
-                        <Text style={styles.actionBtnText}>I'll Deliver Myself</Text>
+                        <Ionicons name="cube" size={20} color="#FFF" />
+                        <Text style={styles.actionBtnText}>Ready for Pickup</Text>
                       </TouchableOpacity>
+                    </>
+                  )}
+                  
+                  {selectedOrder.status === 'ready_for_pickup' && !selectedOrder.genie_status && (
+                    <>
+                      <Text style={styles.deliveryLabel}>Choose Delivery Method:</Text>
+                      {vendorHasOwnDelivery && (
+                        <TouchableOpacity
+                          style={[styles.actionBtn, styles.confirmBtn]}
+                          onPress={() => handleAssignDelivery(selectedOrder.order_id, 'own')}
+                          data-testid="self-delivery-btn"
+                        >
+                          <Ionicons name="car" size={20} color="#FFF" />
+                          <Text style={styles.actionBtnText}>I'll Deliver Myself</Text>
+                        </TouchableOpacity>
+                      )}
                       <TouchableOpacity
                         style={[styles.actionBtn, styles.genieBtn]}
                         onPress={() => handleAssignDelivery(selectedOrder.order_id, 'genie')}
+                        data-testid="request-genie-btn"
                       >
                         <Ionicons name="bicycle" size={20} color="#FFF" />
                         <Text style={styles.actionBtnText}>Request Delivery Partner</Text>
@@ -604,20 +630,8 @@ export default function WisherOrdersScreen() {
                     </>
                   )}
                   
-                  {/* Show Request Delivery Partner button for vendors with own delivery as fallback */}
-                  {(selectedOrder.status === 'preparing' || selectedOrder.status === 'confirmed') && 
-                   selectedOrder.delivery_type !== 'genie_delivery' && (
-                    <TouchableOpacity
-                      style={[styles.actionBtn, styles.genieBtn, { marginTop: 10 }]}
-                      onPress={() => handleAssignDelivery(selectedOrder.order_id, 'genie')}
-                    >
-                      <Ionicons name="bicycle" size={20} color="#FFF" />
-                      <Text style={styles.actionBtnText}>Request Delivery Partner</Text>
-                    </TouchableOpacity>
-                  )}
-                  
-                  {/* Show searching status */}
-                  {selectedOrder.genie_status === 'searching' && (
+                  {/* Show searching status when genie is being searched */}
+                  {selectedOrder.genie_status === 'searching' && selectedOrder.status !== 'preparing' && (
                     <View style={styles.genieInfoBox}>
                       <ActivityIndicator size="small" color="#6366F1" />
                       <Text style={styles.genieInfoTitle}>Finding Delivery Partner...</Text>
@@ -625,10 +639,25 @@ export default function WisherOrdersScreen() {
                     </View>
                   )}
                   
+                  {/* Show assigned genie info */}
+                  {selectedOrder.genie_status === 'assigned' && (
+                    <View style={styles.genieInfoBox}>
+                      <View style={styles.genieAssignedHeader}>
+                        <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                        <Text style={styles.genieAssignedTitle}>Delivery Partner Assigned!</Text>
+                      </View>
+                      <Text style={styles.genieInfoText}>{selectedOrder.genie_name || 'Delivery Partner'}</Text>
+                      {selectedOrder.genie_phone && (
+                        <Text style={styles.genieInfoText}>{selectedOrder.genie_phone}</Text>
+                      )}
+                    </View>
+                  )}
+                  
                   {selectedOrder.status === 'out_for_delivery' && selectedOrder.delivery_type === 'vendor_delivery' && (
                     <TouchableOpacity
                       style={[styles.actionBtn, styles.confirmBtn]}
                       onPress={() => handleStatusUpdate(selectedOrder.order_id, 'delivered')}
+                      data-testid="mark-delivered-btn"
                     >
                       <Ionicons name="checkmark-done" size={20} color="#FFF" />
                       <Text style={styles.actionBtnText}>Mark Delivered</Text>
@@ -638,12 +667,12 @@ export default function WisherOrdersScreen() {
                   {selectedOrder.status === 'out_for_delivery' && selectedOrder.delivery_type === 'genie_delivery' && (
                     <View style={styles.genieInfoBox}>
                       <Text style={styles.genieInfoTitle}>Delivery Partner</Text>
-                      <Text style={styles.genieInfoText}>{selectedOrder.genie_name || 'Searching...'}</Text>
+                      <Text style={styles.genieInfoText}>{selectedOrder.genie_name || 'Assigned'}</Text>
                       {selectedOrder.genie_phone && (
                         <Text style={styles.genieInfoText}>{selectedOrder.genie_phone}</Text>
                       )}
                       <Text style={styles.genieStatusText}>
-                        Status: {selectedOrder.genie_status?.replace(/_/g, ' ') || 'Searching'}
+                        Status: {selectedOrder.genie_status?.replace(/_/g, ' ') || 'On the way'}
                       </Text>
                     </View>
                   )}
@@ -652,6 +681,7 @@ export default function WisherOrdersScreen() {
                     <TouchableOpacity
                       style={[styles.actionBtn, styles.refundBtn]}
                       onPress={() => handleProcessRefund(selectedOrder.order_id)}
+                      data-testid="process-refund-btn"
                     >
                       <Ionicons name="wallet" size={20} color="#FFF" />
                       <Text style={styles.actionBtnText}>Process Refund (₹{selectedOrder.refund_amount})</Text>
