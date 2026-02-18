@@ -555,14 +555,34 @@ export default function WisherOrdersScreen() {
                   {selectedOrder.status === 'preparing' && (
                     <TouchableOpacity
                       style={[styles.actionBtn, styles.confirmBtn]}
-                      onPress={() => handleStatusUpdate(selectedOrder.order_id, 'out_for_delivery')}
+                      onPress={() => handleReadyForPickup(selectedOrder.order_id)}
                     >
-                      <Ionicons name="bicycle" size={20} color="#FFF" />
-                      <Text style={styles.actionBtnText}>Out for Delivery</Text>
+                      <Ionicons name="cube" size={20} color="#FFF" />
+                      <Text style={styles.actionBtnText}>Ready for Pickup</Text>
                     </TouchableOpacity>
                   )}
                   
-                  {selectedOrder.status === 'out_for_delivery' && (
+                  {selectedOrder.status === 'ready_for_pickup' && (
+                    <>
+                      <Text style={styles.deliveryLabel}>Choose Delivery Method:</Text>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, styles.confirmBtn]}
+                        onPress={() => handleAssignDelivery(selectedOrder.order_id, 'own')}
+                      >
+                        <Ionicons name="car" size={20} color="#FFF" />
+                        <Text style={styles.actionBtnText}>I'll Deliver Myself</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, styles.genieBtn]}
+                        onPress={() => handleAssignDelivery(selectedOrder.order_id, 'genie')}
+                      >
+                        <Ionicons name="bicycle" size={20} color="#FFF" />
+                        <Text style={styles.actionBtnText}>Request Carpet Genie</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                  
+                  {selectedOrder.status === 'out_for_delivery' && selectedOrder.delivery_type === 'vendor_delivery' && (
                     <TouchableOpacity
                       style={[styles.actionBtn, styles.confirmBtn]}
                       onPress={() => handleStatusUpdate(selectedOrder.order_id, 'delivered')}
@@ -570,6 +590,19 @@ export default function WisherOrdersScreen() {
                       <Ionicons name="checkmark-done" size={20} color="#FFF" />
                       <Text style={styles.actionBtnText}>Mark Delivered</Text>
                     </TouchableOpacity>
+                  )}
+                  
+                  {selectedOrder.status === 'out_for_delivery' && selectedOrder.delivery_type === 'genie_delivery' && (
+                    <View style={styles.genieInfoBox}>
+                      <Text style={styles.genieInfoTitle}>Delivery Partner</Text>
+                      <Text style={styles.genieInfoText}>{selectedOrder.genie_name || 'Searching...'}</Text>
+                      {selectedOrder.genie_phone && (
+                        <Text style={styles.genieInfoText}>{selectedOrder.genie_phone}</Text>
+                      )}
+                      <Text style={styles.genieStatusText}>
+                        Status: {selectedOrder.genie_status?.replace(/_/g, ' ') || 'Searching'}
+                      </Text>
+                    </View>
                   )}
                   
                   {selectedOrder.refund_amount && selectedOrder.refund_amount > 0 && selectedOrder.refund_status === 'pending' && (
