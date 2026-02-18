@@ -75,6 +75,7 @@ export default function WisherOrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<StatusType>('all');
+  const [vendorHasOwnDelivery, setVendorHasOwnDelivery] = useState(false);
   const [summary, setSummary] = useState({
     pending: 0,
     confirmed: 0,
