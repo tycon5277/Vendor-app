@@ -414,6 +414,7 @@ export default function WisherOrdersScreen() {
         {renderFilterChip('pending', 'Pending', summary.pending)}
         {renderFilterChip('confirmed', 'Confirmed', summary.confirmed)}
         {renderFilterChip('preparing', 'Preparing', summary.preparing)}
+        {renderFilterChip('ready_for_pickup', 'Ready', summary.ready_for_pickup)}
         {renderFilterChip('out_for_delivery', 'On Delivery', summary.out_for_delivery)}
         {renderFilterChip('delivered', 'Delivered', summary.delivered)}
       </ScrollView>
