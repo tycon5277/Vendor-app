@@ -135,6 +135,7 @@ export default function WisherOrdersScreen() {
       case 'pending': return '#F59E0B';
       case 'confirmed': return '#3B82F6';
       case 'preparing': return '#8B5CF6';
+      case 'ready_for_pickup': return '#F97316';
       case 'out_for_delivery': return '#06B6D4';
       case 'delivered': return '#10B981';
       case 'cancelled': return '#EF4444';
@@ -147,6 +148,7 @@ export default function WisherOrdersScreen() {
       case 'pending': return 'time-outline';
       case 'confirmed': return 'checkmark-circle-outline';
       case 'preparing': return 'restaurant-outline';
+      case 'ready_for_pickup': return 'cube-outline';
       case 'out_for_delivery': return 'bicycle-outline';
       case 'delivered': return 'checkmark-done-outline';
       case 'cancelled': return 'close-circle-outline';
