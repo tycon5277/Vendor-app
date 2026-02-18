@@ -257,14 +257,15 @@ export default function OrderDetailScreen() {
     setOrderItems(updatedItems);
     setShowItemModal(false);
     
-    const newTotal = updatedItems
-      .filter(i => !i.unavailable)
-      .reduce((sum, i) => sum + (i.price * (i.adjusted_quantity || i.quantity)), 0);
-    
     try {
+      // Call API with correct format for backend
       await orderAPI.updateItems(params.id, { 
-        items: updatedItems,
-        adjusted_total: newTotal 
+        modified_items: [{
+          product_id: selectedItem.product_id,
+          new_quantity: newQty,
+          reason: newQty === 0 ? 'Item out of stock' : `Quantity adjusted to ${newQty}`
+        }],
+        modification_reason: newQty === 0 ? 'Item out of stock' : `Quantity adjusted from ${selectedItem.quantity} to ${newQty}`
       });
       showAlert({
         type: 'success',
