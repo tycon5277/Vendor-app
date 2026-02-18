@@ -19,7 +19,7 @@ import { wisherOrderAPI } from '../../src/utils/api';
 import { useAlert } from '../../src/context/AlertContext';
 import { format } from 'date-fns';
 
-type StatusType = 'all' | 'pending' | 'confirmed' | 'preparing' | 'out_for_delivery' | 'delivered' | 'cancelled';
+type StatusType = 'all' | 'pending' | 'confirmed' | 'preparing' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'cancelled';
 
 interface WisherOrder {
   order_id: string;
@@ -55,6 +55,10 @@ interface WisherOrder {
   is_modified?: boolean;
   created_at: string;
   notes?: string;
+  delivery_type?: string;
+  genie_status?: string;
+  genie_name?: string;
+  genie_phone?: string;
 }
 
 export default function WisherOrdersScreen() {
