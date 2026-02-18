@@ -310,22 +310,6 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Local Hub Orders - NEW */}
-          <TouchableOpacity 
-            style={styles.localHubCard}
-            onPress={() => router.push('/(main)/wisher-orders')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.localHubIcon}>
-              <Ionicons name="globe-outline" size={28} color="#6366F1" />
-            </View>
-            <View style={styles.localHubContent}>
-              <Text style={styles.localHubTitle}>Local Hub Orders</Text>
-              <Text style={styles.localHubSubtitle}>View orders from Wisher App customers</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
-          </TouchableOpacity>
-
           {/* Recent Orders */}
           <View style={styles.ordersSection}>
             <View style={styles.sectionHeader}>
