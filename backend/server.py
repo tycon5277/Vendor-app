@@ -7413,9 +7413,9 @@ async def modify_wisher_order(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found or not authorized")
     
-    # Can only modify pending or confirmed orders
-    if order.get("status") not in ["pending", "confirmed"]:
-        raise HTTPException(status_code=400, detail="Can only modify pending or confirmed orders")
+    # Can only modify pending, confirmed, or preparing orders
+    if order.get("status") not in ["pending", "confirmed", "preparing"]:
+        raise HTTPException(status_code=400, detail="Can only modify orders that are not yet ready")
     
     now = datetime.now(timezone.utc).isoformat()
     current_items = order.get("items", [])
