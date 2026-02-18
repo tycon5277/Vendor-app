@@ -8067,13 +8067,52 @@ async def track_wisher_order(order_id: str):
         "delivery_type": order.get("delivery_type"),
         "delivery_address": order.get("delivery_address"),
         "items": order.get("items", []),
-        "subtotal": order.get("subtotal"),
-        "service_fee": order.get("delivery_fee"),
-        "total": order.get("total"),
+        "subtotal": round(order.get("subtotal", 0), 2),
+        "service_fee": round(order.get("delivery_fee", 0), 2),
+        "total": round(order.get("total", 0), 2),
         "is_modified": order.get("is_modified", False),
-        "refund_amount": order.get("refund_amount", 0),
+        "refund_amount": round(order.get("refund_amount", 0), 2),
         "created_at": order.get("created_at")
     }
+    
+    # Add modification details if order was modified
+    if order.get("is_modified"):
+        modification_history = order.get("modification_history", [])
+        if modification_history:
+            latest_modification = modification_history[-1]
+            tracking_info["modification_details"] = {
+                "reason": latest_modification.get("reason", "Items adjusted by vendor"),
+                "modified_at": latest_modification.get("timestamp"),
+                "changes": [],
+                "original_total": round(latest_modification.get("previous_total", 0), 2),
+                "new_total": round(latest_modification.get("new_total", 0), 2),
+                "refund_amount": round(latest_modification.get("refund_amount", 0), 2)
+            }
+            # Build user-friendly change descriptions
+            for item_change in latest_modification.get("modified_items", []):
+                change_desc = {
+                    "product_name": item_change.get("product_name", "Item"),
+                    "action": item_change.get("action"),
+                    "original_quantity": item_change.get("original_quantity"),
+                    "new_quantity": item_change.get("new_quantity"),
+                    "refund_for_item": round(item_change.get("refund_amount", 0), 2),
+                    "reason": item_change.get("reason", "")
+                }
+                # Create user-friendly message
+                if item_change.get("action") == "removed":
+                    change_desc["message"] = f"{item_change.get('product_name')} was removed (not available)"
+                elif item_change.get("action") == "quantity_reduced":
+                    change_desc["message"] = f"{item_change.get('product_name')} quantity changed from {item_change.get('original_quantity')} to {item_change.get('new_quantity')}"
+                tracking_info["modification_details"]["changes"].append(change_desc)
+            
+            # Add refund status
+            if order.get("refund_amount", 0) > 0:
+                tracking_info["refund_info"] = {
+                    "amount": round(order.get("refund_amount", 0), 2),
+                    "status": order.get("refund_status", "pending"),
+                    "reason": order.get("refund_reason", "Order modified by vendor"),
+                    "message": f"₹{round(order.get('refund_amount', 0), 2)} will be refunded to your account"
+                }
     
     # Add genie info only if genie has accepted
     if genie_status in ["accepted", "picked_up", "delivered"]:
