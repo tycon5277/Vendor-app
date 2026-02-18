@@ -577,9 +577,30 @@ export default function WisherOrdersScreen() {
                         onPress={() => handleAssignDelivery(selectedOrder.order_id, 'genie')}
                       >
                         <Ionicons name="bicycle" size={20} color="#FFF" />
-                        <Text style={styles.actionBtnText}>Request Carpet Genie</Text>
+                        <Text style={styles.actionBtnText}>Request Delivery Partner</Text>
                       </TouchableOpacity>
                     </>
+                  )}
+                  
+                  {/* Show Request Delivery Partner button for vendors with own delivery as fallback */}
+                  {(selectedOrder.status === 'preparing' || selectedOrder.status === 'confirmed') && 
+                   selectedOrder.delivery_type !== 'genie_delivery' && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.genieBtn, { marginTop: 10 }]}
+                      onPress={() => handleAssignDelivery(selectedOrder.order_id, 'genie')}
+                    >
+                      <Ionicons name="bicycle" size={20} color="#FFF" />
+                      <Text style={styles.actionBtnText}>Request Delivery Partner</Text>
+                    </TouchableOpacity>
+                  )}
+                  
+                  {/* Show searching status */}
+                  {selectedOrder.genie_status === 'searching' && (
+                    <View style={styles.genieInfoBox}>
+                      <ActivityIndicator size="small" color="#6366F1" />
+                      <Text style={styles.genieInfoTitle}>Finding Delivery Partner...</Text>
+                      <Text style={styles.genieStatusText}>We'll assign the best partner for your order</Text>
+                    </View>
                   )}
                   
                   {selectedOrder.status === 'out_for_delivery' && selectedOrder.delivery_type === 'vendor_delivery' && (
