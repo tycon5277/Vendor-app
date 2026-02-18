@@ -7953,7 +7953,7 @@ async def track_wisher_order(order_id: str):
         "delivery_address": order.get("delivery_address"),
         "items": order.get("items", []),
         "subtotal": order.get("subtotal"),
-        "delivery_fee": order.get("delivery_fee"),
+        "service_fee": order.get("delivery_fee"),
         "total": order.get("total"),
         "is_modified": order.get("is_modified", False),
         "refund_amount": order.get("refund_amount", 0),
