@@ -7163,7 +7163,7 @@ async def update_wisher_order_status(
     if current_user.partner_type != "vendor":
         raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
     
-    valid_statuses = ["pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled"]
+    valid_statuses = ["pending", "confirmed", "preparing", "ready_for_pickup", "out_for_delivery", "delivered", "cancelled"]
     if status_update.status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
     
@@ -7182,18 +7182,66 @@ async def update_wisher_order_status(
         "note": status_update.note or f"Status changed to {status_update.status}"
     }
     
-    await db.wisher_orders.update_one(
-        {"order_id": order_id},
-        {
-            "$set": {
-                "status": status_update.status,
-                "updated_at": now
-            },
-            "$push": {"status_history": status_entry}
-        }
-    )
+    update_data = {
+        "$set": {
+            "status": status_update.status,
+            "updated_at": now
+        },
+        "$push": {"status_history": status_entry}
+    }
     
-    return {"message": f"Order status updated to {status_update.status}", "order_id": order_id}
+    # Auto-search for delivery partner when status changes to "preparing"
+    # Only if vendor doesn't have their own delivery service
+    if status_update.status == "preparing":
+        vendor = await db.users.find_one({"user_id": current_user.user_id})
+        has_own_delivery = vendor.get("vendor_can_deliver", False) or vendor.get("has_own_delivery", False)
+        
+        if not has_own_delivery:
+            # Automatically start searching for delivery partner
+            vendor_location = vendor.get("vendor_shop_location", {})
+            
+            # Create delivery request for genies to see
+            if vendor_location.get("lat") and vendor_location.get("lng"):
+                delivery_request = {
+                    "request_id": f"delivery_{uuid.uuid4().hex[:12]}",
+                    "order_id": order_id,
+                    "vendor_id": current_user.user_id,
+                    "vendor_name": vendor.get("vendor_shop_name", "Unknown"),
+                    "vendor_phone": vendor.get("phone", ""),
+                    "vendor_location": vendor_location,
+                    "customer_location": order.get("delivery_address", {}),
+                    "customer_name": order.get("customer_name", ""),
+                    "items_count": len(order.get("items", [])),
+                    "order_total": order.get("total", 0),
+                    "delivery_fee": order.get("delivery_fee", 30),
+                    "status": "open",
+                    "created_at": now
+                }
+                await db.genie_delivery_requests.insert_one(delivery_request)
+                
+                # Update order with delivery info
+                update_data["$set"]["delivery_type"] = "genie_delivery"
+                update_data["$set"]["genie_status"] = "searching"
+                update_data["$set"]["genie_request_time"] = now
+                update_data["$push"]["status_history"] = {
+                    "status": "searching_delivery_partner",
+                    "timestamp": now,
+                    "note": "Looking for delivery partner"
+                }
+    
+    await db.wisher_orders.update_one({"order_id": order_id}, update_data)
+    
+    response = {"message": f"Order status updated to {status_update.status}", "order_id": order_id}
+    
+    # Add info about auto-search if applicable
+    if status_update.status == "preparing":
+        vendor = await db.users.find_one({"user_id": current_user.user_id})
+        has_own_delivery = vendor.get("vendor_can_deliver", False) or vendor.get("has_own_delivery", False)
+        if not has_own_delivery:
+            response["delivery_partner_status"] = "searching"
+            response["message"] = "Order status updated. Searching for delivery partner..."
+    
+    return response
 
 
 @api_router.put("/vendor/wisher-orders/{order_id}/modify")
