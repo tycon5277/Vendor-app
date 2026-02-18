@@ -509,7 +509,7 @@ export default function OrderDetailScreen() {
                       styles.packingPrice,
                       isPicked && styles.packingPricePicked
                     ]}>
-                      ₹{((item.adjusted_quantity || item.quantity) * item.price).toFixed(0)}
+                      ₹{((item.adjusted_quantity || item.quantity) * item.price).toFixed(2)}
                     </Text>
                   </View>
                   
@@ -546,7 +546,7 @@ export default function OrderDetailScreen() {
                 </View>
                 <View style={styles.itemDetails}>
                   <Text style={styles.itemName}>{item.name}</Text>
-                  <Text style={styles.itemPrice}>₹{item.price} each</Text>
+                  <Text style={styles.itemPrice}>₹{Number(item.price).toFixed(2)} each</Text>
                   {item.adjusted_quantity !== undefined && item.adjusted_quantity !== item.quantity && (
                     <View style={styles.adjustedBadge}>
                       <Ionicons name="pencil" size={10} color="#F59E0B" />
@@ -557,7 +557,7 @@ export default function OrderDetailScreen() {
                   )}
                 </View>
                 <Text style={styles.itemTotal}>
-                  ₹{((item.adjusted_quantity || item.quantity) * item.price).toFixed(0)}
+                  ₹{((item.adjusted_quantity || item.quantity) * item.price).toFixed(2)}
                 </Text>
                 {order.status === 'confirmed' && (
                   <Ionicons name="chevron-forward" size={18} color="#D1D5DB" />
