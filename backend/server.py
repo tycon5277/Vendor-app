@@ -7885,29 +7885,59 @@ async def track_wisher_order(order_id: str):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
+    # Generate user-friendly status message
+    status = order.get("status")
+    genie_status = order.get("genie_status")
+    
+    status_messages = {
+        "pending": "Your order has been placed and is waiting for the vendor to confirm.",
+        "confirmed": "Great news! The vendor has confirmed your order.",
+        "preparing": "Your order is being prepared with care.",
+        "ready_for_pickup": "Your order is packed and ready! We're coordinating delivery and will update you shortly. Thank you for choosing us.",
+        "out_for_delivery": "Your order is on the way!",
+        "delivered": "Your order has been delivered. Enjoy!",
+        "cancelled": "This order has been cancelled."
+    }
+    
+    # Special message when searching for delivery partner
+    if genie_status == "searching":
+        status_message = "Your order is packed and ready! We're coordinating delivery and will update you shortly. Thank you for choosing us."
+    else:
+        status_message = status_messages.get(status, "Order is being processed.")
+    
     tracking_info = {
         "order_id": order_id,
-        "status": order.get("status"),
+        "status": status,
+        "status_message": status_message,
         "status_history": order.get("status_history", []),
         "vendor_name": order.get("vendor_name"),
         "delivery_type": order.get("delivery_type"),
         "delivery_address": order.get("delivery_address"),
+        "items": order.get("items", []),
+        "subtotal": order.get("subtotal"),
+        "delivery_fee": order.get("delivery_fee"),
         "total": order.get("total"),
         "is_modified": order.get("is_modified", False),
-        "refund_amount": order.get("refund_amount", 0)
+        "refund_amount": order.get("refund_amount", 0),
+        "created_at": order.get("created_at")
     }
     
     # Add genie info only if genie has accepted
-    if order.get("genie_status") in ["accepted", "picked_up", "delivered"]:
-        tracking_info["genie"] = {
+    if genie_status in ["accepted", "picked_up", "delivered"]:
+        tracking_info["delivery_partner"] = {
             "name": order.get("genie_name"),
             "phone": order.get("genie_phone"),
-            "status": order.get("genie_status")
+            "status": genie_status
         }
         
         # Add live location only if out for delivery
-        if order.get("status") == "out_for_delivery" and order.get("genie_location"):
-            tracking_info["genie"]["location"] = order.get("genie_location")
+        if status == "out_for_delivery" and order.get("genie_location"):
+            tracking_info["delivery_partner"]["location"] = order.get("genie_location")
+    elif genie_status == "searching":
+        tracking_info["delivery_partner"] = {
+            "status": "searching",
+            "message": "Finding the best delivery partner for you..."
+        }
     
     return tracking_info
 
