@@ -329,12 +329,35 @@ Example:
 
 ## Next Steps
 
-1. [ ] Sync database between Vendor App and Genie App (or create shared endpoints)
-2. [ ] Create Genie App screen to show LocalHub delivery requests
-3. [ ] Implement accept flow that updates both systems
-4. [ ] Enable chat between Wisher and Genie
-5. [ ] Implement location tracking from Genie App
-6. [ ] Show Genie location on Wisher App map
+1. [x] Create backend endpoints in Vendor App (Phase 1 Complete)
+2. [ ] Integrate Push Notifications (Phase 2)
+3. [ ] Update Genie App to use new endpoints
+4. [ ] Test end-to-end flow
+
+---
+
+## API Endpoints Created (Phase 1 Complete)
+
+### Genie Profile & Location
+- `POST /api/genie/register-push-token` - Register push token
+- `PUT /api/genie/location` - Update location (send every 30s)
+- `PUT /api/genie/status` - Update status (online/busy/offline)
+
+### Delivery Requests
+- `GET /api/genie/delivery-requests/available` - Poll for available deliveries
+- `GET /api/genie/delivery-requests/{id}` - Get request details
+- `POST /api/genie/delivery-requests/{id}/accept` - Accept delivery
+- `POST /api/genie/delivery-requests/{id}/skip` - Skip/reject delivery
+
+### Active Deliveries
+- `GET /api/genie/active-deliveries` - Get current assigned deliveries
+- `PUT /api/genie/deliveries/{order_id}/pickup` - Mark order picked up (reveals customer details)
+- `PUT /api/genie/deliveries/{order_id}/deliver` - Mark order delivered
+
+### Delivery Chat
+- `GET /api/delivery-chat/{order_id}/room` - Get chat room
+- `GET /api/delivery-chat/{room_id}/messages` - Get messages
+- `POST /api/delivery-chat/{room_id}/messages` - Send message
 
 ---
 
@@ -342,7 +365,7 @@ Example:
 
 - **Vendor Phone:** 1111111111
 - **Wisher Phone:** 8888888888
-- **Genie Phone:** (create new)
+- **Genie Phone:** 7777777777
 - **OTP:** 123456
 
 ---
