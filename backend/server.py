@@ -8457,6 +8457,9 @@ async def trigger_genie_search_for_order(order_id: str):
     
     result = await broadcast_delivery_request(order_id, vendor_location, order_details)
     return result
+
+
+@api_router.post("/genie/register-push-token")
 async def register_genie_push_token(data: GeniePushTokenRegister, current_user: User = Depends(require_carpet_genie)):
     """Register or update Genie's push notification token"""
     now = datetime.now(timezone.utc).isoformat()
