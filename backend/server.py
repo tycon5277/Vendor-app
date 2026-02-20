@@ -8263,7 +8263,200 @@ async def find_nearby_genies(vendor_location: dict, radius_km: float = 5, limit:
     return nearby_genies[:limit]
 
 
-@api_router.post("/genie/register-push-token")
+# ===================== EXPO PUSH NOTIFICATION SERVICE =====================
+
+EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+
+async def send_expo_push_notification(push_token: str, title: str, body: str, data: dict = None):
+    """Send a single push notification via Expo"""
+    if not push_token or not push_token.startswith("ExponentPushToken"):
+        logger.warning(f"Invalid push token: {push_token}")
+        return {"status": "error", "message": "Invalid push token"}
+    
+    message = {
+        "to": push_token,
+        "sound": "default",
+        "title": title,
+        "body": body,
+        "data": data or {},
+        "priority": "high",
+        "channelId": "delivery-requests"
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                EXPO_PUSH_URL,
+                json=message,
+                headers={"Content-Type": "application/json"}
+            )
+            result = response.json()
+            logger.info(f"Push notification sent: {result}")
+            return result
+    except Exception as e:
+        logger.error(f"Failed to send push notification: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+async def send_delivery_request_to_genie(request_id: str, genie: dict, order_details: dict):
+    """Send delivery request push notification to a specific Genie"""
+    push_token = genie.get("push_token")
+    if not push_token:
+        return {"status": "error", "message": "No push token"}
+    
+    vendor_name = order_details.get("vendor_name", "Shop")
+    distance = genie.get("distance_km", "?")
+    delivery_fee = order_details.get("delivery_fee", 30)
+    items_count = order_details.get("items_count", 1)
+    
+    title = "🛵 New Delivery Request!"
+    body = f"{vendor_name} • {distance}km • ₹{delivery_fee} • {items_count} items"
+    
+    data = {
+        "type": "delivery_request",
+        "request_id": request_id,
+        "order_id": order_details.get("order_id"),
+        "vendor_name": vendor_name,
+        "distance_km": distance,
+        "delivery_fee": delivery_fee,
+        "items_count": items_count,
+        "timeout_seconds": 30
+    }
+    
+    result = await send_expo_push_notification(push_token, title, body, data)
+    
+    # Record that we sent to this genie
+    now = datetime.now(timezone.utc).isoformat()
+    await db.genie_delivery_requests.update_one(
+        {"request_id": request_id},
+        {
+            "$push": {
+                "sent_to": {
+                    "genie_id": genie.get("genie_id"),
+                    "genie_name": genie.get("name"),
+                    "sent_at": now,
+                    "response": "pending"
+                }
+            },
+            "$set": {"last_sent_at": now, "status": "sent"}
+        }
+    )
+    
+    return result
+
+
+async def broadcast_delivery_request(order_id: str, vendor_location: dict, order_details: dict):
+    """Find nearby genies and send push notifications"""
+    
+    # Create delivery request record
+    request_id = f"delivery_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc).isoformat()
+    
+    delivery_request = {
+        "request_id": request_id,
+        "order_id": order_id,
+        "vendor_id": order_details.get("vendor_id"),
+        "vendor_name": order_details.get("vendor_name"),
+        "vendor_phone": order_details.get("vendor_phone"),
+        "vendor_address": order_details.get("vendor_address"),
+        "vendor_location": vendor_location,
+        "customer_location": order_details.get("customer_location"),
+        "customer_name": order_details.get("customer_name"),
+        "items_count": order_details.get("items_count"),
+        "order_total": order_details.get("order_total"),
+        "delivery_fee": order_details.get("delivery_fee", 30),
+        "status": "open",
+        "sent_to": [],
+        "created_at": now
+    }
+    
+    await db.genie_delivery_requests.insert_one(delivery_request)
+    
+    # Update order with genie search status
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "genie_status": "searching",
+                "genie_request_id": request_id,
+                "genie_request_time": now
+            },
+            "$push": {
+                "status_history": {
+                    "status": "searching_delivery_partner",
+                    "timestamp": now,
+                    "note": "Looking for Carpet Genie"
+                }
+            }
+        }
+    )
+    
+    # Find nearby genies
+    nearby_genies = await find_nearby_genies(vendor_location, radius_km=5, limit=5)
+    
+    if not nearby_genies:
+        logger.warning(f"No nearby genies found for order {order_id}")
+        return {
+            "status": "no_genies",
+            "request_id": request_id,
+            "message": "No delivery partners available nearby"
+        }
+    
+    # Send push to all nearby genies (broadcast approach)
+    results = []
+    for genie in nearby_genies:
+        order_details["delivery_fee"] = delivery_request["delivery_fee"]
+        result = await send_delivery_request_to_genie(request_id, genie, {**order_details, "order_id": order_id})
+        results.append({
+            "genie_id": genie.get("genie_id"),
+            "genie_name": genie.get("name"),
+            "distance_km": genie.get("distance_km"),
+            "result": result
+        })
+    
+    logger.info(f"Broadcast delivery request {request_id} to {len(results)} genies")
+    
+    return {
+        "status": "sent",
+        "request_id": request_id,
+        "genies_notified": len(results),
+        "results": results
+    }
+
+
+async def trigger_genie_search_for_order(order_id: str):
+    """Trigger Genie search when order enters preparing stage"""
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        return {"status": "error", "message": "Order not found"}
+    
+    # Check if genie search already initiated
+    if order.get("genie_status") in ["searching", "accepted"]:
+        return {"status": "already_searching", "message": "Genie search already in progress"}
+    
+    # Get vendor details
+    vendor = await db.users.find_one({"user_id": order.get("vendor_id")}, {"_id": 0})
+    if not vendor:
+        return {"status": "error", "message": "Vendor not found"}
+    
+    vendor_location = vendor.get("vendor_shop_location", {})
+    if not vendor_location.get("lat"):
+        return {"status": "error", "message": "Vendor location not set"}
+    
+    order_details = {
+        "vendor_id": order.get("vendor_id"),
+        "vendor_name": order.get("vendor_name") or vendor.get("vendor_shop_name"),
+        "vendor_phone": vendor.get("phone"),
+        "vendor_address": vendor.get("vendor_shop_address"),
+        "customer_location": order.get("delivery_address"),
+        "customer_name": order.get("customer_name"),
+        "items_count": len(order.get("items", [])),
+        "order_total": order.get("total"),
+        "delivery_fee": order.get("delivery_fee", 30)
+    }
+    
+    result = await broadcast_delivery_request(order_id, vendor_location, order_details)
+    return result
 async def register_genie_push_token(data: GeniePushTokenRegister, current_user: User = Depends(require_carpet_genie)):
     """Register or update Genie's push notification token"""
     now = datetime.now(timezone.utc).isoformat()
