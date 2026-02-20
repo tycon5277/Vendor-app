@@ -103,6 +103,7 @@ export default function OrderDetailScreen() {
       setCheckpoints(response.data.status_checkpoints);
       setNextActions(response.data.next_actions);
       setVendorCanDeliver(response.data.vendor_can_deliver);
+      setDeliveryInfo(response.data.delivery_info);
       
       const completedCount = response.data.status_checkpoints.filter((c: StatusCheckpoint) => c.completed).length;
       const totalCount = response.data.status_checkpoints.length;
