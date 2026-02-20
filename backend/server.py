@@ -8197,6 +8197,611 @@ async def track_wisher_order(order_id: str):
     return tracking_info
 
 
+# ===================== CARPET GENIE INTEGRATION APIs =====================
+
+class GenieLocationUpdate(BaseModel):
+    lat: float
+    lng: float
+    status: Optional[str] = None  # online, busy, offline
+    heading: Optional[float] = None
+    speed: Optional[float] = None
+
+class GeniePushTokenRegister(BaseModel):
+    push_token: str
+    device_type: Optional[str] = "expo"  # expo, fcm, apns
+
+class DeliveryRequestAccept(BaseModel):
+    genie_location: Optional[dict] = None
+
+# Helper: Check if user is a Carpet Genie
+async def require_carpet_genie(current_user: User = Depends(get_current_user)):
+    if current_user.partner_type != "agent":
+        raise HTTPException(status_code=403, detail="Only agents can access this endpoint")
+    return current_user
+
+# Helper: Find nearby online Carpet Genies
+async def find_nearby_genies(vendor_location: dict, radius_km: float = 5, limit: int = 10):
+    """Find online Carpet Genies within radius of vendor"""
+    # Get all online carpet genies
+    genies = await db.genie_profiles.find({
+        "genie_type": "carpet",
+        "status": "online",
+        "push_token": {"$ne": None}
+    }, {"_id": 0}).to_list(100)
+    
+    # Calculate distance and filter
+    from math import radians, sin, cos, sqrt, atan2
+    
+    def haversine(lat1, lon1, lat2, lon2):
+        R = 6371  # Earth's radius in km
+        lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1-a))
+        return R * c
+    
+    nearby_genies = []
+    vendor_lat = vendor_location.get("lat", 0)
+    vendor_lng = vendor_location.get("lng", 0)
+    
+    for genie in genies:
+        genie_loc = genie.get("current_location", {})
+        if genie_loc.get("lat") and genie_loc.get("lng"):
+            distance = haversine(
+                vendor_lat, vendor_lng,
+                genie_loc["lat"], genie_loc["lng"]
+            )
+            if distance <= radius_km:
+                genie["distance_km"] = round(distance, 2)
+                nearby_genies.append(genie)
+    
+    # Sort by distance
+    nearby_genies.sort(key=lambda x: x["distance_km"])
+    return nearby_genies[:limit]
+
+
+@api_router.post("/genie/register-push-token")
+async def register_genie_push_token(data: GeniePushTokenRegister, current_user: User = Depends(require_carpet_genie)):
+    """Register or update Genie's push notification token"""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Check if genie profile exists
+    existing = await db.genie_profiles.find_one({"genie_id": current_user.user_id})
+    
+    if existing:
+        await db.genie_profiles.update_one(
+            {"genie_id": current_user.user_id},
+            {"$set": {
+                "push_token": data.push_token,
+                "device_type": data.device_type,
+                "updated_at": now
+            }}
+        )
+    else:
+        # Create new genie profile
+        genie_profile = {
+            "genie_id": current_user.user_id,
+            "name": current_user.name,
+            "phone": current_user.phone,
+            "genie_type": "carpet",  # Default to carpet genie
+            "vehicle_type": getattr(current_user, 'agent_vehicle', 'bike'),
+            "push_token": data.push_token,
+            "device_type": data.device_type,
+            "status": "offline",
+            "current_location": None,
+            "rating": 5.0,
+            "total_deliveries": 0,
+            "acceptance_rate": 1.0,
+            "created_at": now,
+            "updated_at": now
+        }
+        await db.genie_profiles.insert_one(genie_profile)
+    
+    return {"message": "Push token registered successfully"}
+
+
+@api_router.put("/genie/location")
+async def update_genie_location(data: GenieLocationUpdate, current_user: User = Depends(require_carpet_genie)):
+    """Update Genie's current location and status"""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    update_data = {
+        "current_location": {
+            "lat": data.lat,
+            "lng": data.lng,
+            "heading": data.heading,
+            "speed": data.speed,
+            "updated_at": now
+        },
+        "updated_at": now
+    }
+    
+    if data.status:
+        update_data["status"] = data.status
+    
+    result = await db.genie_profiles.update_one(
+        {"genie_id": current_user.user_id},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        # Create profile if doesn't exist
+        genie_profile = {
+            "genie_id": current_user.user_id,
+            "name": current_user.name,
+            "phone": current_user.phone,
+            "genie_type": "carpet",
+            "vehicle_type": "bike",
+            "push_token": None,
+            "status": data.status or "online",
+            "current_location": update_data["current_location"],
+            "rating": 5.0,
+            "total_deliveries": 0,
+            "acceptance_rate": 1.0,
+            "created_at": now,
+            "updated_at": now
+        }
+        await db.genie_profiles.insert_one(genie_profile)
+    
+    return {"message": "Location updated"}
+
+
+@api_router.put("/genie/status")
+async def update_genie_status(status: str, current_user: User = Depends(require_carpet_genie)):
+    """Update Genie's availability status"""
+    if status not in ["online", "busy", "offline"]:
+        raise HTTPException(status_code=400, detail="Invalid status. Use: online, busy, offline")
+    
+    await db.genie_profiles.update_one(
+        {"genie_id": current_user.user_id},
+        {"$set": {
+            "status": status,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {"message": f"Status updated to {status}"}
+
+
+@api_router.get("/genie/delivery-requests/available")
+async def get_available_delivery_requests(current_user: User = Depends(require_carpet_genie)):
+    """Get available delivery requests for Carpet Genie (polling endpoint)"""
+    
+    # Get genie's current location
+    genie_profile = await db.genie_profiles.find_one(
+        {"genie_id": current_user.user_id},
+        {"_id": 0}
+    )
+    
+    genie_location = genie_profile.get("current_location") if genie_profile else None
+    
+    # Get pending delivery requests
+    requests = await db.genie_delivery_requests.find({
+        "status": "open",
+        "$or": [
+            {"sent_to": {"$not": {"$elemMatch": {"genie_id": current_user.user_id}}}},
+            {"sent_to": {"$exists": False}}
+        ]
+    }, {"_id": 0}).sort("created_at", -1).to_list(20)
+    
+    # Calculate distance if genie location available
+    if genie_location and genie_location.get("lat"):
+        from math import radians, sin, cos, sqrt, atan2
+        
+        def haversine(lat1, lon1, lat2, lon2):
+            R = 6371
+            lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+            c = 2 * atan2(sqrt(a), sqrt(1-a))
+            return R * c
+        
+        for req in requests:
+            vendor_loc = req.get("vendor_location", {})
+            if vendor_loc.get("lat"):
+                req["distance_to_shop_km"] = round(haversine(
+                    genie_location["lat"], genie_location["lng"],
+                    vendor_loc["lat"], vendor_loc["lng"]
+                ), 2)
+    
+    return {"requests": requests}
+
+
+@api_router.get("/genie/delivery-requests/{request_id}")
+async def get_delivery_request_detail(request_id: str, current_user: User = Depends(require_carpet_genie)):
+    """Get delivery request details"""
+    request = await db.genie_delivery_requests.find_one(
+        {"request_id": request_id},
+        {"_id": 0}
+    )
+    
+    if not request:
+        raise HTTPException(status_code=404, detail="Delivery request not found")
+    
+    # Get order details
+    order = await db.wisher_orders.find_one(
+        {"order_id": request.get("order_id")},
+        {"_id": 0, "items": 1, "total": 1, "notes": 1, "customer_name": 1}
+    )
+    
+    if order:
+        request["items"] = order.get("items", [])
+        request["order_total"] = order.get("total")
+        request["notes"] = order.get("notes")
+        # Don't reveal customer details until accepted
+        if request.get("status") != "accepted" or request.get("accepted_by") != current_user.user_id:
+            request.pop("customer_location", None)
+            request.pop("customer_phone", None)
+    
+    return request
+
+
+@api_router.post("/genie/delivery-requests/{request_id}/accept")
+async def accept_delivery_request(request_id: str, data: DeliveryRequestAccept = None, current_user: User = Depends(require_carpet_genie)):
+    """Genie accepts a delivery request"""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Get the request
+    request = await db.genie_delivery_requests.find_one({"request_id": request_id})
+    
+    if not request:
+        raise HTTPException(status_code=404, detail="Delivery request not found")
+    
+    if request.get("status") != "open":
+        raise HTTPException(status_code=400, detail="This delivery is no longer available")
+    
+    if request.get("accepted_by"):
+        raise HTTPException(status_code=400, detail="Already accepted by another genie")
+    
+    order_id = request.get("order_id")
+    
+    # Update delivery request
+    await db.genie_delivery_requests.update_one(
+        {"request_id": request_id},
+        {
+            "$set": {
+                "status": "accepted",
+                "accepted_by": current_user.user_id,
+                "accepted_at": now
+            },
+            "$push": {
+                "sent_to": {
+                    "genie_id": current_user.user_id,
+                    "sent_at": now,
+                    "response": "accepted"
+                }
+            }
+        }
+    )
+    
+    # Update the order with genie details
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "genie_status": "accepted",
+                "genie_id": current_user.user_id,
+                "genie_name": current_user.name,
+                "genie_phone": current_user.phone,
+                "genie_accepted_at": now,
+                "delivery_info": {
+                    "genie_id": current_user.user_id,
+                    "genie_name": current_user.name,
+                    "genie_phone": current_user.phone,
+                    "status": "accepted",
+                    "accepted_at": now
+                }
+            },
+            "$push": {
+                "status_history": {
+                    "status": "genie_assigned",
+                    "timestamp": now,
+                    "note": f"Carpet Genie {current_user.name} accepted the delivery"
+                }
+            }
+        }
+    )
+    
+    # Update genie status to busy
+    await db.genie_profiles.update_one(
+        {"genie_id": current_user.user_id},
+        {"$set": {"status": "busy", "updated_at": now}}
+    )
+    
+    # Create chat room between Wisher and Genie
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    
+    room_id = f"chat_{uuid.uuid4().hex[:12]}"
+    chat_room = {
+        "room_id": room_id,
+        "order_id": order_id,
+        "wisher_id": order.get("user_id"),
+        "genie_id": current_user.user_id,
+        "wisher_name": order.get("customer_name"),
+        "genie_name": current_user.name,
+        "status": "active",
+        "created_at": now
+    }
+    await db.delivery_chat_rooms.insert_one(chat_room)
+    
+    # Send initial message
+    welcome_msg = {
+        "message_id": f"msg_{uuid.uuid4().hex[:12]}",
+        "room_id": room_id,
+        "sender_id": current_user.user_id,
+        "sender_type": "genie",
+        "content": f"Hi! I'm {current_user.name}, your delivery partner. I'm on my way to pick up your order!",
+        "created_at": now
+    }
+    await db.delivery_messages.insert_one(welcome_msg)
+    
+    # Get full order details for genie (with shop location)
+    return {
+        "message": "Delivery accepted successfully",
+        "order_id": order_id,
+        "chat_room_id": room_id,
+        "pickup": {
+            "vendor_name": request.get("vendor_name"),
+            "vendor_address": request.get("vendor_address"),
+            "vendor_location": request.get("vendor_location"),
+            "vendor_phone": request.get("vendor_phone")
+        },
+        "items_count": request.get("items_count"),
+        "delivery_fee": request.get("delivery_fee"),
+        # Customer details hidden until pickup
+        "note": "Customer address and phone will be revealed after pickup"
+    }
+
+
+@api_router.post("/genie/delivery-requests/{request_id}/skip")
+async def skip_delivery_request(request_id: str, reason: Optional[str] = None, current_user: User = Depends(require_carpet_genie)):
+    """Genie skips/rejects a delivery request"""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    request = await db.genie_delivery_requests.find_one({"request_id": request_id})
+    
+    if not request:
+        raise HTTPException(status_code=404, detail="Delivery request not found")
+    
+    # Add to sent_to list with skip response
+    await db.genie_delivery_requests.update_one(
+        {"request_id": request_id},
+        {
+            "$push": {
+                "sent_to": {
+                    "genie_id": current_user.user_id,
+                    "sent_at": now,
+                    "response": "skipped",
+                    "reason": reason
+                }
+            }
+        }
+    )
+    
+    # TODO: Trigger retry logic to send to next genie
+    
+    return {"message": "Delivery skipped"}
+
+
+@api_router.get("/genie/active-deliveries")
+async def get_genie_active_deliveries(current_user: User = Depends(require_carpet_genie)):
+    """Get Genie's current active deliveries"""
+    
+    # Get orders assigned to this genie
+    orders = await db.wisher_orders.find({
+        "genie_id": current_user.user_id,
+        "status": {"$in": ["preparing", "ready_for_pickup", "out_for_delivery"]}
+    }, {"_id": 0}).to_list(10)
+    
+    for order in orders:
+        # Add pickup details
+        vendor = await db.users.find_one(
+            {"user_id": order.get("vendor_id")},
+            {"_id": 0, "vendor_shop_name": 1, "vendor_shop_address": 1, "vendor_shop_location": 1, "phone": 1}
+        )
+        if vendor:
+            order["pickup"] = {
+                "vendor_name": vendor.get("vendor_shop_name"),
+                "vendor_address": vendor.get("vendor_shop_address"),
+                "vendor_location": vendor.get("vendor_shop_location"),
+                "vendor_phone": vendor.get("phone")
+            }
+        
+        # Add delivery details (only if picked up)
+        if order.get("status") == "out_for_delivery":
+            order["delivery"] = {
+                "customer_name": order.get("customer_name"),
+                "customer_phone": order.get("customer_phone"),
+                "customer_address": order.get("delivery_address")
+            }
+        else:
+            # Hide customer details before pickup
+            order.pop("customer_phone", None)
+            order.pop("delivery_address", None)
+    
+    return {"deliveries": orders}
+
+
+@api_router.put("/genie/deliveries/{order_id}/pickup")
+async def genie_pickup_order(order_id: str, current_user: User = Depends(require_carpet_genie)):
+    """Genie marks order as picked up from vendor"""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("genie_id") != current_user.user_id:
+        raise HTTPException(status_code=403, detail="This order is not assigned to you")
+    
+    if order.get("status") not in ["preparing", "ready_for_pickup"]:
+        raise HTTPException(status_code=400, detail="Order is not ready for pickup")
+    
+    # Update order status
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "status": "out_for_delivery",
+                "genie_status": "picked_up",
+                "picked_up_at": now,
+                "delivery_info.status": "picked_up",
+                "delivery_info.picked_up_at": now
+            },
+            "$push": {
+                "status_history": {
+                    "status": "out_for_delivery",
+                    "timestamp": now,
+                    "note": f"Order picked up by {current_user.name}"
+                }
+            }
+        }
+    )
+    
+    # Now reveal customer details
+    return {
+        "message": "Order picked up successfully",
+        "status": "out_for_delivery",
+        "delivery": {
+            "customer_name": order.get("customer_name"),
+            "customer_phone": order.get("customer_phone"),
+            "customer_address": order.get("delivery_address")
+        }
+    }
+
+
+@api_router.put("/genie/deliveries/{order_id}/deliver")
+async def genie_deliver_order(order_id: str, current_user: User = Depends(require_carpet_genie)):
+    """Genie marks order as delivered"""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("genie_id") != current_user.user_id:
+        raise HTTPException(status_code=403, detail="This order is not assigned to you")
+    
+    if order.get("status") != "out_for_delivery":
+        raise HTTPException(status_code=400, detail="Order is not out for delivery")
+    
+    # Update order status
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "status": "delivered",
+                "genie_status": "delivered",
+                "delivered_at": now,
+                "delivery_info.status": "delivered",
+                "delivery_info.delivered_at": now
+            },
+            "$push": {
+                "status_history": {
+                    "status": "delivered",
+                    "timestamp": now,
+                    "note": f"Delivered by {current_user.name}"
+                }
+            }
+        }
+    )
+    
+    # Update genie status back to online
+    await db.genie_profiles.update_one(
+        {"genie_id": current_user.user_id},
+        {
+            "$set": {"status": "online", "updated_at": now},
+            "$inc": {"total_deliveries": 1}
+        }
+    )
+    
+    # Update delivery request status
+    await db.genie_delivery_requests.update_one(
+        {"order_id": order_id},
+        {"$set": {"status": "completed", "completed_at": now}}
+    )
+    
+    return {
+        "message": "Order delivered successfully",
+        "delivery_fee_earned": order.get("delivery_fee", 30)
+    }
+
+
+# ===================== DELIVERY CHAT APIs =====================
+
+@api_router.get("/delivery-chat/{order_id}/room")
+async def get_delivery_chat_room(order_id: str, current_user: User = Depends(get_current_user)):
+    """Get chat room for a delivery"""
+    chat_room = await db.delivery_chat_rooms.find_one(
+        {"order_id": order_id},
+        {"_id": 0}
+    )
+    
+    if not chat_room:
+        raise HTTPException(status_code=404, detail="Chat room not found")
+    
+    # Verify user is part of this chat
+    if current_user.user_id not in [chat_room.get("wisher_id"), chat_room.get("genie_id")]:
+        raise HTTPException(status_code=403, detail="Not authorized to access this chat")
+    
+    return chat_room
+
+
+@api_router.get("/delivery-chat/{room_id}/messages")
+async def get_delivery_chat_messages(room_id: str, current_user: User = Depends(get_current_user)):
+    """Get messages in a delivery chat room"""
+    # Verify access
+    chat_room = await db.delivery_chat_rooms.find_one({"room_id": room_id})
+    if not chat_room:
+        raise HTTPException(status_code=404, detail="Chat room not found")
+    
+    if current_user.user_id not in [chat_room.get("wisher_id"), chat_room.get("genie_id")]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    messages = await db.delivery_messages.find(
+        {"room_id": room_id},
+        {"_id": 0}
+    ).sort("created_at", 1).to_list(100)
+    
+    return {"messages": messages}
+
+
+class DeliveryChatMessage(BaseModel):
+    content: str
+
+@api_router.post("/delivery-chat/{room_id}/messages")
+async def send_delivery_chat_message(room_id: str, data: DeliveryChatMessage, current_user: User = Depends(get_current_user)):
+    """Send a message in delivery chat"""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Verify access
+    chat_room = await db.delivery_chat_rooms.find_one({"room_id": room_id})
+    if not chat_room:
+        raise HTTPException(status_code=404, detail="Chat room not found")
+    
+    if current_user.user_id not in [chat_room.get("wisher_id"), chat_room.get("genie_id")]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    sender_type = "genie" if current_user.user_id == chat_room.get("genie_id") else "wisher"
+    
+    message = {
+        "message_id": f"msg_{uuid.uuid4().hex[:12]}",
+        "room_id": room_id,
+        "sender_id": current_user.user_id,
+        "sender_type": sender_type,
+        "content": data.content,
+        "created_at": now
+    }
+    
+    await db.delivery_messages.insert_one(message)
+    
+    return {"message_id": message["message_id"], "created_at": now}
+
+
 # ===================== HEALTH CHECK =====================
 
 @api_router.get("/")
