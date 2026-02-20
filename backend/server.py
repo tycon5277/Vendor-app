@@ -7191,14 +7191,97 @@ async def get_vendor_wisher_order_detail(order_id: str, current_user: User = Dep
     # Get vendor info for delivery capabilities
     vendor = await db.users.find_one({"user_id": current_user.user_id}, {"_id": 0})
     
+    # Build delivery_info for UI display (Carpet Genie status)
+    delivery_info = await build_delivery_info_for_vendor(order)
+    
     # Build response matching shop orders format
     return {
         "order": order,
         "status_checkpoints": get_wisher_status_checkpoints(order),
         "vendor_can_deliver": vendor.get("vendor_can_deliver", False) if vendor else False,
         "delivery_options": get_wisher_delivery_options(order, vendor),
-        "next_actions": get_wisher_next_actions(order, vendor)
+        "next_actions": get_wisher_next_actions(order, vendor),
+        "delivery_info": delivery_info
     }
+
+async def build_delivery_info_for_vendor(order: dict) -> dict:
+    """Build delivery info object for Vendor App UI to show Genie status"""
+    delivery_type = order.get("delivery_type", "")
+    genie_status = order.get("genie_status", "")
+    delivery_info = order.get("delivery_info", {})
+    
+    # If self-pickup, no delivery info needed
+    if delivery_type == "self_pickup":
+        return {"type": "self_pickup", "status": "customer_pickup", "message": "Customer will pick up"}
+    
+    # If vendor's own delivery
+    if delivery_type == "vendor_delivery" and not delivery_info.get("genie_id"):
+        return {"type": "vendor_delivery", "status": "own_delivery", "message": "Using your own delivery"}
+    
+    # Carpet Genie delivery
+    is_carpet_genie = delivery_type in ["carpet_genie", "genie_delivery"] or delivery_info.get("genie_id")
+    
+    if not is_carpet_genie:
+        return {"type": "pending", "status": "not_assigned", "message": "Delivery not assigned yet"}
+    
+    # Build Genie status info
+    info = {
+        "type": "carpet_genie",
+        "status": genie_status or "pending"
+    }
+    
+    if genie_status == "searching":
+        info["message"] = "Searching for Carpet Genie..."
+        info["icon"] = "search"
+        info["color"] = "#F59E0B"
+    elif genie_status == "accepted" or delivery_info.get("genie_id"):
+        # Genie has been assigned - fetch their details
+        genie_id = delivery_info.get("genie_id") or order.get("genie_id")
+        if genie_id:
+            genie_profile = await db.genie_profiles.find_one({"genie_id": genie_id}, {"_id": 0})
+            if genie_profile:
+                info["genie"] = {
+                    "genie_id": genie_id,
+                    "name": genie_profile.get("name") or order.get("genie_name"),
+                    "phone": genie_profile.get("phone") or order.get("genie_phone"),
+                    "photo": genie_profile.get("photo"),
+                    "rating": genie_profile.get("rating", 4.8),
+                    "vehicle_type": genie_profile.get("vehicle_type", "bike"),
+                    "vehicle_number": genie_profile.get("vehicle_number"),
+                    "total_deliveries": genie_profile.get("total_deliveries", 0)
+                }
+                info["message"] = f"Assigned to {genie_profile.get('name', 'Carpet Genie')}"
+                info["status"] = delivery_info.get("status", "accepted")
+            else:
+                info["genie"] = {
+                    "name": order.get("genie_name", "Carpet Genie"),
+                    "phone": order.get("genie_phone")
+                }
+                info["message"] = f"Assigned to {order.get('genie_name', 'Carpet Genie')}"
+        info["icon"] = "bicycle"
+        info["color"] = "#22C55E"
+    elif genie_status == "picked_up":
+        info["message"] = "Genie has picked up the order"
+        info["icon"] = "navigate"
+        info["color"] = "#6366F1"
+        genie_id = delivery_info.get("genie_id") or order.get("genie_id")
+        if genie_id:
+            genie_profile = await db.genie_profiles.find_one({"genie_id": genie_id}, {"_id": 0})
+            if genie_profile:
+                info["genie"] = {
+                    "genie_id": genie_id,
+                    "name": genie_profile.get("name") or order.get("genie_name"),
+                    "phone": genie_profile.get("phone") or order.get("genie_phone"),
+                    "photo": genie_profile.get("photo"),
+                    "rating": genie_profile.get("rating", 4.8),
+                    "vehicle_type": genie_profile.get("vehicle_type", "bike")
+                }
+    elif genie_status == "delivered":
+        info["message"] = "Order delivered successfully"
+        info["icon"] = "checkmark-circle"
+        info["color"] = "#22C55E"
+    
+    return info
 
 def get_wisher_status_checkpoints(order: dict) -> list:
     """Generate status checkpoint data for wisher orders"""
