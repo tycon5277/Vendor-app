@@ -8038,6 +8038,17 @@ async def track_wisher_order(order_id: str):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
+    # Get vendor/shop details for location
+    vendor = await db.users.find_one({"user_id": order.get("vendor_id")}, {"_id": 0})
+    vendor_location = None
+    if vendor:
+        vendor_location = {
+            "name": vendor.get("vendor_shop_name") or order.get("vendor_name"),
+            "address": vendor.get("vendor_shop_address", ""),
+            "lat": vendor.get("vendor_shop_location", {}).get("lat"),
+            "lng": vendor.get("vendor_shop_location", {}).get("lng")
+        }
+    
     # Generate user-friendly status message
     status = order.get("status")
     genie_status = order.get("genie_status")
