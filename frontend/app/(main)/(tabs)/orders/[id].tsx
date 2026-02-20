@@ -403,6 +403,84 @@ export default function OrderDetailScreen() {
           )}
         </View>
 
+        {/* Carpet Genie Delivery Status Card - Shows when delivery is carpet_genie */}
+        {deliveryInfo && deliveryInfo.type === 'carpet_genie' && (
+          <View style={styles.genieStatusCard}>
+            <View style={styles.genieStatusHeader}>
+              <View style={[styles.genieStatusIconBg, { backgroundColor: deliveryInfo.color ? deliveryInfo.color + '20' : '#DCFCE720' }]}>
+                <Ionicons 
+                  name={(deliveryInfo.icon || 'bicycle') as any} 
+                  size={22} 
+                  color={deliveryInfo.color || '#22C55E'} 
+                />
+              </View>
+              <View style={styles.genieStatusContent}>
+                <Text style={styles.genieStatusTitle}>Carpet Genie Delivery</Text>
+                <Text style={[styles.genieStatusMessage, { color: deliveryInfo.color || '#6B7280' }]}>
+                  {deliveryInfo.message || 'Pending assignment'}
+                </Text>
+              </View>
+              {deliveryInfo.status === 'searching' && (
+                <ActivityIndicator size="small" color="#F59E0B" />
+              )}
+            </View>
+            
+            {/* Show assigned Genie details */}
+            {deliveryInfo.genie && (
+              <View style={styles.assignedGenieInfo}>
+                <View style={styles.assignedGenieRow}>
+                  {deliveryInfo.genie.photo ? (
+                    <Image 
+                      source={{ uri: deliveryInfo.genie.photo }} 
+                      style={styles.assignedGeniePhoto}
+                    />
+                  ) : (
+                    <View style={styles.assignedGeniePhotoPlaceholder}>
+                      <Ionicons name="person" size={20} color="#22C55E" />
+                    </View>
+                  )}
+                  <View style={styles.assignedGenieDetails}>
+                    <Text style={styles.assignedGenieName}>{deliveryInfo.genie.name}</Text>
+                    <View style={styles.assignedGenieMetaRow}>
+                      <Ionicons name="star" size={12} color="#F59E0B" />
+                      <Text style={styles.assignedGenieRating}>
+                        {deliveryInfo.genie.rating?.toFixed(1) || '4.8'}
+                      </Text>
+                      <Text style={styles.assignedGenieVehicle}>
+                        • {deliveryInfo.genie.vehicle_type === 'bike' ? '🏍️ Bike' : 
+                           deliveryInfo.genie.vehicle_type === 'scooter' ? '🛵 Scooter' : '🚗 Car'}
+                      </Text>
+                      {deliveryInfo.genie.total_deliveries > 0 && (
+                        <Text style={styles.assignedGenieDeliveries}>
+                          • {deliveryInfo.genie.total_deliveries} deliveries
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.assignedGenieCallBtn}
+                    onPress={() => {
+                      showAlert({
+                        type: 'info',
+                        title: 'Call Genie',
+                        message: `Call ${deliveryInfo.genie.name} at ${deliveryInfo.genie.phone}`,
+                      });
+                    }}
+                  >
+                    <Ionicons name="call" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+                {deliveryInfo.genie.phone && (
+                  <View style={styles.assignedGeniePhoneRow}>
+                    <Ionicons name="call-outline" size={12} color="#6B7280" />
+                    <Text style={styles.assignedGeniePhone}>{deliveryInfo.genie.phone}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Visual Order Timeline - Always visible */}
         {checkpoints.length > 0 && (
           <OrderTimeline steps={checkpoints} status={order.status} />
