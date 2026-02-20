@@ -8255,15 +8255,45 @@ async def track_wisher_order(order_id: str):
     
     # Add genie info only if genie has accepted
     if genie_status in ["accepted", "picked_up", "delivered"]:
+        delivery_info = order.get("delivery_info", {})
+        genie_id = delivery_info.get("genie_id") or order.get("genie_id")
+        
+        # Build basic delivery partner info
         tracking_info["delivery_partner"] = {
             "name": order.get("genie_name"),
             "phone": order.get("genie_phone"),
             "status": genie_status
         }
         
-        # Add live location only if out for delivery
+        # Fetch full Genie profile for rich UI (photo, rating, vehicle)
+        if genie_id:
+            genie_profile = await db.genie_profiles.find_one({"genie_id": genie_id}, {"_id": 0})
+            if genie_profile:
+                tracking_info["delivery_partner"].update({
+                    "genie_id": genie_id,
+                    "name": genie_profile.get("name") or order.get("genie_name"),
+                    "phone": genie_profile.get("phone") or order.get("genie_phone"),
+                    "photo_url": genie_profile.get("photo"),
+                    "rating": round(genie_profile.get("rating", 4.8), 1),
+                    "total_deliveries": genie_profile.get("total_deliveries", 0),
+                    "vehicle_type": genie_profile.get("vehicle_type", "bike"),
+                    "vehicle_number": genie_profile.get("vehicle_number"),
+                    "is_verified": genie_profile.get("verified", False)
+                })
+                
+                # Get current location if Genie is online
+                current_loc = genie_profile.get("current_location")
+                if current_loc and status in ["out_for_delivery", "picked_up"]:
+                    tracking_info["delivery_partner"]["current_location"] = {
+                        "lat": current_loc.get("lat"),
+                        "lng": current_loc.get("lng"),
+                        "updated_at": current_loc.get("updated_at")
+                    }
+        
+        # Add live location from order if out for delivery
         if status == "out_for_delivery" and order.get("genie_location"):
             tracking_info["delivery_partner"]["location"] = order.get("genie_location")
+            
     elif genie_status == "searching":
         tracking_info["delivery_partner"] = {
             "status": "searching",
