@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 
 # Get base URL from environment
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://order-grouping-api.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://multi-vendor-orders-1.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_PHONE = "9999999999"

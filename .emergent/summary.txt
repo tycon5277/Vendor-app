@@ -1,72 +1,94 @@
 <analysis>**original_problem_statement:**
-The user's initial request was to fix a series of critical navigation and UI bugs in their React Native Vendor App. After resolving these, the focus shifted dramatically to a major architectural and feature enhancement project. The goal is to transform the Vendor App's backend into a centralized API service for a separate Wisher App, mimicking the architecture of platforms like Zomato/Swiggy.
+The user's initial request was to fix a series of critical navigation and UI bugs in their React Native Vendor App. After resolving these, the focus shifted dramatically to a major architectural and feature enhancement project. The goal is to transform the Vendor App's backend into a centralized API service for a separate Wisher App, mimicking the architecture of platforms like Zomato/Swiggy. This includes implementing a multi-vendor ordering system and a sophisticated delivery assignment flow using a Carpet Genie app.
 
 **PRODUCT REQUIREMENTS:**
 1.  **API Hub (P0):** The Vendor App backend must provide a complete and robust set of APIs for the Wisher App to handle vendors, products, cart management, and ordering.
 2.  **Order Modification Flow (P0):** Vendors must be able to view orders from the Wisher App, modify them (e.g., for out-of-stock items), and process partial refunds. The Wisher app must be able to see this history.
 3.  **Advanced Delivery (P0):** Implement a sophisticated delivery assignment flow involving Carpet Genies. This includes auto-assignment for vendors without their own delivery service, a manual request option for others, and detailed privacy/communication features (chat, phased visibility of location/phone data).
-4.  **Multi-Order Feature (P0):** A Wisher must be able to order from multiple vendors in a single checkout. The system should group these orders and assign a single Carpet Genie for a multi-pickup route, based on the order's total weight and volume.
-5.  **UI for New Features (P0):** The Vendor App frontend needs a dedicated section to manage Wisher App orders. The Wisher App needs UI elements to support the new multi-order functionality.
+4.  **Multi-Order Feature (P0):** A Wisher must be able to order from multiple vendors in a single checkout. The system should group these orders and assign a single Carpet Genie for a multi-pickup route.
+5.  **UI for New Features (P0):** The Vendor App frontend needs a dedicated section to manage Wisher App orders. The Wisher App needs UI elements to support the new multi-order functionality and order tracking.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The project is a full-stack application with a React Native (Expo) frontend and a FastAPI backend using MongoDB. The agent has just completed a series of enhancements to support the Multi-Order and Carpet Genie delivery features.
-**Backend:** A bug was fixed in the  endpoint in  to prevent crashes when a user token is invalid. The core logic for multi-order grouping and delivery assignment was already present.
-**Frontend:** The Vendor App's Local Hub Orders screen () has been significantly upgraded. It now displays multi-order badges, shows the status of Carpet Genie searches, and presents conditional action buttons based on a vendor's delivery capability. The UI for displaying grouped orders in the order detail modal has also been implemented.
+The project is a full-stack application with a React Native (Expo) frontend for the Vendor App and a FastAPI backend using MongoDB. A complete, real-time integration with a separate Genie App has just been built.
+
+**Backend:**
+- A push notification-based system (like Uber/Zomato) is implemented to assign deliveries. When a vendor marks an order as preparing, the backend broadcasts a request to all nearby, available Carpet Genies.
+- A full suite of APIs exists for the Genie App to register its push token, update its location, accept/skip deliveries, and update order status (pickup/delivered).
+- Phased privacy is implemented: the Genie only sees customer details after marking an order as picked up.
+- The order tracking API () has been enhanced to include detailed modification history, an invoice breakdown for price changes, and vendor location.
+
+**Frontend (Vendor App):**
+- The main Orders tab now correctly displays all orders from the Wisher App, removing the separate Local Hub Orders screen.
+- Numerous UI bugs have been fixed, including standardizing price displays to two decimal places and fixing crashes on the order detail screen.
+- A new feature requires vendors to check off all items in an order before they can mark it as Ready for Pickup.
+
+**Genie App (External):**
+- The user confirmed that the Genie App has been fully integrated. It can receive push notifications, display a 30-second countdown modal to accept/reject orders, and has a functional chat UI for communicating with the Wisher.
 
 **Last working item**:
--   **Last item agent was working:** The agent was performing an end-to-end test of the order creation flow via . After fixing a bug in the vendor order-fetching API, the agent realized an order must be created from a cart. The agent successfully added items to the cart and was in the process of executing the final  command to  to create the order.
--   **Status:** IN PROGRESS
+-   **Last item agent was working:** The user requested two final updates: 1) Enhance the Vendor App UI to show the live status of the Carpet Genie (e.g., Searching..., Assigned to Rahul). 2) Enhance the Wisher App's tracking API to include more Genie details like profile photo and rating for the map screen. The agent acknowledged this but has not yet started implementation.
+-   **Status:** NOT STARTED
 -   **Agent Testing Done:** N
--   **Which testing method agent to use?** both. The backend requires  to finish the current test. The extensive frontend changes need the  for verification.
+-   **Which testing method agent to use?** both. The backend changes to the tracking API can be tested with . The Vendor App UI changes will require using the .
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Incomplete Order Creation Test (P0)**
-    -   **Description:** The agent is in the middle of a -based test for the order creation endpoint (). This is the final step to validate all recent backend changes for the multi-order and delivery flow.
-    -   **Attempted fixes:** The agent successfully populated a user's cart via the  endpoint after an initial failure to create an order from an empty cart.
+-   **Issue 1: Show Genie Status in Vendor App UI (P0)**
+    -   **Description:** The vendor currently has no visibility into the Carpet Genie assignment process after an order is marked preparing. The UI needs to show the current status of the delivery assignment.
     -   **Next debug checklist:**
-        1.  Re-execute the  command to  using the correct user token.
-        2.  Verify the API response for success and the returned .
-        3.  Check the  collection in the database to confirm the new order document(s) were created correctly.
-    -   **Why fix this issue?** To confirm the entire backend logic is working before testing the new frontend UI that depends on it.
-    -   **Status:** IN PROGRESS
+        1.  Enhance the vendor order details endpoint () to include the  object, which contains the Genie's status (, ), name, etc.
+        2.  Modify the Vendor App's order detail screen () to display this information conditionally (e.g., a Delivery Status card).
+    -   **Why fix this issue?** To give vendors critical operational visibility and reduce uncertainty.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** Both
+
+-   **Issue 2: Enhance Wisher Tracking API with Genie Profile (P0)**
+    -   **Description:** The Wisher App's tracking page needs to display more information about the assigned Genie, such as their profile picture, rating, and vehicle type, to build trust.
+    -   **Next debug checklist:**
+        1.  In , modify the  function.
+        2.  When a Genie is assigned, perform a lookup on the  collection using the  stored in the order's .
+        3.  Add the fetched Genie profile details (e.g., , , ) to the  object in the API response.
+    -   **Why fix this issue?** To enrich the Wisher App's user experience and match features of popular delivery apps.
+    -   **Status:** NOT STARTED
     -   **Is recurring issue?** N
     -   **Should Test frontend/backend/both after fix?** backend
-    -   **Blocked on other issue:** None
 
 **In progress Task List**:
--   **Task 1: Complete Multi-Order and Carpet Genie Delivery Flow (P0)**
-    -   **Where to resume:** Resume the API test by running the  command to create an order. Once the backend is verified, proceed to test the frontend changes in  using the screenshot tool or frontend testing agent.
-    -   **What will be achieved with this?** A fully validated backend for multi-vendor ordering and a vendor-facing UI that correctly displays multi-order information, delivery status, and context-aware action buttons.
-    -   **Status:** IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?** Both
-    -   **Blocked on something:** The pending order creation test (Issue 1).
+-   None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   (P0) Implement UI for the Multi-Order feature in the **Wisher App** (e.g., Add from another shop button during checkout).
-    -   (P0) Verify and, if needed, implement the  field in the vendor registration UI (). The backend field  exists, but the frontend part is unconfirmed.
-    -   (P1) Implement basic chat APIs and UI for communication between Wisher and Carpet Genie.
-    -   (P1) Implement the fee calculation algorithm for Carpet Genie deliveries.
+    -   **(P0) Implement Retry Logic for Genie Assignment:** The backend currently broadcasts requests but doesn't handle the case where no Genie accepts. It needs a retry mechanism (e.g., expand radius, increase fee) after a timeout.
+    -   **(P0) Implement Wisher App Multi-Order UI:** Add an Add from another shop button during checkout to allow users to build a multi-vendor cart.
+    -   **(P1) Implement Fee Calculation Algorithm:** Build the logic for calculating the Carpet Genie delivery fee based on distance, time, etc.
 -   **Future Tasks:**
     -   Implement a Vendor Verification Workflow.
     -   Enhance the  Feature in the Vendor App.
-    -   Refactor the large  file into smaller, modular route files.
-    -   Migrate chat to a dedicated service like Firebase for production.
+    -   Refactor the monolithic  file into modular route files.
+    -   Migrate chat to a dedicated service like Firebase for production scalability.
     -   Implement masked phone calls via a service like Twilio for production.
 
 **Completed work in this session**
--   **Backend Bug Fix:** Resolved a  error in  for the  endpoint by adding a check for a valid user session.
--   **Frontend Feature Enhancement ():**
-    -   Implemented UI to show a Multi-Order badge on order cards.
-    -   Added a visual indicator for when a Carpet Genie search is in progress.
-    -   Updated action buttons to be conditional based on the vendor's delivery capabilities.
-    -   Added a new section in the order detail modal to display other orders within the same group.
+-   **Full Carpet Genie Integration (Webhook/Push Model):**
+    -   Implemented backend APIs for Genie registration, location tracking, and order lifecycle management (///).
+    -   Integrated an Expo Push Notification service to broadcast delivery requests to nearby Genies in real-time.
+    -   Guided the successful integration of the external Genie App, which now handles these push notifications, shows a 30s countdown modal, and has a functional delivery chat UI.
+-   **Order Modification Flow Enhancement:**
+    -   The tracking API now provides a detailed  and  when an order is changed, allowing the Wisher App to display a clear summary of what was adjusted.
+-   **Vendor App UI/UX Overhaul:**
+    -   Consolidated Local Hub Orders into the main Orders tab for a streamlined vendor experience.
+    -   Fixed numerous bugs related to data formatting, crashes, and price displays (ensuring 2-decimal precision).
+    -   Added an item checklist feature, forcing vendors to verify all items before marking an order as ready.
+-   **API Connectivity and Testing:**
+    -   Successfully diagnosed and fixed API URL mismatches between the Wisher App and the backend.
+    -   Performed extensive  testing to validate the entire multi-order and single-order backend flow.
 
 **Earlier issues found/mentioned but not fixed**
--   **OTP Input Flakiness:** An issue noted in a previous session where the OTP input component was flaky in the web environment remains unaddressed.
+-   **Issue 1: OTP Input Flakiness:** Noted in a previous session, the OTP input component in the web environment remains unaddressed.
+-   **Issue 2: Retry Logic on Genie Assignment Timeout:** The agent identified that the system currently lacks a retry mechanism if no Genie accepts the initial broadcasted request. This is the next logical step for the delivery feature.
 
 **Known issue recurrence from previous fork**
 -   None.
@@ -75,71 +97,85 @@ The project is a full-stack application with a React Native (Expo) frontend and 
 
 
 **Key Technical Concepts**
--   **Service-Oriented Architecture:** The Vendor App backend acts as a central service for the Wisher App.
--   **REST API Design:** Using FastAPI to create a comprehensive API layer.
--   **Complex Order State Machine:** Managing order statuses from  through , including forks for modification and delivery assignment.
+-   **Service-Oriented Architecture:** Vendor App backend serving both Wisher and Genie apps.
+-   **Real-time Communication:** Using Push Notifications (Expo) and a webhook-style pattern for delivery assignment.
+-   **Phased Privacy:** Conditionally revealing user data to delivery agents based on order status.
+-   **REST API Design:** FastAPI backend with Pydantic models.
 -   **React Native (Expo):** Frontend framework for the Vendor App.
--   **MongoDB:** NoSQL database for all application data.
+-   **MongoDB:** NoSQL database.
 
 **key DB schema**
--   **users:** Stores vendor profiles. Contains the  field (aliased as ).
--   **products:** Stores product information.
--   **wisher_carts:** Stores transient cart data for Wisher App users, linked by .
--   **wisher_orders:** Stores all order details. Includes , , , and .
+-   **users:** Vendor profiles ().
+-   **wisher_orders:** Order details (, , , ).
+-   **genie_profiles (new):** Stores Genie data (, , , , , ).
+-   **genie_delivery_requests (new):** Tracks broadcasted delivery requests (, , , ).
 
 **changes in tech stack**
 -   None.
 
 **All files of reference**
--   **/app/backend/server.py**: Main backend file, recently fixed for a  error and reviewed for delivery logic.
--   **/app/frontend/app/(main)/wisher-orders.tsx**: Heavily modified to add new UI features for multi-order and delivery management.
--   **/app/frontend/app/(auth)/register.tsx**: Identified as the next file to check for implementing the  UI toggle.
--   **/app/frontend/src/utils/api.ts**: Frontend API client, implicitly used by the new UI features.
+-   **/app/backend/server.py**: Heavily modified with all Carpet Genie integration logic, push notification services, and enhanced tracking API features.
+-   **/app/frontend/src/utils/api.ts**: Refactored to consolidate order APIs and fix data transformation logic for the UI.
+-   **/app/frontend/app/(main)/(tabs)/orders.tsx**: Modified to fetch and display Wisher orders directly.
+-   **/app/frontend/app/(main)/order-detail.tsx**: Modified to add item-picking checklist and fix price formatting. Needs further updates for Genie status.
+-   **/app/CARPET_GENIE_INTEGRATION_LOGIC.md**: New document detailing the architecture and flow of the Genie integration.
+-   **/app/WISHER_APP_API.md**: New document providing API specifications for the Wisher App.
 
 **Areas that need refactoring**:
--   The  file is extremely large and monolithic. It urgently needs to be broken down into smaller, domain-specific modules (e.g., , , ).
+-   The  file has grown even larger and is now critically monolithic. It urgently needs to be broken down into smaller, domain-specific modules (e.g., , , ).
 
 **key api endpoints**
--   : Adds an item to the wisher's cart.
--   : Creates a new order (or multi-order) from the cart.
--   : Fetches orders for the vendor, recently fixed.
--   : For the Wisher App to track order status.
--   : Allows a vendor to modify an order.
--   : Allows a vendor to manage delivery assignment.
+-   : For Genie App to register for push notifications.
+-   : For Genie App to provide live location and online status updates.
+-   : For Genie to accept a delivery.
+-   : For Genie to skip/reject a delivery.
+-   : For Genie to mark an order as picked up, revealing customer details.
+-   : For Genie to mark an order as delivered.
+-   : Enhanced endpoint for Wisher App, providing detailed modification history and invoice breakdowns.
 
 **Critical Info for New Agent**
--   **Your immediate priority is to complete the  test for order creation.** This will validate the entire backend flow.
--   After backend validation, the new frontend features in  must be tested.
--   The user has clarified that vehicle filtering (bike, scooter) is handled in a separate Genie App and is not your concern.
--   A key upcoming task is to verify the vendor registration UI () contains a toggle for  (), as this is crucial for the delivery logic.
+-   The integration with the external Genie App is functionally complete from both the backend (sending pushes) and Genie App (receiving pushes) sides, but it has not been tested end-to-end.
+-   Your immediate priority is to implement the two pending user requests: showing live Genie status in the Vendor App and adding Genie profile details to the Wisher App's tracking API.
+-   After that, implementing the retry logic for Genie assignment is the most critical upcoming task to make the delivery system robust.
 
 **documents and test reports created in this job**
 -   
 -   
+-    (updated)
+-   
 
 **Last 10 User Messages and any pending HUMAN messages**
--   **1. User:** Confirmed to proceed with building the multi-order feature across both backend and frontend. Clarified that delivery vehicle specifics are handled in another app and not to worry about it. **Status: IN PROGRESS**
+1.  **User:** Asked to see an error in the Local Hub area of the Wisher app. **Status: RESOLVED** (Agent identified it was an incorrect API URL).
+2.  **User:** Provided detailed feedback on the Wisher App's tracking page UI, calling it a disaster and requesting a Zomato-style redesign with a dominant map. **Status: ADDRESSED** (Agent provided a detailed prompt for the Wisher App to implement this).
+3.  **User:** Asked for suggestions on how to connect to the Genie App. **Status: ADDRESSED** (Agent proposed three options, user chose Option C).
+4.  **User:** Asked how platforms like Uber/Zomato handle delivery assignment. **Status: ADDRESSED** (Agent provided a detailed breakdown).
+5.  **User:** Provided a GitHub link to the Genie App and asked the agent to study it to plan the integration. **Status: COMPLETED** (Agent analyzed the repo and created a logic document).
+6.  **User:** Chose to proceed with Option C: Webhook/Push Implementation. **Status: COMPLETED** (Agent implemented the entire flow).
+7.  **User:** Confirmed to proceed with Phase 1 of the integration. **Status: COMPLETED**.
+8.  **User:** Asked if the agent was ready for Phase 2 prompt for the Genie App. **Status: COMPLETED**.
+9.  **User:** Confirmed that the integration in the Genie App was complete and provided the final summary. **Status: COMPLETED**.
+10. **User:** Asked if the Vendor App UI was updated for Genie status and requested Genie profile details for the Wisher App API. **Status: PENDING** (This is the current task).
 
 **Project Health Check:**
--   **Broken:** The Multi-Order feature is incomplete. The backend changes are not yet fully verified through an end-to-end test, and the new frontend UI has not been tested at all.
+-   **Broken:** The Vendor App lacks UI to display the status of Carpet Genie assignments. The Wisher App's tracking API is missing Genie profile details. The full, end-to-end delivery flow (Wisher -> Vendor -> Genie) is untested.
 
 **3rd Party Integrations**
 -   **Expo / React Native:** Frontend framework.
 -   **FastAPI:** Backend framework.
 -   **MongoDB:** Database.
--   **Zustand:** Frontend state management.
+-   **Expo Push Notifications:** Used for real-time delivery requests to the Genie App.
 -   **Discussed for future:** Firebase (for chat), Twilio (for masked calls).
 
 **Testing status**
--   **Testing agent used after significant changes:** NO
+-   **Testing agent used after significant changes:** YES (once, early in the session for multi-order flow).
 -   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None
 -   **Known regressions:** None
 
 **Credentials to test flow:**
--   Vendor login phone: 
--   OTP: 
+-   **Vendor login:** phone: , OTP: 
+-   **Wisher User login:** phone: , OTP: 
+-   **Carpet Genie login:** phone: , OTP: 
 
 **What agent forgot to execute**
--   The agent did not use the  tool at the beginning of the session to confirm the plan with the user, as required by the system prompt.
--   The agent has not yet checked the vendor registration UI () to ensure the  () field is present and functional, a key requirement from the previous handoff.</analysis>
+-   The agent identified that the retry logic for Genie assignment (if no one accepts the initial broadcast) is a missing piece of the puzzle but has not implemented it yet. This is now an upcoming task.</analysis>
