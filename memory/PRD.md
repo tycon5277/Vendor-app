@@ -155,10 +155,14 @@ DELIVERED
 
 ## What's Been Implemented
 - **Feb 18**: Multi-vendor order system, order modification, track API with invoice breakdown
-- **Feb 20**: Studied Genie App, created integration logic document
+- **Feb 20**: Studied Genie App, created integration logic document, implemented full Carpet Genie integration (push notifications, accept/skip flow, pickup/deliver flow)
+- **Feb 20 (Latest)**: 
+  - Enhanced Vendor App order details API (`/api/vendor/wisher-orders/{id}`) to return `delivery_info` object with live Genie status (searching/accepted/picked_up/delivered) and full Genie profile
+  - Enhanced Wisher App tracking API (`/api/localhub/order/{id}/track`) to include full Genie profile (photo_url, rating, vehicle_type, total_deliveries, is_verified)
+  - Added Carpet Genie Status Card to Vendor App order detail screen showing real-time assignment status
 
 ## Next Steps
-1. Create shared endpoints for Genie App to poll LocalHub deliveries
-2. Implement accept flow that updates both systems
-3. Enable chat between Wisher and Genie
-4. Implement location tracking
+1. Implement retry logic for Genie assignment (expand radius/increase fee on timeout)
+2. Implement Wisher App "Multi-Order" UI (Add from another shop button)
+3. Fee calculation algorithm for Carpet Genie deliveries
+4. Implement location tracking for live map in Wisher App
