@@ -8075,6 +8075,7 @@ async def track_wisher_order(order_id: str):
         "status_message": status_message,
         "status_history": order.get("status_history", []),
         "vendor_name": order.get("vendor_name"),
+        "vendor_location": vendor_location,
         "delivery_type": order.get("delivery_type"),
         "delivery_address": order.get("delivery_address"),
         "items": order.get("items", []),
