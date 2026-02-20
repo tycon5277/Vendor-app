@@ -331,8 +331,25 @@ Example:
 
 1. [x] Create backend endpoints in Vendor App (Phase 1 Complete)
 2. [x] Integrate Push Notifications (Phase 2 Complete)
-3. [ ] Update Genie App to receive & handle push notifications
-4. [ ] Test end-to-end flow
+3. [x] Update Genie App to receive & handle push notifications (Complete)
+4. [ ] **Test end-to-end flow**
+
+---
+
+## Integration Complete ✅
+
+### Vendor App Backend (This repo)
+- Push notification service
+- Delivery request broadcast
+- Accept/Skip/Pickup/Deliver endpoints
+- Privacy rules (customer hidden until pickup)
+- Delivery chat
+
+### Genie App (Separate repo)
+- `localHubApi.ts` - API utility
+- `useLocalHubNotifications.ts` - Push handling + location tracking
+- `DeliveryRequestModal.tsx` - 30-second accept modal
+- Updated active delivery screen with privacy flow
 
 ---
 
