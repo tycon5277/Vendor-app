@@ -1229,6 +1229,113 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6366F1',
   },
+  // Genie Status Card
+  genieStatusCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#22C55E',
+  },
+  genieStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  genieStatusIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  genieStatusContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  genieStatusTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  genieStatusMessage: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  assignedGenieInfo: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  assignedGenieRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  assignedGeniePhoto: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#22C55E',
+  },
+  assignedGeniePhotoPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#22C55E',
+  },
+  assignedGenieDetails: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  assignedGenieName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  assignedGenieMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+    gap: 4,
+  },
+  assignedGenieRating: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  assignedGenieVehicle: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  assignedGenieDeliveries: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  assignedGenieCallBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#22C55E',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  assignedGeniePhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 6,
+  },
+  assignedGeniePhone: {
+    fontSize: 13,
+    color: '#374151',
+  },
   // Items Card
   itemsCard: {
     backgroundColor: '#FFFFFF',
