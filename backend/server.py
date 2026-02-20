@@ -7350,37 +7350,30 @@ async def update_wisher_order_status(
         has_own_delivery = vendor.get("vendor_can_deliver", False) or vendor.get("has_own_delivery", False)
         
         if not has_own_delivery:
-            # Automatically start searching for delivery partner
+            # Automatically start searching for delivery partner with push notifications
             vendor_location = vendor.get("vendor_shop_location", {})
             
-            # Create delivery request for genies to see
             if vendor_location.get("lat") and vendor_location.get("lng"):
-                delivery_request = {
-                    "request_id": f"delivery_{uuid.uuid4().hex[:12]}",
-                    "order_id": order_id,
+                # Use broadcast function to create request and send push notifications
+                order_details = {
                     "vendor_id": current_user.user_id,
                     "vendor_name": vendor.get("vendor_shop_name", "Unknown"),
                     "vendor_phone": vendor.get("phone", ""),
-                    "vendor_location": vendor_location,
+                    "vendor_address": vendor.get("vendor_shop_address", ""),
                     "customer_location": order.get("delivery_address", {}),
                     "customer_name": order.get("customer_name", ""),
                     "items_count": len(order.get("items", [])),
                     "order_total": order.get("total", 0),
-                    "delivery_fee": order.get("delivery_fee", 30),
-                    "status": "open",
-                    "created_at": now
+                    "delivery_fee": order.get("delivery_fee", 30)
                 }
-                await db.genie_delivery_requests.insert_one(delivery_request)
+                
+                # This creates the delivery request AND sends push notifications
+                broadcast_result = await broadcast_delivery_request(order_id, vendor_location, order_details)
+                logger.info(f"Broadcast result for order {order_id}: {broadcast_result}")
                 
                 # Update order with delivery info
                 update_data["$set"]["delivery_type"] = "genie_delivery"
-                update_data["$set"]["genie_status"] = "searching"
-                update_data["$set"]["genie_request_time"] = now
-                update_data["$push"]["status_history"] = {
-                    "status": "searching_delivery_partner",
-                    "timestamp": now,
-                    "note": "Looking for delivery partner"
-                }
+                # Note: genie_status already set by broadcast_delivery_request
     
     await db.wisher_orders.update_one({"order_id": order_id}, update_data)
     
@@ -7392,7 +7385,7 @@ async def update_wisher_order_status(
         has_own_delivery = vendor.get("vendor_can_deliver", False) or vendor.get("has_own_delivery", False)
         if not has_own_delivery:
             response["delivery_partner_status"] = "searching"
-            response["message"] = "Order status updated. Searching for delivery partner..."
+            response["message"] = "Order status updated. Push notifications sent to nearby Carpet Genies..."
     
     return response
 
