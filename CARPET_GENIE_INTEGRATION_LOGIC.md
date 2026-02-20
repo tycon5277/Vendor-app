@@ -330,9 +330,39 @@ Example:
 ## Next Steps
 
 1. [x] Create backend endpoints in Vendor App (Phase 1 Complete)
-2. [ ] Integrate Push Notifications (Phase 2)
-3. [ ] Update Genie App to use new endpoints
+2. [x] Integrate Push Notifications (Phase 2 Complete)
+3. [ ] Update Genie App to receive & handle push notifications
 4. [ ] Test end-to-end flow
+
+---
+
+## Phase 2 Complete: Push Notification Service
+
+### How it works:
+1. Vendor marks order as "preparing"
+2. Backend calls `broadcast_delivery_request()`
+3. Finds online Carpet Genies within 5km
+4. Sends Expo push notification to all nearby genies
+5. First genie to accept gets the delivery
+
+### Push Notification Payload:
+```json
+{
+  "to": "ExponentPushToken[xxx]",
+  "title": "🛵 New Delivery Request!",
+  "body": "Test Shop • 2.3km • ₹35 • 4 items",
+  "data": {
+    "type": "delivery_request",
+    "request_id": "delivery_xxx",
+    "order_id": "wisher_order_xxx",
+    "vendor_name": "Test Shop",
+    "distance_km": 2.3,
+    "delivery_fee": 35,
+    "items_count": 4,
+    "timeout_seconds": 30
+  }
+}
+```
 
 ---
 
