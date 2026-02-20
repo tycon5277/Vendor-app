@@ -8215,6 +8215,8 @@ class DeliveryRequestAccept(BaseModel):
 
 # Helper: Check if user is a Carpet Genie
 async def require_carpet_genie(current_user: User = Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     if current_user.partner_type != "agent":
         raise HTTPException(status_code=403, detail="Only agents can access this endpoint")
     return current_user
