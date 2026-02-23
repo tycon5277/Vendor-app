@@ -160,9 +160,21 @@ DELIVERED
   - Enhanced Vendor App order details API (`/api/vendor/wisher-orders/{id}`) to return `delivery_info` object with live Genie status (searching/accepted/picked_up/delivered) and full Genie profile
   - Enhanced Wisher App tracking API (`/api/localhub/order/{id}/track`) to include full Genie profile (photo_url, rating, vehicle_type, total_deliveries, is_verified)
   - Added Carpet Genie Status Card to Vendor App order detail screen showing real-time assignment status
+- **Feb 23 (Current Session)**:
+  - **Retry Logic**: Implemented comprehensive retry mechanism for Genie assignment with:
+    - Configurable max retries (default: 5)
+    - Radius expansion on each retry (base: 5km, +2km per retry, max: 15km)
+    - Fee increase per retry (base: +₹5 per retry, max: +₹25) to incentivize Genies
+    - New endpoint: `POST /api/vendor/wisher-orders/{id}/retry-genie`
+    - Internal retry processor: `POST /api/internal/process-genie-retries`
+  - **Auto-trigger for vendors without own delivery**: When vendor marks order "preparing" and `vendor_can_deliver=false`, Carpet Genie search is auto-triggered
+  - **Manual Carpet Genie option for ALL vendors**: New endpoint `POST /api/vendor/wisher-orders/{id}/assign-carpet-genie` - vendors WITH own delivery can still request Carpet Genie
+  - Updated `next_actions` to show "Request Carpet Genie" and "Retry Search" buttons in Vendor App
 
 ## Next Steps
-1. Implement retry logic for Genie assignment (expand radius/increase fee on timeout)
+1. Live location tracking for Wisher App map (poll Genie location)
 2. Implement Wisher App "Multi-Order" UI (Add from another shop button)
-3. Fee calculation algorithm for Carpet Genie deliveries
-4. Implement location tracking for live map in Wisher App
+3. Fee calculation algorithm refinement for Carpet Genie deliveries
+4. Background job/cron to auto-process expired Genie requests
+
+## Backlog / Future
