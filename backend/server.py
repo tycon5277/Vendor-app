@@ -8635,6 +8635,205 @@ async def trigger_genie_search_for_order(order_id: str):
     return result
 
 
+async def retry_genie_search_for_order(order_id: str) -> dict:
+    """Retry searching for Genie with expanded radius and increased fee"""
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        return {"status": "error", "message": "Order not found"}
+    
+    # Check if order is still in searching state
+    if order.get("genie_status") != "searching":
+        return {"status": "skipped", "message": f"Order not in searching state (current: {order.get('genie_status')})"}
+    
+    # Get current retry count
+    current_retry = order.get("genie_retry_count", 0)
+    max_retries = DELIVERY_CONFIG.get("max_retries", 5)
+    
+    if current_retry >= max_retries:
+        await db.wisher_orders.update_one(
+            {"order_id": order_id},
+            {"$set": {"genie_status": "failed"}}
+        )
+        return {"status": "failed", "message": "Maximum retries reached", "retry_count": current_retry}
+    
+    # Mark previous request as expired
+    if order.get("genie_request_id"):
+        await db.genie_delivery_requests.update_one(
+            {"request_id": order.get("genie_request_id")},
+            {"$set": {"status": "expired"}}
+        )
+    
+    # Get vendor details
+    vendor = await db.users.find_one({"user_id": order.get("vendor_id")}, {"_id": 0})
+    if not vendor:
+        return {"status": "error", "message": "Vendor not found"}
+    
+    vendor_location = vendor.get("vendor_shop_location", {})
+    if not vendor_location.get("lat"):
+        return {"status": "error", "message": "Vendor location not set"}
+    
+    order_details = {
+        "vendor_id": order.get("vendor_id"),
+        "vendor_name": order.get("vendor_name") or vendor.get("vendor_shop_name"),
+        "vendor_phone": vendor.get("phone"),
+        "vendor_address": vendor.get("vendor_shop_address"),
+        "customer_location": order.get("delivery_address"),
+        "customer_name": order.get("customer_name"),
+        "items_count": len(order.get("items", [])),
+        "order_total": order.get("total"),
+        "delivery_fee": order.get("delivery_fee", 30)
+    }
+    
+    # Broadcast with incremented retry count
+    result = await broadcast_delivery_request(order_id, vendor_location, order_details, retry_count=current_retry + 1)
+    return result
+
+
+@api_router.post("/vendor/wisher-orders/{order_id}/retry-genie")
+async def vendor_retry_genie_search(order_id: str, current_user: User = Depends(get_current_user)):
+    """Manually retry searching for Carpet Genie - Vendor App"""
+    if current_user.partner_type != "vendor":
+        raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
+    
+    order = await db.wisher_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found or not authorized")
+    
+    # Can only retry if in searching or failed state
+    if order.get("genie_status") not in ["searching", "failed", None]:
+        raise HTTPException(status_code=400, detail=f"Cannot retry - Genie already assigned (status: {order.get('genie_status')})")
+    
+    result = await retry_genie_search_for_order(order_id)
+    
+    if result.get("status") == "error":
+        raise HTTPException(status_code=400, detail=result.get("message"))
+    
+    return {
+        "message": "Retry initiated",
+        "retry_count": result.get("retry_count", 0),
+        "search_radius_km": result.get("search_radius_km"),
+        "delivery_fee": result.get("delivery_fee"),
+        "genies_notified": result.get("genies_notified", 0)
+    }
+
+
+@api_router.post("/vendor/wisher-orders/{order_id}/assign-carpet-genie")
+async def vendor_assign_carpet_genie(order_id: str, current_user: User = Depends(get_current_user)):
+    """
+    Manually assign Carpet Genie delivery - for vendors WITH own delivery service.
+    This allows vendors to choose Carpet Genie even when they have their own delivery.
+    """
+    if current_user.partner_type != "vendor":
+        raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
+    
+    order = await db.wisher_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id}
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found or not authorized")
+    
+    # Check if delivery already assigned
+    if order.get("genie_status") == "accepted":
+        raise HTTPException(status_code=400, detail="Genie already assigned to this order")
+    
+    # Check order status - must be preparing or ready
+    if order.get("status") not in ["preparing", "ready_for_pickup", "confirmed"]:
+        raise HTTPException(status_code=400, detail="Order must be confirmed/preparing/ready to assign delivery")
+    
+    # Get vendor details
+    vendor = await db.users.find_one({"user_id": current_user.user_id}, {"_id": 0})
+    vendor_location = vendor.get("vendor_shop_location", {})
+    
+    if not vendor_location.get("lat"):
+        raise HTTPException(status_code=400, detail="Please set your shop location first")
+    
+    order_details = {
+        "vendor_id": current_user.user_id,
+        "vendor_name": order.get("vendor_name") or vendor.get("vendor_shop_name"),
+        "vendor_phone": vendor.get("phone"),
+        "vendor_address": vendor.get("vendor_shop_address"),
+        "customer_location": order.get("delivery_address"),
+        "customer_name": order.get("customer_name"),
+        "items_count": len(order.get("items", [])),
+        "order_total": order.get("total"),
+        "delivery_fee": order.get("delivery_fee", 30)
+    }
+    
+    # Update order to use carpet genie delivery
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {"$set": {"delivery_type": "carpet_genie"}}
+    )
+    
+    # Start broadcast
+    result = await broadcast_delivery_request(order_id, vendor_location, order_details, retry_count=0)
+    
+    return {
+        "message": "Searching for Carpet Genie",
+        "order_id": order_id,
+        "request_id": result.get("request_id"),
+        "genies_notified": result.get("genies_notified", 0),
+        "search_radius_km": result.get("search_radius_km"),
+        "delivery_fee": result.get("delivery_fee")
+    }
+
+
+async def process_expired_genie_requests():
+    """
+    Background task to auto-retry expired genie requests.
+    Call this periodically (e.g., every 30 seconds) to auto-retry.
+    """
+    now = datetime.now(timezone.utc)
+    config = DELIVERY_CONFIG
+    retry_timeout = config.get("retry_timeout_seconds", 60)
+    
+    # Find open requests that have expired
+    expired_threshold = (now - timedelta(seconds=retry_timeout)).isoformat()
+    
+    expired_requests = await db.genie_delivery_requests.find({
+        "status": "open",
+        "created_at": {"$lt": expired_threshold}
+    }).to_list(50)
+    
+    results = []
+    for request in expired_requests:
+        order_id = request.get("order_id")
+        
+        # Check if order still needs a genie
+        order = await db.wisher_orders.find_one({"order_id": order_id})
+        if not order:
+            continue
+        
+        if order.get("genie_status") != "searching":
+            # Order already has genie or was cancelled
+            await db.genie_delivery_requests.update_one(
+                {"request_id": request.get("request_id")},
+                {"$set": {"status": "superseded"}}
+            )
+            continue
+        
+        # Retry search
+        retry_result = await retry_genie_search_for_order(order_id)
+        results.append({
+            "order_id": order_id,
+            "result": retry_result
+        })
+    
+    return {"processed": len(results), "results": results}
+
+
+@api_router.post("/internal/process-genie-retries")
+async def trigger_genie_retry_processing():
+    """
+    Internal endpoint to process expired genie requests and trigger retries.
+    Can be called by a cron job or scheduler.
+    """
+    result = await process_expired_genie_requests()
+    return result
+
+
 @api_router.post("/genie/register-push-token")
 async def register_genie_push_token(data: GeniePushTokenRegister, current_user: User = Depends(require_carpet_genie)):
     """Register or update Genie's push notification token"""
