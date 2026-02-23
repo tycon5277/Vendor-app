@@ -193,6 +193,14 @@ export const wisherOrderAPI = {
   assignDelivery: (orderId: string, deliveryType: 'own' | 'genie', notes?: string) =>
     api.post(`/vendor/wisher-orders/${orderId}/assign-delivery`, { delivery_type: deliveryType, notes }),
   
+  // Assign Carpet Genie (for vendors with own delivery who want to use Genie)
+  assignCarpetGenie: (orderId: string) =>
+    api.post(`/vendor/wisher-orders/${orderId}/assign-carpet-genie`),
+  
+  // Retry Genie search
+  retryGenieSearch: (orderId: string) =>
+    api.post(`/vendor/wisher-orders/${orderId}/retry-genie`),
+  
   // Modify order (remove/reduce items)
   modifyOrder: (orderId: string, data: {
     modified_items: Array<{
