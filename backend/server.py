@@ -8459,8 +8459,23 @@ async def send_delivery_request_to_genie(request_id: str, genie: dict, order_det
     return result
 
 
-async def broadcast_delivery_request(order_id: str, vendor_location: dict, order_details: dict):
-    """Find nearby genies and send push notifications"""
+async def broadcast_delivery_request(order_id: str, vendor_location: dict, order_details: dict, retry_count: int = 0):
+    """Find nearby genies and send push notifications. Supports retry with radius expansion."""
+    
+    config = DELIVERY_CONFIG
+    
+    # Calculate search radius based on retry count (expand on retries)
+    base_radius = config.get("max_genie_distance_km", 5.0)
+    radius_expansion = config.get("radius_expansion_km", 2.0)
+    max_radius = config.get("max_radius_km", 15.0)
+    current_radius = min(base_radius + (retry_count * radius_expansion), max_radius)
+    
+    # Calculate delivery fee increase for retries (incentive for Genies)
+    base_fee = order_details.get("delivery_fee", 30)
+    fee_increase = config.get("fee_increase_per_retry", 5.0)
+    max_fee_increase = config.get("max_fee_increase", 25.0)
+    current_fee_increase = min(retry_count * fee_increase, max_fee_increase)
+    adjusted_delivery_fee = base_fee + current_fee_increase
     
     # Create delivery request record
     request_id = f"delivery_{uuid.uuid4().hex[:12]}"
@@ -8478,49 +8493,87 @@ async def broadcast_delivery_request(order_id: str, vendor_location: dict, order
         "customer_name": order_details.get("customer_name"),
         "items_count": order_details.get("items_count"),
         "order_total": order_details.get("order_total"),
-        "delivery_fee": order_details.get("delivery_fee", 30),
+        "delivery_fee": adjusted_delivery_fee,
+        "original_delivery_fee": base_fee,
+        "fee_increase": current_fee_increase,
         "status": "open",
         "sent_to": [],
-        "created_at": now
+        "retry_count": retry_count,
+        "search_radius_km": current_radius,
+        "created_at": now,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=config.get("retry_timeout_seconds", 60))).isoformat()
     }
     
     await db.genie_delivery_requests.insert_one(delivery_request)
     
     # Update order with genie search status
+    update_fields = {
+        "genie_status": "searching",
+        "genie_request_id": request_id,
+        "genie_request_time": now,
+        "genie_retry_count": retry_count,
+        "genie_search_radius_km": current_radius,
+        "genie_delivery_fee": adjusted_delivery_fee
+    }
+    
+    status_note = "Looking for Carpet Genie"
+    if retry_count > 0:
+        status_note = f"Retry #{retry_count}: Expanding search (radius: {current_radius}km, fee: ₹{adjusted_delivery_fee})"
+    
     await db.wisher_orders.update_one(
         {"order_id": order_id},
         {
-            "$set": {
-                "genie_status": "searching",
-                "genie_request_id": request_id,
-                "genie_request_time": now
-            },
+            "$set": update_fields,
             "$push": {
                 "status_history": {
                     "status": "searching_delivery_partner",
                     "timestamp": now,
-                    "note": "Looking for Carpet Genie"
+                    "note": status_note
                 }
             }
         }
     )
     
-    # Find nearby genies
-    nearby_genies = await find_nearby_genies(vendor_location, radius_km=5, limit=5)
+    # Find nearby genies with expanded radius
+    nearby_genies = await find_nearby_genies(vendor_location, radius_km=current_radius, limit=10)
     
     if not nearby_genies:
-        logger.warning(f"No nearby genies found for order {order_id}")
-        return {
-            "status": "no_genies",
-            "request_id": request_id,
-            "message": "No delivery partners available nearby"
-        }
+        logger.warning(f"No nearby genies found for order {order_id} (radius: {current_radius}km, retry: {retry_count})")
+        
+        # Check if we should schedule auto-retry
+        max_retries = config.get("max_retries", 5)
+        if retry_count < max_retries:
+            return {
+                "status": "no_genies",
+                "request_id": request_id,
+                "message": f"No delivery partners found. Will retry automatically.",
+                "retry_count": retry_count,
+                "next_retry_in_seconds": config.get("retry_timeout_seconds", 60),
+                "can_retry": True
+            }
+        else:
+            # Mark request as failed after max retries
+            await db.genie_delivery_requests.update_one(
+                {"request_id": request_id},
+                {"$set": {"status": "failed", "failure_reason": "max_retries_reached"}}
+            )
+            await db.wisher_orders.update_one(
+                {"order_id": order_id},
+                {"$set": {"genie_status": "failed"}}
+            )
+            return {
+                "status": "failed",
+                "request_id": request_id,
+                "message": "No delivery partners available after multiple attempts",
+                "retry_count": retry_count,
+                "can_retry": False
+            }
     
     # Send push to all nearby genies (broadcast approach)
     results = []
     for genie in nearby_genies:
-        order_details["delivery_fee"] = delivery_request["delivery_fee"]
-        result = await send_delivery_request_to_genie(request_id, genie, {**order_details, "order_id": order_id})
+        order_details_with_fee = {**order_details, "order_id": order_id, "delivery_fee": adjusted_delivery_fee}
+        result = await send_delivery_request_to_genie(request_id, genie, order_details_with_fee)
         results.append({
             "genie_id": genie.get("genie_id"),
             "genie_name": genie.get("name"),
@@ -8528,12 +8581,21 @@ async def broadcast_delivery_request(order_id: str, vendor_location: dict, order
             "result": result
         })
     
-    logger.info(f"Broadcast delivery request {request_id} to {len(results)} genies")
+    # Update delivery request with sent_to list
+    await db.genie_delivery_requests.update_one(
+        {"request_id": request_id},
+        {"$set": {"sent_to": [r["genie_id"] for r in results]}}
+    )
+    
+    logger.info(f"Broadcast delivery request {request_id} to {len(results)} genies (radius: {current_radius}km, retry: {retry_count})")
     
     return {
         "status": "sent",
         "request_id": request_id,
         "genies_notified": len(results),
+        "search_radius_km": current_radius,
+        "delivery_fee": adjusted_delivery_fee,
+        "retry_count": retry_count,
         "results": results
     }
 
