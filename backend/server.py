@@ -404,6 +404,14 @@ DELIVERY_CONFIG = {
     "max_assignment_attempts": 5,  # Max Genies to try before creating open request
     "max_genie_distance_km": 5.0,  # Max distance to consider a Genie
     
+    # Retry Settings for Genie Assignment
+    "retry_timeout_seconds": 60,  # Time to wait before retry
+    "max_retries": 5,  # Maximum number of retry attempts
+    "radius_expansion_km": 2.0,  # Expand radius by this much on each retry
+    "max_radius_km": 15.0,  # Maximum search radius
+    "fee_increase_per_retry": 5.0,  # Increase delivery fee on each retry to attract Genies
+    "max_fee_increase": 25.0,  # Maximum fee increase
+    
     # Fuel Configuration (for internal calculations)
     "petrol_price_per_liter": 100.0,
     "avg_mileage_km_per_liter": 70.0,
