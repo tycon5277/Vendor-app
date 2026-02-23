@@ -6907,24 +6907,42 @@ async def add_to_cart(item: CartItemAdd):
 
 @api_router.get("/localhub/cart/{user_id}")
 async def get_cart(user_id: str):
-    """Get user's cart - Wisher App"""
+    """Get user's cart - Wisher App (OPTIMIZED)"""
     cart_items = await db.wisher_carts.find({"user_id": user_id}, {"_id": 0}).to_list(100)
     
-    # Calculate totals
+    if not cart_items:
+        return {
+            "cart_items": [],
+            "vendors": [],
+            "item_count": 0,
+            "subtotal": 0
+        }
+    
+    # Get unique vendor IDs
+    vendor_ids = list(set(item.get("vendor_id") for item in cart_items))
+    
+    # Batch fetch all vendors at once (instead of N+1 queries)
+    vendors_data = await db.hub_vendors.find(
+        {"vendor_id": {"$in": vendor_ids}}, 
+        {"_id": 0, "name": 1, "vendor_id": 1}
+    ).to_list(len(vendor_ids))
+    
+    # Create vendor lookup dict
+    vendor_lookup = {v["vendor_id"]: v.get("name", "Unknown") for v in vendors_data}
+    
+    # Calculate totals and group by vendor
     subtotal = 0
+    vendors = {}
+    
     for item in cart_items:
         price = item.get("discounted_price") or item.get("price", 0)
         subtotal += price * item.get("quantity", 1)
-    
-    # Group by vendor
-    vendors = {}
-    for item in cart_items:
+        
         vendor_id = item.get("vendor_id")
         if vendor_id not in vendors:
-            vendor = await db.hub_vendors.find_one({"vendor_id": vendor_id}, {"_id": 0, "name": 1, "vendor_id": 1})
             vendors[vendor_id] = {
                 "vendor_id": vendor_id,
-                "vendor_name": vendor.get("name") if vendor else "Unknown",
+                "vendor_name": vendor_lookup.get(vendor_id, "Unknown"),
                 "items": []
             }
         vendors[vendor_id]["items"].append(item)
