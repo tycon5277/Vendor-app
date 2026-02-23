@@ -9477,6 +9477,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_db_indexes():
+    """Create database indexes for fast queries"""
+    try:
+        # Cart indexes
+        await db.wisher_carts.create_index("user_id")
+        await db.wisher_carts.create_index([("user_id", 1), ("product_id", 1)])
+        
+        # Order indexes
+        await db.wisher_orders.create_index("order_id")
+        await db.wisher_orders.create_index("user_id")
+        await db.wisher_orders.create_index("vendor_id")
+        await db.wisher_orders.create_index("status")
+        await db.wisher_orders.create_index("group_order_id")
+        await db.wisher_orders.create_index([("vendor_id", 1), ("status", 1)])
+        
+        # Vendor indexes
+        await db.hub_vendors.create_index("vendor_id")
+        await db.hub_vendors.create_index("is_open")
+        
+        # Genie indexes
+        await db.genie_profiles.create_index("genie_id")
+        await db.genie_profiles.create_index("status")
+        await db.genie_delivery_requests.create_index("order_id")
+        await db.genie_delivery_requests.create_index("status")
+        
+        logger.info("Database indexes created successfully")
+    except Exception as e:
+        logger.warning(f"Index creation warning (may already exist): {e}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
