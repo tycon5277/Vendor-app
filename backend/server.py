@@ -7357,6 +7357,7 @@ def get_wisher_next_actions(order: dict, vendor: dict) -> list:
     is_carpet_genie = delivery_type in ["carpet_genie", "genie_delivery"] or delivery_info.get("genie_id")
     is_searching_genie = genie_status == "searching"
     vendor_can_deliver = vendor.get("vendor_can_deliver", False) if vendor else False
+    retry_count = order.get("genie_retry_count", 0)
     
     actions = []
     
@@ -7369,25 +7370,89 @@ def get_wisher_next_actions(order: dict, vendor: dict) -> list:
     
     elif status == "preparing":
         actions.append({"action": "ready_for_pickup", "label": "Mark Ready", "primary": True})
-        # If vendor has own delivery, show option to assign to Carpet Genie (in case own delivery is busy)
-        if vendor_can_deliver and not is_carpet_genie:
-            actions.append({"action": "assign_carpet_genie", "label": "Assign to Carpet Genie", "primary": False, "icon": "bicycle"})
+        # ALWAYS show Carpet Genie option if not already assigned (even for vendors with own delivery)
+        if not is_carpet_genie and genie_status != "accepted":
+            actions.append({
+                "action": "assign_carpet_genie", 
+                "label": "Request Carpet Genie", 
+                "primary": False, 
+                "icon": "bicycle",
+                "description": "Assign to Carpet Genie delivery partner"
+            })
+        # Show searching status if already searching
+        if is_searching_genie:
+            actions.append({
+                "action": "searching_genie", 
+                "label": f"Searching... (Attempt {retry_count + 1})", 
+                "primary": False, 
+                "disabled": True, 
+                "icon": "search",
+                "description": "Looking for nearby Carpet Genies"
+            })
+            # Show retry option
+            actions.append({
+                "action": "retry_genie", 
+                "label": "Retry Search", 
+                "primary": False, 
+                "icon": "refresh",
+                "description": "Expand radius and increase fee"
+            })
     
     elif status == "ready_for_pickup":
         if is_searching_genie:
-            # Waiting for Carpet Genie to accept - show status only
-            actions.append({"action": "searching_genie", "label": "Searching for Carpet Genie...", "primary": False, "disabled": True, "icon": "search"})
-        elif is_carpet_genie and delivery_info.get("genie_id"):
+            # Waiting for Carpet Genie to accept - show status with retry option
+            actions.append({
+                "action": "searching_genie", 
+                "label": f"Searching... (Attempt {retry_count + 1})", 
+                "primary": False, 
+                "disabled": True, 
+                "icon": "search"
+            })
+            actions.append({
+                "action": "retry_genie", 
+                "label": "Retry Search", 
+                "primary": False, 
+                "icon": "refresh"
+            })
+        elif is_carpet_genie and (delivery_info.get("genie_id") or genie_status == "accepted"):
             # Genie assigned - waiting for pickup
-            actions.append({"action": "waiting_pickup", "label": "Waiting for Genie Pickup", "primary": False, "disabled": True, "icon": "time"})
+            actions.append({
+                "action": "waiting_pickup", 
+                "label": "Waiting for Genie Pickup", 
+                "primary": False, 
+                "disabled": True, 
+                "icon": "time"
+            })
         elif vendor_can_deliver:
+            # Vendor has own delivery - show both options
             actions.append({"action": "out_for_delivery", "label": "Out for Delivery (Own)", "primary": True})
-            if not is_carpet_genie:
-                actions.append({"action": "assign_carpet_genie", "label": "Assign to Carpet Genie", "primary": False, "icon": "bicycle"})
+            # ALWAYS show Carpet Genie option
+            if not is_carpet_genie and genie_status != "accepted":
+                actions.append({
+                    "action": "assign_carpet_genie", 
+                    "label": "Request Carpet Genie", 
+                    "primary": False, 
+                    "icon": "bicycle"
+                })
         else:
-            # Need to assign delivery - auto search should have started
-            if not is_searching_genie:
-                actions.append({"action": "assign_carpet_genie", "label": "Request Carpet Genie", "primary": True, "icon": "bicycle"})
+            # Vendor doesn't have own delivery - auto search should have started
+            if not is_searching_genie and genie_status != "accepted":
+                actions.append({
+                    "action": "assign_carpet_genie", 
+                    "label": "Request Carpet Genie", 
+                    "primary": True, 
+                    "icon": "bicycle"
+                })
+        
+        # Show failed state with retry
+        if genie_status == "failed":
+            actions.append({
+                "action": "retry_genie", 
+                "label": "Retry Carpet Genie", 
+                "primary": True, 
+                "icon": "refresh",
+                "description": "No Genie found - try again"
+            })
     
     elif status == "out_for_delivery":
         if not is_carpet_genie:
