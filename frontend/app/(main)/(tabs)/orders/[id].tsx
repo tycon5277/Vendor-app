@@ -141,6 +141,22 @@ export default function OrderDetailScreen() {
   const handleAction = async (action: string) => {
     if (!params.id) return;
     
+    // Handle special actions
+    if (action === 'assign_carpet_genie') {
+      await handleAssignCarpetGenie();
+      return;
+    }
+    
+    if (action === 'retry_genie') {
+      await handleRetryGenieSearch();
+      return;
+    }
+    
+    // Skip disabled actions
+    if (action === 'searching_genie' || action === 'waiting_pickup') {
+      return;
+    }
+    
     setActionLoading(true);
     try {
       const response = await orderAPI.executeAction(params.id, action);
@@ -155,6 +171,52 @@ export default function OrderDetailScreen() {
         type: 'error',
         title: 'Error',
         message: error.response?.data?.detail || 'Action failed',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAssignCarpetGenie = async () => {
+    if (!params.id) return;
+    
+    setActionLoading(true);
+    try {
+      const response = await orderAPI.assignCarpetGenie(params.id);
+      showAlert({
+        type: 'success',
+        title: 'Searching for Carpet Genie! 🚴',
+        message: `Looking for nearby delivery partners... (${response.data.genies_notified || 0} notified)`,
+      });
+      await loadOrderDetails();
+    } catch (error: any) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: error.response?.data?.detail || 'Failed to request Carpet Genie',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRetryGenieSearch = async () => {
+    if (!params.id) return;
+    
+    setActionLoading(true);
+    try {
+      const response = await orderAPI.retryGenieSearch(params.id);
+      showAlert({
+        type: 'success',
+        title: 'Retrying Search! 🔄',
+        message: `Expanding search radius... (Attempt ${response.data.retry_count + 1}, ${response.data.genies_notified || 0} notified)`,
+      });
+      await loadOrderDetails();
+    } catch (error: any) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: error.response?.data?.detail || 'Failed to retry search',
       });
     } finally {
       setActionLoading(false);
