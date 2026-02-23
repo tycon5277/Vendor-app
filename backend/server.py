@@ -6994,25 +6994,36 @@ async def clear_cart(user_id: str):
 
 @api_router.post("/localhub/orders")
 async def create_wisher_order(order_data: WisherOrderCreate):
-    """Create order from cart - Wisher App"""
+    """Create order from cart - Wisher App (OPTIMIZED for speed)"""
     # Get cart items
     cart_items = await db.wisher_carts.find({"user_id": order_data.user_id}, {"_id": 0}).to_list(100)
     
     if not cart_items:
         raise HTTPException(status_code=400, detail="Cart is empty")
     
-    # Group items by vendor
+    # Get unique vendor IDs
+    vendor_ids = list(set(item.get("vendor_id") for item in cart_items))
+    
+    # Batch fetch all vendors at once (OPTIMIZED - single query instead of N queries)
+    vendors_data = await db.hub_vendors.find(
+        {"vendor_id": {"$in": vendor_ids}}, 
+        {"_id": 0}
+    ).to_list(len(vendor_ids))
+    
+    # Create vendor lookup dict
+    vendor_lookup = {v["vendor_id"]: v for v in vendors_data}
+    
+    # Group items by vendor (no DB calls in loop)
     vendor_orders = {}
-    total_weight = 0
     for item in cart_items:
         vendor_id = item.get("vendor_id")
         if vendor_id not in vendor_orders:
-            vendor = await db.hub_vendors.find_one({"vendor_id": vendor_id}, {"_id": 0})
+            vendor = vendor_lookup.get(vendor_id, {})
             vendor_orders[vendor_id] = {
                 "vendor_id": vendor_id,
-                "vendor_name": vendor.get("name") if vendor else "Unknown",
-                "vendor_phone": vendor.get("contact_phone") if vendor else "",
-                "vendor_location": vendor.get("location") if vendor else {},
+                "vendor_name": vendor.get("name", "Unknown"),
+                "vendor_phone": vendor.get("contact_phone", ""),
+                "vendor_location": vendor.get("location", {}),
                 "items": [],
                 "subtotal": 0,
                 "categories": set()
@@ -7020,15 +7031,12 @@ async def create_wisher_order(order_data: WisherOrderCreate):
         
         price = item.get("discounted_price") or item.get("price", 0)
         item_total = price * item.get("quantity", 1)
-        # Add item_total to each item for tracking
         item_with_total = {**item, "item_total": item_total}
         vendor_orders[vendor_id]["items"].append(item_with_total)
         vendor_orders[vendor_id]["subtotal"] += item_total
         
-        # Track categories and estimate weight
         if item.get("category"):
             vendor_orders[vendor_id]["categories"].add(item.get("category"))
-        total_weight += item.get("weight", 0.5) * item.get("quantity", 1)  # Default 0.5kg per item
     
     now = datetime.now(timezone.utc).isoformat()
     
@@ -7036,15 +7044,14 @@ async def create_wisher_order(order_data: WisherOrderCreate):
     is_multi_order = len(vendor_orders) > 1
     group_order_id = f"group_{uuid.uuid4().hex[:12]}" if is_multi_order else None
     
-    # Create separate order for each vendor
+    # Create all orders in batch
+    orders_to_insert = []
     created_orders = []
     vendor_sequence = 1
     total_vendors = len(vendor_orders)
     
     for vendor_id, vendor_data in vendor_orders.items():
         order_id = f"wisher_order_{uuid.uuid4().hex[:12]}"
-        
-        # Calculate estimated weight for this vendor's items
         vendor_weight = sum(item.get("weight", 0.5) * item.get("quantity", 1) for item in vendor_data["items"])
         
         order = {
@@ -7058,60 +7065,45 @@ async def create_wisher_order(order_data: WisherOrderCreate):
             "vendor_name": vendor_data["vendor_name"],
             "vendor_phone": vendor_data["vendor_phone"],
             "vendor_location": vendor_data["vendor_location"],
-            
-            # Multi-order info
             "is_multi_order": is_multi_order,
             "group_order_id": group_order_id,
             "vendor_sequence": vendor_sequence if is_multi_order else None,
             "total_vendors": total_vendors if is_multi_order else 1,
-            
-            # Items - original and current
             "original_items": vendor_data["items"],
             "items": vendor_data["items"],
             "item_categories": list(vendor_data["categories"]),
             "item_count": sum(item.get("quantity", 1) for item in vendor_data["items"]),
             "estimated_weight_kg": round(vendor_weight, 2),
-            
-            # Totals - original and current
             "original_subtotal": vendor_data["subtotal"],
             "subtotal": vendor_data["subtotal"],
             "delivery_fee": 30,
             "original_total": vendor_data["subtotal"] + 30,
             "total": vendor_data["subtotal"] + 30,
-            
-            # Refund tracking
             "refund_amount": 0,
             "refund_reason": None,
             "refund_status": None,
-            
-            # Delivery
             "delivery_address": order_data.delivery_address,
             "notes": order_data.notes,
-            
-            # Payment
             "payment_method": order_data.payment_method,
             "payment_status": "pending",
-            
-            # Order status
             "status": "pending",
-            "status_history": [
-                {"status": "pending", "timestamp": now, "note": "Order placed"}
-            ],
-            
-            # Modification tracking
+            "status_history": [{"status": "pending", "timestamp": now, "note": "Order placed"}],
             "is_modified": False,
             "modification_history": [],
-            
-            # Timestamps
             "created_at": now,
             "updated_at": now
         }
-        await db.wisher_orders.insert_one(order)
+        orders_to_insert.append(order)
         created_orders.append({
             "order_id": order_id, 
             "vendor_name": vendor_data["vendor_name"], 
             "total": order["total"]
         })
+        vendor_sequence += 1
+    
+    # BATCH INSERT all orders at once (much faster than individual inserts)
+    if orders_to_insert:
+        await db.wisher_orders.insert_many(orders_to_insert)
     
     # Clear cart after order
     await db.wisher_carts.delete_many({"user_id": order_data.user_id})
