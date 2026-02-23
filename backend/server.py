@@ -8613,8 +8613,11 @@ async def broadcast_delivery_request(order_id: str, vendor_location: dict, order
                 "request_id": request_id,
                 "message": f"No delivery partners found. Will retry automatically.",
                 "retry_count": retry_count,
+                "search_radius_km": current_radius,
+                "delivery_fee": adjusted_delivery_fee,
                 "next_retry_in_seconds": config.get("retry_timeout_seconds", 60),
-                "can_retry": True
+                "can_retry": True,
+                "genies_notified": 0
             }
         else:
             # Mark request as failed after max retries
@@ -8631,7 +8634,10 @@ async def broadcast_delivery_request(order_id: str, vendor_location: dict, order
                 "request_id": request_id,
                 "message": "No delivery partners available after multiple attempts",
                 "retry_count": retry_count,
-                "can_retry": False
+                "search_radius_km": current_radius,
+                "delivery_fee": adjusted_delivery_fee,
+                "can_retry": False,
+                "genies_notified": 0
             }
     
     # Send push to all nearby genies (broadcast approach)
