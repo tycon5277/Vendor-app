@@ -1,13 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Tabs, useRouter, usePathname, useRootNavigationState } from 'expo-router';
+import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackHandler, Platform, ToastAndroid, View, Text, StyleSheet, Animated } from 'react-native';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
-  const navigationState = useRootNavigationState();
-  const router = navigationState?.key ? useRouter() : null;
+  const router = useRouter();
   const pathname = usePathname();
   
   const lastBackPressRef = useRef(0);
