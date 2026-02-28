@@ -47,7 +47,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setLoading: (isLoading) => set({ isLoading }),
 
   logout: async () => {
-    await AsyncStorage.multiRemove(['user', 'token']);
+    try {
+      await AsyncStorage.multiRemove(['user', 'token']);
+      // Also clear localStorage for web
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem('user');
+        window.localStorage.removeItem('token');
+        window.localStorage.clear();
+      }
+    } catch (e) {
+      console.log('Logout storage clear error:', e);
+    }
     set({
       user: null,
       token: null,
