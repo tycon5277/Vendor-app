@@ -1,6 +1,6 @@
 import React from 'react';
 import { Stack } from 'expo-router';
-import { useTheme } from '@react-navigation/native';
+import { useTheme } from 'expo-router';
 
 export default function AuthLayout() {
   return (
