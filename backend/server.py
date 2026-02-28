@@ -9030,27 +9030,14 @@ async def get_available_delivery_requests(current_user: User = Depends(require_c
     
     genie_location = genie_profile.get("current_location") if genie_profile else None
     
-    # Get pending delivery requests - simpler query that includes all open requests
-    # Filter out ones this genie has already been sent to (they're in sent_to as string IDs)
+    # Get pending delivery requests - include both 'open' and 'sent' status
+    # 'sent' means notifications were sent but no one accepted yet
     requests = await db.genie_delivery_requests.find({
-        "status": "open"
+        "status": {"$in": ["open", "sent"]}
     }, {"_id": 0}).sort("created_at", -1).to_list(20)
     
-    # Filter out requests already sent to this genie
-    filtered_requests = []
-    for req in requests:
-        sent_to = req.get("sent_to", [])
-        # sent_to can be list of genie_ids (strings) or list of objects
-        genie_ids_sent = []
-        for item in sent_to:
-            if isinstance(item, str):
-                genie_ids_sent.append(item)
-            elif isinstance(item, dict):
-                genie_ids_sent.append(item.get("genie_id"))
-        
-        # Include if genie hasn't been sent this request yet, OR include all for now
-        # Actually, let's include ALL open requests so Genie can see them
-        filtered_requests.append(req)
+    # Filter out requests already sent to this genie (optional - for now show all)
+    filtered_requests = requests
     
     # Calculate distance if genie location available
     if genie_location and genie_location.get("lat"):
