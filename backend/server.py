@@ -9103,7 +9103,8 @@ async def accept_delivery_request(request_id: str, data: DeliveryRequestAccept =
     if not request:
         raise HTTPException(status_code=404, detail="Delivery request not found")
     
-    if request.get("status") != "open":
+    # Allow accepting if status is 'open' or 'sent' (sent means notifications were sent but no one accepted yet)
+    if request.get("status") not in ["open", "sent"]:
         raise HTTPException(status_code=400, detail="This delivery is no longer available")
     
     if request.get("accepted_by"):
