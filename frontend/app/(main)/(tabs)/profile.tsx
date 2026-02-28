@@ -60,21 +60,32 @@ export default function ProfileScreen() {
   }, []);
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/(auth)/login');
+    // Use confirm for web compatibility, Alert for native
+    if (typeof window !== 'undefined' && window.confirm) {
+      // Web environment
+      if (window.confirm('Are you sure you want to logout?')) {
+        logout().then(() => {
+          router.replace('/(auth)/login');
+        });
+      }
+    } else {
+      // Native environment
+      Alert.alert(
+        'Logout',
+        'Are you sure you want to logout?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Logout',
+            style: 'destructive',
+            onPress: async () => {
+              await logout();
+              router.replace('/(auth)/login');
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const isShopOpen = user?.partner_status === 'available';
