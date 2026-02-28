@@ -9507,6 +9507,52 @@ async def startup_db_indexes():
     except Exception as e:
         logger.warning(f"Index creation warning (may already exist): {e}")
 
+
+# ===================== ADMIN CLEANUP ENDPOINTS =====================
+
+@api_router.delete("/admin/cleanup/all-shops")
+async def cleanup_all_shops():
+    """Delete all shops, products, carts, orders and related data - ADMIN ONLY"""
+    results = {}
+    
+    # Delete hub vendors
+    r1 = await db.hub_vendors.delete_many({})
+    results["hub_vendors_deleted"] = r1.deleted_count
+    
+    # Delete hub products
+    r2 = await db.hub_products.delete_many({})
+    results["hub_products_deleted"] = r2.deleted_count
+    
+    # Delete wisher carts
+    r3 = await db.wisher_carts.delete_many({})
+    results["wisher_carts_deleted"] = r3.deleted_count
+    
+    # Delete wisher orders
+    r4 = await db.wisher_orders.delete_many({})
+    results["wisher_orders_deleted"] = r4.deleted_count
+    
+    # Delete genie delivery requests
+    r5 = await db.genie_delivery_requests.delete_many({})
+    results["genie_delivery_requests_deleted"] = r5.deleted_count
+    
+    # Delete product images (if stored in a collection)
+    r6 = await db.product_images.delete_many({})
+    results["product_images_deleted"] = r6.deleted_count
+    
+    # Reset vendor flags on users (but keep user accounts)
+    r7 = await db.users.update_many(
+        {"is_hub_vendor": True},
+        {"$set": {"is_hub_vendor": False}}
+    )
+    results["users_hub_vendor_flag_reset"] = r7.modified_count
+    
+    return {
+        "message": "All shops and related data deleted successfully",
+        "details": results
+    }
+
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
