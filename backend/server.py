@@ -9546,6 +9546,12 @@ async def update_vendor_location(vendor_id: str, lat: float, lng: float):
         "location": {"lat": lat, "lng": lng}
     }
 
+@api_router.get("/admin/debug/delivery-requests")
+async def debug_delivery_requests():
+    """Debug endpoint to see all delivery requests"""
+    requests = await db.genie_delivery_requests.find({}, {"_id": 0}).to_list(50)
+    return {"total": len(requests), "requests": requests}
+
 # Include the router
 app.include_router(api_router)
 
