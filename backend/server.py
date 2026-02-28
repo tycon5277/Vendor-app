@@ -9509,6 +9509,30 @@ async def cleanup_all_shops():
         "details": results
     }
 
+@api_router.put("/admin/vendor/{vendor_id}/location")
+async def update_vendor_location(vendor_id: str, lat: float, lng: float):
+    """Update vendor's GPS location - ADMIN ONLY"""
+    # Update in hub_vendors
+    r1 = await db.hub_vendors.update_one(
+        {"vendor_id": vendor_id},
+        {"$set": {"location": {"lat": lat, "lng": lng}}}
+    )
+    
+    # Also update in users collection
+    r2 = await db.users.update_one(
+        {"user_id": vendor_id},
+        {"$set": {"vendor_shop_location": {"lat": lat, "lng": lng}}}
+    )
+    
+    if r1.modified_count == 0 and r2.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    return {
+        "message": "Location updated successfully",
+        "vendor_id": vendor_id,
+        "location": {"lat": lat, "lng": lng}
+    }
+
 # Include the router
 app.include_router(api_router)
 
