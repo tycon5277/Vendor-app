@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
-import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Stack, useSegments } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../src/store/authStore';
 import { LoadingScreen } from '../src/components/LoadingScreen';
@@ -9,18 +10,37 @@ import { NewOrderNotificationProvider } from '../src/context/NewOrderNotificatio
 function InitialLayout() {
   const { isLoading, isAuthenticated, isVendor, loadStoredAuth } = useAuthStore();
   const segments = useSegments();
-  const router = useRouter();
-  const navigationState = useRootNavigationState();
+  const [isNavigationReady, setIsNavigationReady] = useState(false);
 
   useEffect(() => {
     loadStoredAuth();
   }, []);
 
+  // Mark navigation as ready after first render
+  useEffect(() => {
+    setIsNavigationReady(true);
+  }, []);
+
+  if (isLoading || !isNavigationReady) {
+    return <LoadingScreen message="Loading..." />;
+  }
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(main)" />
+    </Stack>
+  );
+}
+
+function NavigationHandler() {
+  const { isLoading, isAuthenticated, isVendor } = useAuthStore();
+  const segments = useSegments();
+  const router = useRouter();
+
   useEffect(() => {
     if (isLoading) return;
-    
-    // Wait for navigation to be ready
-    if (!navigationState?.key) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
@@ -35,19 +55,9 @@ function InitialLayout() {
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [isLoading, isAuthenticated, isVendor, segments, navigationState?.key]);
+  }, [isLoading, isAuthenticated, isVendor, segments]);
 
-  if (isLoading) {
-    return <LoadingScreen message="Loading..." />;
-  }
-
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(main)" />
-    </Stack>
-  );
+  return null;
 }
 
 export default function RootLayout() {
@@ -56,6 +66,7 @@ export default function RootLayout() {
       <NewOrderNotificationProvider>
         <StatusBar style="dark" />
         <InitialLayout />
+        <NavigationHandler />
       </NewOrderNotificationProvider>
     </AlertProvider>
   );
