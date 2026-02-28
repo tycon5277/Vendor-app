@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../src/store/authStore';
 import { LoadingScreen } from '../src/components/LoadingScreen';
@@ -10,6 +10,7 @@ function InitialLayout() {
   const { isLoading, isAuthenticated, isVendor, loadStoredAuth } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
+  const navigationState = useRootNavigationState();
 
   useEffect(() => {
     loadStoredAuth();
@@ -17,6 +18,9 @@ function InitialLayout() {
 
   useEffect(() => {
     if (isLoading) return;
+    
+    // Wait for navigation to be ready
+    if (!navigationState?.key) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
@@ -31,7 +35,7 @@ function InitialLayout() {
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [isLoading, isAuthenticated, isVendor, segments]);
+  }, [isLoading, isAuthenticated, isVendor, segments, navigationState?.key]);
 
   if (isLoading) {
     return <LoadingScreen message="Loading..." />;
