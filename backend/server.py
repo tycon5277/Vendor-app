@@ -406,7 +406,7 @@ DELIVERY_CONFIG = {
     
     # Retry Settings for Genie Assignment
     "retry_timeout_seconds": 60,  # Time to wait before retry
-    "max_retries": 5,  # Maximum number of retry attempts
+    "max_retries": 999,  # Effectively unlimited retries - keep searching until someone accepts
     "radius_expansion_km": 0.5,  # Expand radius by this much on each retry
     "max_radius_km": 7.0,  # Maximum search radius (capped at 7km)
     "fee_increase_per_retry": 5.0,  # Increase delivery fee on each retry to attract Genies
