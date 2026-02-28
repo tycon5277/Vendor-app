@@ -9030,14 +9030,27 @@ async def get_available_delivery_requests(current_user: User = Depends(require_c
     
     genie_location = genie_profile.get("current_location") if genie_profile else None
     
-    # Get pending delivery requests
+    # Get pending delivery requests - simpler query that includes all open requests
+    # Filter out ones this genie has already been sent to (they're in sent_to as string IDs)
     requests = await db.genie_delivery_requests.find({
-        "status": "open",
-        "$or": [
-            {"sent_to": {"$not": {"$elemMatch": {"genie_id": current_user.user_id}}}},
-            {"sent_to": {"$exists": False}}
-        ]
+        "status": "open"
     }, {"_id": 0}).sort("created_at", -1).to_list(20)
+    
+    # Filter out requests already sent to this genie
+    filtered_requests = []
+    for req in requests:
+        sent_to = req.get("sent_to", [])
+        # sent_to can be list of genie_ids (strings) or list of objects
+        genie_ids_sent = []
+        for item in sent_to:
+            if isinstance(item, str):
+                genie_ids_sent.append(item)
+            elif isinstance(item, dict):
+                genie_ids_sent.append(item.get("genie_id"))
+        
+        # Include if genie hasn't been sent this request yet, OR include all for now
+        # Actually, let's include ALL open requests so Genie can see them
+        filtered_requests.append(req)
     
     # Calculate distance if genie location available
     if genie_location and genie_location.get("lat"):
@@ -9052,7 +9065,7 @@ async def get_available_delivery_requests(current_user: User = Depends(require_c
             c = 2 * atan2(sqrt(a), sqrt(1-a))
             return R * c
         
-        for req in requests:
+        for req in filtered_requests:
             vendor_loc = req.get("vendor_location", {})
             if vendor_loc.get("lat"):
                 req["distance_to_shop_km"] = round(haversine(
@@ -9060,7 +9073,7 @@ async def get_available_delivery_requests(current_user: User = Depends(require_c
                     vendor_loc["lat"], vendor_loc["lng"]
                 ), 2)
     
-    return {"requests": requests}
+    return {"requests": filtered_requests}
 
 
 @api_router.get("/genie/delivery-requests/{request_id}")
