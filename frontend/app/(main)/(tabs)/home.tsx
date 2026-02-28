@@ -11,7 +11,7 @@ import {
   AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useRootNavigationState } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../../src/store/authStore';
@@ -22,7 +22,6 @@ import { useAlert } from '../../../src/context/AlertContext';
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
-  const navigationState = useRootNavigationState();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
@@ -40,9 +39,6 @@ export default function HomeScreen() {
   const lowStockProducts = products.filter(p => p.stock_quantity <= 10 && p.in_stock);
   const outOfStockProducts = products.filter(p => !p.in_stock);
   const hasInventoryAlerts = lowStockProducts.length > 0 || outOfStockProducts.length > 0;
-
-  // Wait for navigation to be ready before using router
-  const isNavigationReady = navigationState?.key != null;
 
   const loadData = async () => {
     try {
