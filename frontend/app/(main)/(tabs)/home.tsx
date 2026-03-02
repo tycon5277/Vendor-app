@@ -427,8 +427,23 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginTop: 2,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  localHubBtn: {
+    marginRight: 8,
+  },
+  localHubAvatar: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#10B981',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   profileBtn: {
-    marginLeft: 12,
+    marginLeft: 4,
   },
   profileAvatar: {
     width: 48,
