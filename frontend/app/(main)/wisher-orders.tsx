@@ -389,7 +389,7 @@ export default function WisherOrdersScreen() {
           </View>
           <View style={styles.detailItem}>
             <Text style={styles.totalAmount}>₹{item.total}</Text>
-            {item.refund_amount && item.refund_amount > 0 && (
+            {(item.refund_amount ?? 0) > 0 && (
               <Text style={styles.refundAmount}>(-₹{item.refund_amount})</Text>
             )}
           </View>
