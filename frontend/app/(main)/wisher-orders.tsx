@@ -703,9 +703,52 @@ export default function WisherOrdersScreen() {
                         <Ionicons name="checkmark-circle" size={24} color="#10B981" />
                         <Text style={styles.genieAssignedTitle}>Delivery Partner Assigned!</Text>
                       </View>
-                      <Text style={styles.genieInfoText}>{selectedOrder.genie_name || 'Delivery Partner'}</Text>
-                      {selectedOrder.genie_phone && (
-                        <Text style={styles.genieInfoText}>{selectedOrder.genie_phone}</Text>
+                      <View style={styles.genieDetailsRow}>
+                        <View style={styles.genieAvatar}>
+                          <Ionicons name="bicycle" size={24} color="#6366F1" />
+                        </View>
+                        <View style={styles.genieTextInfo}>
+                          <Text style={styles.genieName}>{selectedOrder.genie_name || 'Delivery Partner'}</Text>
+                          {selectedOrder.genie_phone && (
+                            <Text style={styles.geniePhone}>{selectedOrder.genie_phone}</Text>
+                          )}
+                        </View>
+                      </View>
+                      {/* Live Location Status */}
+                      {selectedOrder.genie_location && (
+                        <View style={styles.liveLocationBadge}>
+                          <View style={styles.liveDot} />
+                          <Text style={styles.liveLocationText}>Live location available</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                  
+                  {/* Show Genie on the way info */}
+                  {selectedOrder.status === 'out_for_delivery' && (
+                    <View style={[styles.genieInfoBox, styles.genieOnWayBox]}>
+                      <View style={styles.genieAssignedHeader}>
+                        <Ionicons name="navigate" size={24} color="#3B82F6" />
+                        <Text style={[styles.genieAssignedTitle, { color: '#3B82F6' }]}>On The Way!</Text>
+                      </View>
+                      <View style={styles.genieDetailsRow}>
+                        <View style={[styles.genieAvatar, { backgroundColor: '#DBEAFE' }]}>
+                          <Ionicons name="bicycle" size={24} color="#3B82F6" />
+                        </View>
+                        <View style={styles.genieTextInfo}>
+                          <Text style={styles.genieName}>{selectedOrder.genie_name || 'Delivery Partner'}</Text>
+                          {selectedOrder.genie_phone && (
+                            <Text style={styles.geniePhone}>{selectedOrder.genie_phone}</Text>
+                          )}
+                        </View>
+                      </View>
+                      {selectedOrder.genie_location && (
+                        <View style={styles.liveLocationBadge}>
+                          <View style={[styles.liveDot, { backgroundColor: '#3B82F6' }]} />
+                          <Text style={[styles.liveLocationText, { color: '#3B82F6' }]}>
+                            Tracking live • Updated just now
+                          </Text>
+                        </View>
                       )}
                     </View>
                   )}
