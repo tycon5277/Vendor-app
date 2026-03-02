@@ -11,8 +11,14 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import httpx
 import base64
+import hashlib
+import hmac
+import json
 
 ROOT_DIR = Path(__file__).parent
+
+# Secret key for signing QR codes (in production, use environment variable)
+QR_SECRET_KEY = os.environ.get("QR_SECRET_KEY", "carpet-genie-pickup-verification-secret-2024")
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection - SAME database as Wisher and Genie apps
