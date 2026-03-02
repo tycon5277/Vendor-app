@@ -3,80 +3,55 @@
 ## Original Problem Statement
 Build a Vendor App that serves as a centralized API service for a "Wisher App" (customer-facing) and "Carpet Genie App" (delivery partners), mimicking platforms like Zomato/Swiggy. The system includes multi-vendor ordering, delivery assignment, and secure order pickup verification.
 
-## Core Requirements
+## What's Working
 
-### P0 - Critical Features
-1. **API Hub**: Backend serves Vendor, Wisher, and Genie apps with complete REST APIs
-2. **Order Management**: Vendors manage orders from Wisher App (confirm, prepare, modify, refund)
-3. **Delivery Assignment**: Automated Carpet Genie assignment with broadcast/retry mechanism
-4. **Secure Pickup Verification**: QR code + OTP-based handoff verification between vendor and genie
+### Order Flow
+- ✅ Orders from Wisher App appear in Vendor App Local Hub Orders
+- ✅ New order just created: `#ce589481` - 9 items, ₹1650, Status: Preparing
+- ✅ Order status flow works (Pending → Confirmed → Preparing → Ready → Out for Delivery → Delivered)
+- ✅ Genie search initiated automatically when order is ready
+- ✅ Genie assignment and tracking
 
-### P1 - Important Features
-1. Fee calculation algorithm for delivery
-2. Multi-order feature (hidden in Wisher App UI per user request)
+### Backend APIs (All Working)
+- `GET /api/vendor/wisher-orders` - List orders from Wisher App
+- `GET /api/vendor/wisher-orders/{order_id}/pickup-qr` - Generate QR for pickup
+- `POST /api/genie/deliveries/{order_id}/verify-pickup` - Genie verifies pickup
+- `GET /api/localhub/order/{order_id}/track` - Live tracking with Genie location
+- `POST /api/genie/location` - Genie updates location
 
-### P2 - Nice to Have
-1. Vendor verification workflow
-2. Shop QR feature enhancement
-3. Refactor monolithic server.py
-4. Migrate chat to Firebase
-5. Implement masked phone calls via Twilio
+### Frontend Features Implemented
+- ✅ Local Hub Orders screen with order cards
+- ✅ Order detail modal with customer info, items, totals
+- ✅ QR Code modal with pickup code, items checklist, Genie info
+- ✅ Genie status display (searching, assigned, on the way)
+- ✅ Live location indicator when Genie location is available
+- ✅ Navigation from Home to Local Hub (green globe button)
 
-## What's Been Implemented
+## Known Issues
 
-### March 2, 2026 - QR Code Pickup Verification UI
-- **Frontend Implementation**:
-  - Added `getPickupQR` API method to wisherOrderAPI in `/app/frontend/src/utils/api.ts`
-  - Implemented QR Code Modal in wisher-orders.tsx with:
-    - QR code display using react-native-qrcode-svg
-    - 6-digit pickup code fallback
-    - Assigned genie info display
-    - Order items checklist for verification
-    - Expiry warning
-  - Added "Show Pickup QR Code" button when order status is ready_for_pickup/preparing AND genie_status is assigned/accepted
-  - Added "Local Hub" navigation button (green globe icon) on home page
-  - Fixed refund_amount rendering issue (was showing "0" due to JavaScript truthy check)
+### Bug: Stray "0" Rendering in Order Cards
+- **Description**: A "0" appears after the order total amount (e.g., "₹1650 0")
+- **Location**: Order list cards and order detail modal
+- **Attempted fixes**: Used `Boolean()` wrapper, `?? 0` operator, explicit comparisons
+- **Status**: UNRESOLVED - needs deeper React Native Web investigation
+- **Impact**: Cosmetic only, doesn't affect functionality
 
-### Known Issues to Fix
-- **Modal "0" rendering bug**: There's still a "0" appearing in the order detail modal. This appears to be a React Native Web rendering issue where JavaScript expressions evaluating to `0` are being displayed. Need deeper investigation.
-- Modal scrolling may not work properly on web to show the Genie info and QR button sections.
-
-### Previous Session Completions
-- **Live Genie Status**: Enhanced UI to show searching/assigned status
-- **Robust Delivery Assignment**: Infinite retry with expanding radius, fee increase, 7km max cap
-- **Backend QR System**: JWT-based secure QR generation and verification endpoints
-- **Performance Optimization**: Fixed N+1 queries, added DB indexes
-- **Bug Fixes**: Navigation context errors, web logout, Genie order acceptance
-
-## API Endpoints
-
-### Vendor App APIs
-- `GET /api/vendor/wisher-orders` - List all orders from Wisher App
-- `GET /api/vendor/wisher-orders/{order_id}` - Get single order
-- `PUT /api/vendor/wisher-orders/{order_id}/status` - Update order status
-- `PUT /api/vendor/wisher-orders/{order_id}/ready-for-pickup` - Mark ready
-- `POST /api/vendor/wisher-orders/{order_id}/assign-delivery` - Assign delivery
-- `GET /api/vendor/wisher-orders/{order_id}/pickup-qr` - Get pickup QR code **(NEW)**
-- `PUT /api/vendor/wisher-orders/{order_id}/modify` - Modify order items
-- `POST /api/vendor/wisher-orders/{order_id}/process-refund` - Process refund
-
-### Genie App APIs
-- `GET /api/genie/deliveries/{order_id}/items` - Get item list for verification
-- `POST /api/genie/deliveries/{order_id}/verify-pickup` - Verify pickup via QR/OTP
-
-### Admin APIs
-- `POST /api/admin/cleanup-data` - Delete all transactional data
-- `POST /api/admin/vendors/update-locations` - Bulk update vendor coordinates
+### Backend URL Configuration
+- **Wisher App** should use: `https://order-fulfillment-22.preview.emergentagent.com`
+- **Old URL `multi-vendor-orders-1`** is inactive
 
 ## Test Credentials
+- Vendor (Fruits shop): 1414141414 / 123456 (has active orders)
 - Vendor (Grocery Shop): 1212121212 / 123456
 - Vendor (Meat shop): 1313131313 / 123456
-- Vendor (Fruits shop): 1414141414 / 123456
-- Wisher User: 1111111111 / 123456
-- Carpet Genie: 1111111111 / 123456
 
-## Files Reference
-- `/app/backend/server.py` - Main backend (needs refactoring)
-- `/app/frontend/app/(main)/wisher-orders.tsx` - Local Hub Orders screen with QR UI
-- `/app/frontend/app/(main)/(tabs)/home.tsx` - Home with Local Hub navigation
-- `/app/frontend/src/utils/api.ts` - API utility functions
+## Current Orders in System
+1. `#ce589481` - Preparing, Searching for Genie, ₹1650
+2. `#bc852452` - Ready For Pickup, Genie Assigned, ₹210
+3. `#e1d69c06` - Out For Delivery, ₹2010
+4. `#5a449478` - Preparing, Genie Assigned, ₹1110
+
+## Files Modified This Session
+- `/app/frontend/app/(main)/wisher-orders.tsx` - QR modal, Genie UI, live location
+- `/app/frontend/app/(main)/(tabs)/home.tsx` - Local Hub navigation button
+- `/app/frontend/src/utils/api.ts` - getPickupQR API method
