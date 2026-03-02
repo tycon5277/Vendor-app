@@ -119,6 +119,11 @@ export default function WisherOrdersScreen() {
   // Status update modal
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusNote, setStatusNote] = useState('');
+  
+  // Pickup QR modal
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [pickupQRData, setPickupQRData] = useState<PickupQRData | null>(null);
+  const [loadingQR, setLoadingQR] = useState(false);
 
   const fetchOrders = async () => {
     try {
