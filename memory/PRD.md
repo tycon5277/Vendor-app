@@ -26,15 +26,20 @@ Build a Vendor App that serves as a centralized API service for a "Wisher App" (
 
 ### March 2, 2026 - QR Code Pickup Verification UI
 - **Frontend Implementation**:
-  - Added `getPickupQR` API method to wisherOrderAPI
+  - Added `getPickupQR` API method to wisherOrderAPI in `/app/frontend/src/utils/api.ts`
   - Implemented QR Code Modal in wisher-orders.tsx with:
     - QR code display using react-native-qrcode-svg
     - 6-digit pickup code fallback
     - Assigned genie info display
     - Order items checklist for verification
     - Expiry warning
-  - Added "Show Pickup QR Code" button when order is ready and genie is assigned
+  - Added "Show Pickup QR Code" button when order status is ready_for_pickup/preparing AND genie_status is assigned/accepted
   - Added "Local Hub" navigation button (green globe icon) on home page
+  - Fixed refund_amount rendering issue (was showing "0" due to JavaScript truthy check)
+
+### Known Issues to Fix
+- **Modal "0" rendering bug**: There's still a "0" appearing in the order detail modal. This appears to be a React Native Web rendering issue where JavaScript expressions evaluating to `0` are being displayed. Need deeper investigation.
+- Modal scrolling may not work properly on web to show the Genie info and QR button sections.
 
 ### Previous Session Completions
 - **Live Genie Status**: Enhanced UI to show searching/assigned status
@@ -63,33 +68,12 @@ Build a Vendor App that serves as a centralized API service for a "Wisher App" (
 - `POST /api/admin/cleanup-data` - Delete all transactional data
 - `POST /api/admin/vendors/update-locations` - Bulk update vendor coordinates
 
-## Database Schema
-
-### Key Collections
-- **users**: Vendor and Genie profiles
-- **wisher_orders**: Orders with `delivery_info`, `status_history`, `pickup_verification` fields
-- **genie_profiles**: Genie data with `push_token`, `current_location`
-- **genie_delivery_requests**: Broadcasted delivery requests
-- **hub_vendors**: Vendor shop data with GeoJSON location
-- **hub_products**: Product catalog
-
-## Tech Stack
-- **Frontend**: React Native (Expo), Expo Router, TypeScript
-- **Backend**: FastAPI, Pydantic
-- **Database**: MongoDB
-- **Notifications**: Expo Push Notifications
-- **Auth**: JWT tokens
-
 ## Test Credentials
 - Vendor (Grocery Shop): 1212121212 / 123456
 - Vendor (Meat shop): 1313131313 / 123456
 - Vendor (Fruits shop): 1414141414 / 123456
 - Wisher User: 1111111111 / 123456
 - Carpet Genie: 1111111111 / 123456
-
-## Known Issues
-- Expo/ngrok tunnel occasionally unstable (infrastructure)
-- OTP input flakiness on web
 
 ## Files Reference
 - `/app/backend/server.py` - Main backend (needs refactoring)
