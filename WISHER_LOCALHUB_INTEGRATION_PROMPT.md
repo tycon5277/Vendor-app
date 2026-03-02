@@ -10,7 +10,7 @@ The Wisher App's Local Hub needs to fetch vendors and products from the Vendor A
 
 ### API Base URL
 ```
-https://multi-vendor-orders-1.preview.emergentagent.com
+https://order-fulfillment-22.preview.emergentagent.com
 ```
 
 ### Default GPS Location (Kerala, India)
@@ -25,7 +25,7 @@ All vendors are located near Kerala with coordinates around:
 Create a new file `src/utils/vendorApi.ts` (or add to existing api file):
 
 ```typescript
-const VENDOR_API_URL = 'https://multi-vendor-orders-1.preview.emergentagent.com';
+const VENDOR_API_URL = 'https://order-fulfillment-22.preview.emergentagent.com';
 
 export const localHubApi = {
   // Get all vendors with optional filtering

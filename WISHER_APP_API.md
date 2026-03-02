@@ -1,6 +1,6 @@
 # Wisher App - API Documentation
 
-**Base URL:** `https://multi-vendor-orders-1.preview.emergentagent.com/api`
+**Base URL:** `https://order-fulfillment-22.preview.emergentagent.com/api`
 
 ---
 

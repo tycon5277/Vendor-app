@@ -7,7 +7,7 @@ import requests
 import os
 import uuid
 
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://multi-vendor-orders-1.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://order-fulfillment-22.preview.emergentagent.com')
 
 # Test credentials
 WISHER_PHONE = "8888888888"

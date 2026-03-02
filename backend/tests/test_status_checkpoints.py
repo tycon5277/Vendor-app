@@ -10,7 +10,7 @@ import os
 import uuid
 
 # Use environment variable for BASE_URL
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://multi-vendor-orders-1.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://order-fulfillment-22.preview.emergentagent.com').rstrip('/')
 
 TEST_OTP = "123456"
 VENDOR_PHONE = "9999999999"

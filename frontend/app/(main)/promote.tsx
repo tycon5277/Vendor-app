@@ -22,7 +22,7 @@ import Constants from 'expo-constants';
 const { width } = Dimensions.get('window');
 const BACKEND_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || 
   process.env.EXPO_PUBLIC_BACKEND_URL || 
-  'https://multi-vendor-orders-1.preview.emergentagent.com';
+  'https://order-fulfillment-22.preview.emergentagent.com';
 
 interface PromotionStats {
   active_promotions: number;
