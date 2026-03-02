@@ -8348,7 +8348,7 @@ async def track_wisher_order(order_id: str):
             "status": genie_status
         }
         
-        # Fetch full Genie profile for rich UI (photo, rating, vehicle)
+        # Fetch full Genie profile for rich UI (photo, rating, vehicle, LIVE LOCATION)
         if genie_id:
             genie_profile = await db.genie_profiles.find_one({"genie_id": genie_id}, {"_id": 0})
             if genie_profile:
@@ -8364,17 +8364,20 @@ async def track_wisher_order(order_id: str):
                     "is_verified": genie_profile.get("verified", False)
                 })
                 
-                # Get current location if Genie is online
+                # ALWAYS include live location when Genie has accepted (not just out_for_delivery)
+                # This allows Wisher to track Genie from acceptance to delivery
                 current_loc = genie_profile.get("current_location")
-                if current_loc and status in ["out_for_delivery", "picked_up"]:
+                if current_loc and current_loc.get("lat"):
                     tracking_info["delivery_partner"]["current_location"] = {
                         "lat": current_loc.get("lat"),
                         "lng": current_loc.get("lng"),
+                        "heading": current_loc.get("heading"),
+                        "speed": current_loc.get("speed"),
                         "updated_at": current_loc.get("updated_at")
                     }
         
-        # Add live location from order if out for delivery
-        if status == "out_for_delivery" and order.get("genie_location"):
+        # Also check order-level genie_location (updated during delivery)
+        if order.get("genie_location"):
             tracking_info["delivery_partner"]["location"] = order.get("genie_location")
             
     elif genie_status == "searching":
