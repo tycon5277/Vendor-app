@@ -691,7 +691,7 @@ export default function WisherOrdersScreen() {
                   )}
                   
                   {/* Show assigned genie info */}
-                  {selectedOrder.genie_status === 'assigned' && (
+                  {(selectedOrder.genie_status === 'assigned' || selectedOrder.genie_status === 'accepted') && (
                     <View style={styles.genieInfoBox}>
                       <View style={styles.genieAssignedHeader}>
                         <Ionicons name="checkmark-circle" size={24} color="#10B981" />
