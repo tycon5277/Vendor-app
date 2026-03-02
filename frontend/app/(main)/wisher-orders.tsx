@@ -10,6 +10,7 @@ import {
   TextInput,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { wisherOrderAPI } from '../../src/utils/api';
 import { useAlert } from '../../src/context/AlertContext';
 import { format } from 'date-fns';
+import QRCode from 'react-native-qrcode-svg';
 
 type StatusType = 'all' | 'pending' | 'confirmed' | 'preparing' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'cancelled';
 
