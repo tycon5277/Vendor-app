@@ -156,14 +156,25 @@ export default function HomeScreen() {
               <Text style={styles.greeting}>{getGreeting()} 👋</Text>
               <Text style={styles.shopName}>{user?.vendor_shop_name || 'Your Shop'}</Text>
             </View>
-            <TouchableOpacity 
-              style={styles.profileBtn}
-              onPress={() => router.push('/(main)/profile')}
-            >
-              <View style={styles.profileAvatar}>
-                <Ionicons name="storefront" size={20} color="#FFFFFF" />
-              </View>
-            </TouchableOpacity>
+            <View style={styles.headerRight}>
+              <TouchableOpacity 
+                style={styles.localHubBtn}
+                onPress={() => router.push('/(main)/wisher-orders')}
+                data-testid="local-hub-btn"
+              >
+                <View style={styles.localHubAvatar}>
+                  <Ionicons name="globe-outline" size={20} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.profileBtn}
+                onPress={() => router.push('/(main)/profile')}
+              >
+                <View style={styles.profileAvatar}>
+                  <Ionicons name="storefront" size={20} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Level Card - Gamified */}
