@@ -9540,6 +9540,37 @@ async def debug_delivery_requests():
     requests = await db.genie_delivery_requests.find({}, {"_id": 0}).to_list(50)
     return {"total": len(requests), "requests": requests}
 
+@api_router.delete("/admin/cleanup/old-orders")
+async def cleanup_old_orders(keep_date: str = None):
+    """Delete all orders except those created on keep_date (format: YYYY-MM-DD). Defaults to today."""
+    from datetime import datetime, timezone
+    
+    if not keep_date:
+        keep_date = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    
+    results = {}
+    
+    # Delete old wisher orders (keep only today's)
+    r1 = await db.wisher_orders.delete_many({
+        "created_at": {"$not": {"$regex": f"^{keep_date}"}}
+    })
+    results["wisher_orders_deleted"] = r1.deleted_count
+    
+    # Delete old delivery requests
+    r2 = await db.genie_delivery_requests.delete_many({
+        "created_at": {"$not": {"$regex": f"^{keep_date}"}}
+    })
+    results["delivery_requests_deleted"] = r2.deleted_count
+    
+    # Delete old carts
+    r3 = await db.wisher_carts.delete_many({})
+    results["carts_cleared"] = r3.deleted_count
+    
+    return {
+        "message": f"Deleted all orders except those from {keep_date}",
+        "details": results
+    }
+
 # Include the router
 app.include_router(api_router)
 
