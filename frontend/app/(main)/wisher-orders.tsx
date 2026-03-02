@@ -309,6 +309,23 @@ export default function WisherOrdersScreen() {
     }
   };
 
+  const handleShowPickupQR = async (orderId: string) => {
+    setLoadingQR(true);
+    try {
+      const response = await wisherOrderAPI.getPickupQR(orderId);
+      setPickupQRData(response.data);
+      setShowQRModal(true);
+    } catch (error: any) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: error.response?.data?.detail || 'Failed to get pickup QR code',
+      });
+    } finally {
+      setLoadingQR(false);
+    }
+  };
+
   const renderOrderCard = ({ item }: { item: WisherOrder }) => {
     const statusColor = getStatusColor(item.status);
     const itemCount = item.items.reduce((sum, i) => sum + i.quantity, 0);
