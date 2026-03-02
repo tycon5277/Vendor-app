@@ -856,6 +856,99 @@ export default function WisherOrdersScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Pickup QR Code Modal */}
+      <Modal visible={showQRModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pickup QR Code</Text>
+              <TouchableOpacity onPress={() => {
+                setShowQRModal(false);
+                setPickupQRData(null);
+              }}>
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            
+            {pickupQRData && (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.qrModalContent}>
+                {/* QR Code Section */}
+                <View style={styles.qrCodeContainer} data-testid="pickup-qr-container">
+                  <View style={styles.qrWrapper}>
+                    {Platform.OS === 'web' ? (
+                      <View style={styles.qrWebPlaceholder}>
+                        <Ionicons name="qr-code-outline" size={120} color="#6366F1" />
+                        <Text style={styles.qrWebNote}>QR Code: {pickupQRData.qr_data.substring(0, 30)}...</Text>
+                      </View>
+                    ) : (
+                      <QRCode
+                        value={pickupQRData.qr_data}
+                        size={200}
+                        backgroundColor="#FFF"
+                        color="#111827"
+                      />
+                    )}
+                  </View>
+                  <Text style={styles.qrInstructions}>
+                    Show this QR code to the delivery partner for verification
+                  </Text>
+                </View>
+                
+                {/* Fallback Code Section */}
+                <View style={styles.fallbackCodeSection}>
+                  <Text style={styles.fallbackLabel}>Or use this code:</Text>
+                  <View style={styles.pickupCodeBox} data-testid="pickup-code-display">
+                    <Text style={styles.pickupCode}>{pickupQRData.pickup_code}</Text>
+                  </View>
+                  <Text style={styles.pickupCodeHint}>
+                    Share this 6-digit code if QR scanning fails
+                  </Text>
+                </View>
+                
+                {/* Genie Info */}
+                <View style={styles.qrGenieInfo}>
+                  <Ionicons name="bicycle" size={20} color="#6366F1" />
+                  <View style={styles.qrGenieDetails}>
+                    <Text style={styles.qrGenieLabel}>Assigned To:</Text>
+                    <Text style={styles.qrGenieName}>{pickupQRData.assigned_genie?.name || 'Delivery Partner'}</Text>
+                    {pickupQRData.assigned_genie?.phone && (
+                      <Text style={styles.qrGeniePhone}>{pickupQRData.assigned_genie.phone}</Text>
+                    )}
+                  </View>
+                </View>
+                
+                {/* Items Checklist */}
+                <View style={styles.qrItemsSection}>
+                  <Text style={styles.qrItemsTitle}>Order Items Checklist</Text>
+                  <Text style={styles.qrItemsHint}>Verify all items before handover</Text>
+                  {pickupQRData.items?.map((item, index) => (
+                    <View key={index} style={styles.qrItemRow}>
+                      <View style={styles.qrItemCheckbox}>
+                        <Ionicons name="checkbox-outline" size={22} color="#6366F1" />
+                      </View>
+                      <View style={styles.qrItemInfo}>
+                        <Text style={styles.qrItemName}>{item.name}</Text>
+                        <Text style={styles.qrItemQty}>Qty: {item.quantity}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+                
+                {/* Expiry Warning */}
+                {pickupQRData.expires_at && (
+                  <View style={styles.qrExpiryWarning}>
+                    <Ionicons name="time-outline" size={16} color="#F59E0B" />
+                    <Text style={styles.qrExpiryText}>
+                      Valid until: {format(new Date(pickupQRData.expires_at), 'hh:mm a')}
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
