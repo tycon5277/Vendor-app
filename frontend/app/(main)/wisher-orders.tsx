@@ -575,7 +575,7 @@ export default function WisherOrdersScreen() {
                     <Text style={styles.totalLabel}>Delivery Fee</Text>
                     <Text style={styles.totalValue}>₹{selectedOrder.delivery_fee}</Text>
                   </View>
-                  {selectedOrder.refund_amount > 0 && (
+                  {(selectedOrder.refund_amount ?? 0) > 0 && (
                     <View style={styles.totalRow}>
                       <Text style={[styles.totalLabel, { color: '#EF4444' }]}>Refund</Text>
                       <Text style={[styles.totalValue, { color: '#EF4444' }]}>-₹{selectedOrder.refund_amount}</Text>
