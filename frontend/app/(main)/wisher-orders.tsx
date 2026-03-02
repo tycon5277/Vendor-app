@@ -23,6 +23,22 @@ import QRCode from 'react-native-qrcode-svg';
 
 type StatusType = 'all' | 'pending' | 'confirmed' | 'preparing' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'cancelled';
 
+interface PickupQRData {
+  qr_data: string;
+  pickup_code: string;
+  expires_at: string;
+  assigned_genie: {
+    name: string;
+    phone: string;
+  };
+  items: Array<{
+    product_id: string;
+    name: string;
+    quantity: number;
+    price: number;
+  }>;
+}
+
 interface WisherOrder {
   order_id: string;
   user_id: string;
