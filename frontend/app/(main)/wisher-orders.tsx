@@ -704,9 +704,9 @@ export default function WisherOrdersScreen() {
                     </View>
                   )}
                   
-                  {/* Show QR Code button when order is ready and genie is assigned */}
+                  {/* Show QR Code button when order is ready and genie is assigned/accepted */}
                   {(selectedOrder.status === 'ready_for_pickup' || selectedOrder.status === 'preparing') && 
-                   selectedOrder.genie_status === 'assigned' && (
+                   (selectedOrder.genie_status === 'assigned' || selectedOrder.genie_status === 'accepted') && (
                     <TouchableOpacity
                       style={[styles.actionBtn, styles.qrBtn]}
                       onPress={() => handleShowPickupQR(selectedOrder.order_id)}
