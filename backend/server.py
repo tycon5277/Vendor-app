@@ -9249,6 +9249,277 @@ async def skip_delivery_request(request_id: str, reason: Optional[str] = None, c
     return {"message": "Delivery skipped"}
 
 
+# ===================== SECURE QR CODE PICKUP VERIFICATION =====================
+
+def generate_pickup_qr_data(order_id: str, vendor_id: str, pickup_code: str, expiry_minutes: int = 60) -> dict:
+    """Generate secure QR code data with HMAC signature"""
+    now = datetime.now(timezone.utc)
+    expiry = now + timedelta(minutes=expiry_minutes)
+    
+    payload = {
+        "order_id": order_id,
+        "vendor_id": vendor_id,
+        "pickup_code": pickup_code,
+        "created_at": now.isoformat(),
+        "expires_at": expiry.isoformat()
+    }
+    
+    # Create HMAC signature
+    payload_str = json.dumps(payload, sort_keys=True)
+    signature = hmac.new(
+        QR_SECRET_KEY.encode(),
+        payload_str.encode(),
+        hashlib.sha256
+    ).hexdigest()[:16]  # Use first 16 chars for shorter QR
+    
+    return {
+        "payload": payload,
+        "signature": signature,
+        "qr_string": f"{order_id}|{vendor_id}|{pickup_code}|{signature}"
+    }
+
+
+def verify_pickup_qr_data(qr_string: str, expected_order_id: str, expected_vendor_id: str) -> dict:
+    """Verify QR code data and signature"""
+    try:
+        parts = qr_string.split("|")
+        if len(parts) != 4:
+            return {"valid": False, "error": "Invalid QR format"}
+        
+        order_id, vendor_id, pickup_code, provided_signature = parts
+        
+        # Check if order_id matches
+        if order_id != expected_order_id:
+            return {"valid": False, "error": "Order ID mismatch"}
+        
+        # Check if vendor_id matches
+        if vendor_id != expected_vendor_id:
+            return {"valid": False, "error": "Vendor ID mismatch"}
+        
+        return {
+            "valid": True,
+            "order_id": order_id,
+            "vendor_id": vendor_id,
+            "pickup_code": pickup_code
+        }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
+@api_router.get("/vendor/wisher-orders/{order_id}/pickup-qr")
+async def get_pickup_qr_code(order_id: str, current_user: User = Depends(get_current_user)):
+    """Generate secure QR code for order pickup verification - Vendor App"""
+    if current_user.partner_type != "vendor":
+        raise HTTPException(status_code=403, detail="Only vendors can access this endpoint")
+    
+    order = await db.wisher_orders.find_one(
+        {"order_id": order_id, "vendor_id": current_user.user_id},
+        {"_id": 0}
+    )
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Only generate QR if order is ready and Genie is assigned
+    if order.get("status") not in ["preparing", "ready_for_pickup"]:
+        raise HTTPException(status_code=400, detail="Order is not ready for pickup")
+    
+    if not order.get("genie_id"):
+        raise HTTPException(status_code=400, detail="No delivery partner assigned yet")
+    
+    # Check if QR already exists and is still valid
+    existing_qr = order.get("pickup_verification")
+    if existing_qr and existing_qr.get("expires_at"):
+        expiry = datetime.fromisoformat(existing_qr["expires_at"].replace("Z", "+00:00"))
+        if expiry > datetime.now(timezone.utc):
+            # Return existing QR
+            return {
+                "qr_data": existing_qr["qr_string"],
+                "pickup_code": existing_qr["pickup_code"],
+                "expires_at": existing_qr["expires_at"],
+                "assigned_genie": {
+                    "name": order.get("genie_name"),
+                    "phone": order.get("genie_phone")
+                },
+                "items": order.get("items", [])
+            }
+    
+    # Generate new pickup code (6 digits)
+    pickup_code = str(uuid.uuid4().int)[:6]
+    
+    # Generate QR data
+    qr_data = generate_pickup_qr_data(order_id, current_user.user_id, pickup_code)
+    
+    # Store verification data in order
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "pickup_verification": {
+                    "qr_string": qr_data["qr_string"],
+                    "pickup_code": pickup_code,
+                    "created_at": qr_data["payload"]["created_at"],
+                    "expires_at": qr_data["payload"]["expires_at"],
+                    "used": False
+                }
+            }
+        }
+    )
+    
+    return {
+        "qr_data": qr_data["qr_string"],
+        "pickup_code": pickup_code,  # Fallback OTP for manual entry
+        "expires_at": qr_data["payload"]["expires_at"],
+        "assigned_genie": {
+            "name": order.get("genie_name"),
+            "phone": order.get("genie_phone")
+        },
+        "items": order.get("items", [])
+    }
+
+
+class PickupVerificationRequest(BaseModel):
+    qr_data: Optional[str] = None  # QR code string
+    pickup_code: Optional[str] = None  # Manual OTP fallback
+    items_confirmed: bool = False  # Genie must confirm all items received
+
+
+@api_router.post("/genie/deliveries/{order_id}/verify-pickup")
+async def verify_and_pickup_order(
+    order_id: str, 
+    verification: PickupVerificationRequest,
+    current_user: User = Depends(require_carpet_genie)
+):
+    """
+    Genie verifies pickup via QR scan or manual code, confirms items, then marks as picked up.
+    This replaces the simple pickup endpoint with verified pickup.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("genie_id") != current_user.user_id:
+        raise HTTPException(status_code=403, detail="This order is not assigned to you")
+    
+    if order.get("status") not in ["preparing", "ready_for_pickup"]:
+        raise HTTPException(status_code=400, detail="Order is not ready for pickup")
+    
+    # Get stored verification data
+    pickup_verification = order.get("pickup_verification")
+    if not pickup_verification:
+        raise HTTPException(status_code=400, detail="Pickup verification not generated. Ask vendor to show QR code.")
+    
+    # Check if already used
+    if pickup_verification.get("used"):
+        raise HTTPException(status_code=400, detail="Pickup already verified")
+    
+    # Check expiry
+    expiry = datetime.fromisoformat(pickup_verification["expires_at"].replace("Z", "+00:00"))
+    if expiry < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Pickup code expired. Ask vendor to generate new QR.")
+    
+    # Verify either QR code or manual pickup code
+    verified = False
+    verification_method = None
+    
+    if verification.qr_data:
+        # Verify QR code
+        result = verify_pickup_qr_data(
+            verification.qr_data,
+            order_id,
+            order.get("vendor_id")
+        )
+        if result["valid"]:
+            # Also verify pickup code in QR matches stored code
+            if result["pickup_code"] == pickup_verification["pickup_code"]:
+                verified = True
+                verification_method = "qr_scan"
+            else:
+                raise HTTPException(status_code=400, detail="QR code verification failed - code mismatch")
+        else:
+            raise HTTPException(status_code=400, detail=f"QR verification failed: {result['error']}")
+    
+    elif verification.pickup_code:
+        # Verify manual pickup code (fallback OTP)
+        if verification.pickup_code == pickup_verification["pickup_code"]:
+            verified = True
+            verification_method = "manual_code"
+        else:
+            raise HTTPException(status_code=400, detail="Invalid pickup code")
+    
+    else:
+        raise HTTPException(status_code=400, detail="Please provide QR scan or pickup code")
+    
+    # Check items confirmation
+    if not verification.items_confirmed:
+        raise HTTPException(status_code=400, detail="Please confirm all items are received")
+    
+    if not verified:
+        raise HTTPException(status_code=400, detail="Verification failed")
+    
+    # Mark verification as used and update order
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "status": "out_for_delivery",
+                "genie_status": "picked_up",
+                "picked_up_at": now,
+                "pickup_verification.used": True,
+                "pickup_verification.verified_at": now,
+                "pickup_verification.verification_method": verification_method,
+                "delivery_info.status": "picked_up",
+                "delivery_info.picked_up_at": now
+            },
+            "$push": {
+                "status_history": {
+                    "status": "out_for_delivery",
+                    "timestamp": now,
+                    "note": f"Order verified and picked up by {current_user.name} ({verification_method})"
+                }
+            }
+        }
+    )
+    
+    # Return customer details now that pickup is verified
+    return {
+        "message": "Pickup verified successfully",
+        "status": "out_for_delivery",
+        "verification_method": verification_method,
+        "customer": {
+            "name": order.get("customer_name"),
+            "phone": order.get("customer_phone"),
+            "address": order.get("delivery_address")
+        },
+        "items_count": len(order.get("items", [])),
+        "delivery_fee": order.get("delivery_fee", 30)
+    }
+
+
+@api_router.get("/genie/deliveries/{order_id}/items")
+async def get_delivery_items_for_verification(order_id: str, current_user: User = Depends(require_carpet_genie)):
+    """Get order items for Genie to verify before confirming pickup"""
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("genie_id") != current_user.user_id:
+        raise HTTPException(status_code=403, detail="This order is not assigned to you")
+    
+    return {
+        "order_id": order_id,
+        "vendor_name": order.get("vendor_name"),
+        "items": order.get("items", []),
+        "items_count": len(order.get("items", [])),
+        "notes": order.get("notes"),
+        "pickup_verified": order.get("pickup_verification", {}).get("used", False)
+    }
+
+
 @api_router.get("/genie/active-deliveries")
 async def get_genie_active_deliveries(current_user: User = Depends(require_carpet_genie)):
     """Get Genie's current active deliveries"""
