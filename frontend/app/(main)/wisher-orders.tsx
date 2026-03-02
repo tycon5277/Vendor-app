@@ -704,6 +704,26 @@ export default function WisherOrdersScreen() {
                     </View>
                   )}
                   
+                  {/* Show QR Code button when order is ready and genie is assigned */}
+                  {(selectedOrder.status === 'ready_for_pickup' || selectedOrder.status === 'preparing') && 
+                   selectedOrder.genie_status === 'assigned' && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.qrBtn]}
+                      onPress={() => handleShowPickupQR(selectedOrder.order_id)}
+                      disabled={loadingQR}
+                      data-testid="show-pickup-qr-btn"
+                    >
+                      {loadingQR ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="qr-code" size={20} color="#FFF" />
+                          <Text style={styles.actionBtnText}>Show Pickup QR Code</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                  
                   {selectedOrder.status === 'out_for_delivery' && selectedOrder.delivery_type === 'vendor_delivery' && (
                     <TouchableOpacity
                       style={[styles.actionBtn, styles.confirmBtn]}
