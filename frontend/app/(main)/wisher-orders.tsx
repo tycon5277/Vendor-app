@@ -748,7 +748,7 @@ export default function WisherOrdersScreen() {
                     </View>
                   )}
                   
-                  {selectedOrder.refund_amount && selectedOrder.refund_amount > 0 && selectedOrder.refund_status === 'pending' && (
+                  {selectedOrder.refund_amount > 0 && selectedOrder.refund_status === 'pending' && (
                     <TouchableOpacity
                       style={[styles.actionBtn, styles.refundBtn]}
                       onPress={() => handleProcessRefund(selectedOrder.order_id)}
