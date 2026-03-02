@@ -1,180 +1,98 @@
 # QuickWish Vendor App - Product Requirements Document
 
 ## Original Problem Statement
-Transform the Vendor App's backend into a centralized API service for a separate "Wisher App," mimicking the architecture of platforms like Zomato/Swiggy. The system must support:
-1. Multi-vendor ordering (customers can order from multiple vendors in a single checkout)
-2. Carpet Genie delivery assignment system
-3. Order modification and partial refunds
-4. Vendor-facing UI for managing Wisher App orders
-
-## User Personas
-- **Vendors**: Shop owners who manage their products, inventory, orders, and shop settings
-- **Wishers**: Customers using the Wisher App to browse and order from vendors
-- **Carpet Genies**: Delivery partners who pick up and deliver orders
+Build a Vendor App that serves as a centralized API service for a "Wisher App" (customer-facing) and "Carpet Genie App" (delivery partners), mimicking platforms like Zomato/Swiggy. The system includes multi-vendor ordering, delivery assignment, and secure order pickup verification.
 
 ## Core Requirements
 
-### P0 - Critical (Completed)
-- [x] Multi-vendor cart system with vendor grouping
-- [x] Multi-order creation with shared `group_order_id`
-- [x] Vendor wisher-orders endpoint with multi-order metadata
-- [x] Frontend multi-order badge display in wisher-orders screen
-- [x] Delivery assignment logic based on `vendor_can_deliver` flag
-- [x] "Own Delivery" toggle in vendor registration form
-- [x] Order modification with quantity adjustment
-- [x] Track order API with invoice breakdown for modified orders
-- [x] Item picking checklist before marking order ready
+### P0 - Critical Features
+1. **API Hub**: Backend serves Vendor, Wisher, and Genie apps with complete REST APIs
+2. **Order Management**: Vendors manage orders from Wisher App (confirm, prepare, modify, refund)
+3. **Delivery Assignment**: Automated Carpet Genie assignment with broadcast/retry mechanism
+4. **Secure Pickup Verification**: QR code + OTP-based handoff verification between vendor and genie
 
-### P1 - High Priority (In Progress)
-- [ ] **Carpet Genie Integration** - See `/app/CARPET_GENIE_INTEGRATION_LOGIC.md`
-  - [ ] Create genie delivery request when order enters "preparing"
-  - [ ] Genie App polls for available deliveries
-  - [ ] Accept flow with chat room creation
-  - [ ] Live location tracking
-- [ ] Basic chat APIs for Wisher ↔ Carpet Genie communication
-- [ ] Fee calculation algorithm for Carpet Genie deliveries
+### P1 - Important Features
+1. Fee calculation algorithm for delivery
+2. Multi-order feature (hidden in Wisher App UI per user request)
 
-### P2 - Medium Priority
-- [ ] Push notifications for instant Genie alerts
-- [ ] Smart matching algorithm (distance, rating, acceptance rate)
-- [ ] Order batching for same route
-- [ ] Surge pricing when demand high
-- [ ] Refactor `server.py` into modular route files
-
-### P3 - Future
-- [ ] Migrate chat to Firebase for production
-- [ ] Implement masked phone calls via Twilio
-- [ ] Vendor Verification Workflow
-
-## Architecture
-
-### Backend (FastAPI)
-```
-/app/backend/
-├── server.py              # Main FastAPI application
-└── .env                   # MongoDB connection, DB_NAME
-```
-
-**Key Collections:**
-- `users`: Vendor profiles with `partner_type`, `vendor_can_deliver`
-- `hub_vendors`: Vendor data synced for Wisher App visibility
-- `hub_products`: Products synced for Wisher App
-- `wisher_carts`: User cart items grouped by vendor
-- `wisher_orders`: Orders with `group_order_id` for multi-vendor support
-- `genie_delivery_requests`: Delivery requests for Carpet Genies
-
-### Frontend (React Native / Expo)
-```
-/app/frontend/app/
-├── (auth)/
-│   └── register.tsx       # Vendor registration with "Own Delivery" toggle
-├── (main)/
-│   ├── (tabs)/orders/     # Order management with item picking
-│   ├── warehouse.tsx      # Product inventory management
-│   └── _layout.tsx
-└── src/utils/api.ts       # API client functions
-```
-
-### Genie App (Separate Repo)
-```
-GitHub: https://github.com/tycon5277/Fulfillment-app.git
-
-Key concepts:
-- Carpet Genie: Mobile delivery (bike/scooter/car)
-- Skilled Genie: Professional services (not for deliveries)
-- Polls /api/agent/available-orders
-- Accepts with /api/agent/orders/{id}/accept
-```
-
-## Key API Endpoints
-
-### Cart & Orders (Wisher App)
-- `POST /api/localhub/cart/add` - Add item to cart
-- `GET /api/localhub/cart/{user_id}` - Get cart grouped by vendor
-- `POST /api/localhub/orders` - Create multi-vendor orders
-- `GET /api/localhub/order/{order_id}/track` - Track order with invoice breakdown
-
-### Vendor Order Management
-- `GET /api/vendor/wisher-orders` - Get orders with multi-order metadata
-- `PUT /api/vendor/wisher-orders/{order_id}/status` - Update order status
-- `PUT /api/vendor/wisher-orders/{order_id}/modify` - Modify order items
-- `POST /api/vendor/wisher-orders/{order_id}/assign-delivery` - Assign delivery
-
-### Track Order Response (Key Fields)
-```json
-{
-  "is_modified": true,
-  "invoice_breakdown": {
-    "original": { "total": 379.93 },
-    "adjustments": [{ "description": "Milk 1 liter (qty: 5 → 3)", "deduction": 159.98 }],
-    "current": { "total": 419.96 },
-    "savings": 199.97
-  },
-  "vendor_location": { "name": "Shop", "lat": 12.97, "lng": 77.59 },
-  "delivery_address": { "label": "Home", "lat": 12.98, "lng": 77.60 }
-}
-```
-
-## Carpet Genie Flow
-
-```
-Order Status: PREPARING
-       ↓
-🚨 START GENIE SEARCH (if vendor has no own delivery)
-       ↓
-Genie sees in "Available Deliveries"
-       ↓
-Genie accepts → Chat opens
-       ↓
-Genie goes to shop (sees shop location only)
-       ↓
-Order: READY_FOR_PICKUP
-       ↓
-Genie picks up → OUT_FOR_DELIVERY
-       ↓
-(Now Genie sees customer address + phone)
-       ↓
-DELIVERED
-```
-
-## Privacy Rules
-| Stage | Genie Sees Customer Location | Genie Sees Customer Phone |
-|-------|------------------------------|---------------------------|
-| Accept | ❌ NO | ❌ NO |
-| Picked Up | ✅ YES | ✅ YES |
-| Delivered | ❌ Hidden | ❌ Hidden |
-
-## Testing Credentials
-- Vendor Phone: `9999999999`, `1111111111`
-- Wisher Phone: `8888888888`
-- OTP: `123456`
-
-## Documentation Files
-- `/app/CARPET_GENIE_INTEGRATION_LOGIC.md` - Full integration planning
-- `/app/WISHER_APP_API.md` - API documentation for Wisher App
+### P2 - Nice to Have
+1. Vendor verification workflow
+2. Shop QR feature enhancement
+3. Refactor monolithic server.py
+4. Migrate chat to Firebase
+5. Implement masked phone calls via Twilio
 
 ## What's Been Implemented
-- **Feb 18**: Multi-vendor order system, order modification, track API with invoice breakdown
-- **Feb 20**: Studied Genie App, created integration logic document, implemented full Carpet Genie integration (push notifications, accept/skip flow, pickup/deliver flow)
-- **Feb 20 (Latest)**: 
-  - Enhanced Vendor App order details API (`/api/vendor/wisher-orders/{id}`) to return `delivery_info` object with live Genie status (searching/accepted/picked_up/delivered) and full Genie profile
-  - Enhanced Wisher App tracking API (`/api/localhub/order/{id}/track`) to include full Genie profile (photo_url, rating, vehicle_type, total_deliveries, is_verified)
-  - Added Carpet Genie Status Card to Vendor App order detail screen showing real-time assignment status
-- **Feb 23 (Current Session)**:
-  - **Retry Logic**: Implemented comprehensive retry mechanism for Genie assignment with:
-    - Configurable max retries (default: 5)
-    - Radius expansion on each retry (base: 5km, +2km per retry, max: 15km)
-    - Fee increase per retry (base: +₹5 per retry, max: +₹25) to incentivize Genies
-    - New endpoint: `POST /api/vendor/wisher-orders/{id}/retry-genie`
-    - Internal retry processor: `POST /api/internal/process-genie-retries`
-  - **Auto-trigger for vendors without own delivery**: When vendor marks order "preparing" and `vendor_can_deliver=false`, Carpet Genie search is auto-triggered
-  - **Manual Carpet Genie option for ALL vendors**: New endpoint `POST /api/vendor/wisher-orders/{id}/assign-carpet-genie` - vendors WITH own delivery can still request Carpet Genie
-  - Updated `next_actions` to show "Request Carpet Genie" and "Retry Search" buttons in Vendor App
 
-## Next Steps
-1. Live location tracking for Wisher App map (poll Genie location)
-2. Implement Wisher App "Multi-Order" UI (Add from another shop button)
-3. Fee calculation algorithm refinement for Carpet Genie deliveries
-4. Background job/cron to auto-process expired Genie requests
+### March 2, 2026 - QR Code Pickup Verification UI
+- **Frontend Implementation**:
+  - Added `getPickupQR` API method to wisherOrderAPI
+  - Implemented QR Code Modal in wisher-orders.tsx with:
+    - QR code display using react-native-qrcode-svg
+    - 6-digit pickup code fallback
+    - Assigned genie info display
+    - Order items checklist for verification
+    - Expiry warning
+  - Added "Show Pickup QR Code" button when order is ready and genie is assigned
+  - Added "Local Hub" navigation button (green globe icon) on home page
 
-## Backlog / Future
+### Previous Session Completions
+- **Live Genie Status**: Enhanced UI to show searching/assigned status
+- **Robust Delivery Assignment**: Infinite retry with expanding radius, fee increase, 7km max cap
+- **Backend QR System**: JWT-based secure QR generation and verification endpoints
+- **Performance Optimization**: Fixed N+1 queries, added DB indexes
+- **Bug Fixes**: Navigation context errors, web logout, Genie order acceptance
+
+## API Endpoints
+
+### Vendor App APIs
+- `GET /api/vendor/wisher-orders` - List all orders from Wisher App
+- `GET /api/vendor/wisher-orders/{order_id}` - Get single order
+- `PUT /api/vendor/wisher-orders/{order_id}/status` - Update order status
+- `PUT /api/vendor/wisher-orders/{order_id}/ready-for-pickup` - Mark ready
+- `POST /api/vendor/wisher-orders/{order_id}/assign-delivery` - Assign delivery
+- `GET /api/vendor/wisher-orders/{order_id}/pickup-qr` - Get pickup QR code **(NEW)**
+- `PUT /api/vendor/wisher-orders/{order_id}/modify` - Modify order items
+- `POST /api/vendor/wisher-orders/{order_id}/process-refund` - Process refund
+
+### Genie App APIs
+- `GET /api/genie/deliveries/{order_id}/items` - Get item list for verification
+- `POST /api/genie/deliveries/{order_id}/verify-pickup` - Verify pickup via QR/OTP
+
+### Admin APIs
+- `POST /api/admin/cleanup-data` - Delete all transactional data
+- `POST /api/admin/vendors/update-locations` - Bulk update vendor coordinates
+
+## Database Schema
+
+### Key Collections
+- **users**: Vendor and Genie profiles
+- **wisher_orders**: Orders with `delivery_info`, `status_history`, `pickup_verification` fields
+- **genie_profiles**: Genie data with `push_token`, `current_location`
+- **genie_delivery_requests**: Broadcasted delivery requests
+- **hub_vendors**: Vendor shop data with GeoJSON location
+- **hub_products**: Product catalog
+
+## Tech Stack
+- **Frontend**: React Native (Expo), Expo Router, TypeScript
+- **Backend**: FastAPI, Pydantic
+- **Database**: MongoDB
+- **Notifications**: Expo Push Notifications
+- **Auth**: JWT tokens
+
+## Test Credentials
+- Vendor (Grocery Shop): 1212121212 / 123456
+- Vendor (Meat shop): 1313131313 / 123456
+- Vendor (Fruits shop): 1414141414 / 123456
+- Wisher User: 1111111111 / 123456
+- Carpet Genie: 1111111111 / 123456
+
+## Known Issues
+- Expo/ngrok tunnel occasionally unstable (infrastructure)
+- OTP input flakiness on web
+
+## Files Reference
+- `/app/backend/server.py` - Main backend (needs refactoring)
+- `/app/frontend/app/(main)/wisher-orders.tsx` - Local Hub Orders screen with QR UI
+- `/app/frontend/app/(main)/(tabs)/home.tsx` - Home with Local Hub navigation
+- `/app/frontend/src/utils/api.ts` - API utility functions
