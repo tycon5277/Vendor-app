@@ -77,6 +77,12 @@ interface WisherOrder {
   genie_status?: string;
   genie_name?: string;
   genie_phone?: string;
+  genie_id?: string;
+  genie_location?: {
+    lat: number;
+    lng: number;
+    updated_at?: string;
+  };
   // Multi-order fields
   is_multi_order?: boolean;
   group_order_id?: string;
