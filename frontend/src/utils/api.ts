@@ -213,4 +213,7 @@ export const wisherOrderAPI = {
   
   // Process refund
   processRefund: (orderId: string) => api.post(`/vendor/wisher-orders/${orderId}/process-refund`),
+  
+  // Get pickup QR code for order handoff verification
+  getPickupQR: (orderId: string) => api.get(`/vendor/wisher-orders/${orderId}/pickup-qr`),
 };
