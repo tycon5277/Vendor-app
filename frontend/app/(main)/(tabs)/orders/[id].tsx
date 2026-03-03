@@ -12,15 +12,17 @@ import {
   ActivityIndicator,
   TextInput,
   Image,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { orderAPI } from '../../../../src/utils/api';
+import { orderAPI, wisherOrderAPI } from '../../../../src/utils/api';
 import { useAlert } from '../../../../src/context/AlertContext';
 import { format } from 'date-fns';
 import { OrderTimeline } from '../../../../src/components/OrderTimeline';
+import QRCode from 'react-native-qrcode-svg';
 
 const { width } = Dimensions.get('window');
 
@@ -74,6 +76,11 @@ export default function OrderDetailScreen() {
   const [selectedDeliveryOption, setSelectedDeliveryOption] = useState<'carpet_genie' | 'self_delivery' | null>(null);
   const [pickedItems, setPickedItems] = useState<Set<string>>(new Set());
   const [deliveryInfo, setDeliveryInfo] = useState<any>(null);
+  
+  // QR Code states
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [pickupQRData, setPickupQRData] = useState<any>(null);
+  const [loadingQR, setLoadingQR] = useState(false);
   
   const progressAnim = useRef(new Animated.Value(0)).current;
 
@@ -243,6 +250,33 @@ export default function OrderDetailScreen() {
       });
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // Handle showing QR code for pickup
+  const handleShowPickupQR = async () => {
+    if (!order?.wisher_order_id) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: 'No wisher order ID found',
+      });
+      return;
+    }
+    
+    setLoadingQR(true);
+    try {
+      const response = await wisherOrderAPI.getPickupQR(order.wisher_order_id);
+      setPickupQRData(response.data);
+      setShowQRModal(true);
+    } catch (error: any) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: error.response?.data?.detail || 'Failed to get pickup QR code',
+      });
+    } finally {
+      setLoadingQR(false);
     }
   };
 
@@ -537,6 +571,24 @@ export default function OrderDetailScreen() {
                     <Ionicons name="call-outline" size={12} color="#6B7280" />
                     <Text style={styles.assignedGeniePhone}>{deliveryInfo.genie.phone}</Text>
                   </View>
+                )}
+                
+                {/* Show QR Code button when order is ready for pickup */}
+                {(order?.status === 'ready_for_pickup' || order?.status === 'preparing') && (
+                  <TouchableOpacity
+                    style={styles.showQRButton}
+                    onPress={handleShowPickupQR}
+                    disabled={loadingQR}
+                  >
+                    {loadingQR ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="qr-code" size={18} color="#FFFFFF" />
+                        <Text style={styles.showQRButtonText}>Show Pickup QR Code</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
                 )}
               </View>
             )}
@@ -1113,6 +1165,98 @@ export default function OrderDetailScreen() {
                   </TouchableOpacity>
                 </View>
               </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Pickup QR Code Modal */}
+      <Modal visible={showQRModal} animationType="slide" transparent>
+        <View style={styles.qrModalOverlay}>
+          <View style={[styles.qrModalContent, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.qrModalHeader}>
+              <Text style={styles.qrModalTitle}>Pickup QR Code</Text>
+              <TouchableOpacity onPress={() => {
+                setShowQRModal(false);
+                setPickupQRData(null);
+              }}>
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            
+            {pickupQRData && (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.qrScrollContent}>
+                {/* QR Code Section */}
+                <View style={styles.qrCodeContainer}>
+                  <View style={styles.qrWrapper}>
+                    {Platform.OS === 'web' ? (
+                      <View style={styles.qrWebPlaceholder}>
+                        <Ionicons name="qr-code-outline" size={120} color="#6366F1" />
+                        <Text style={styles.qrWebNote}>QR Code for Genie</Text>
+                      </View>
+                    ) : (
+                      <QRCode
+                        value={pickupQRData.qr_data}
+                        size={180}
+                        backgroundColor="#FFF"
+                        color="#111827"
+                      />
+                    )}
+                  </View>
+                  <Text style={styles.qrInstructions}>
+                    Show this QR code to the Carpet Genie
+                  </Text>
+                </View>
+                
+                {/* Fallback Code Section */}
+                <View style={styles.fallbackCodeSection}>
+                  <Text style={styles.fallbackLabel}>Or share this code:</Text>
+                  <View style={styles.pickupCodeBox}>
+                    <Text style={styles.pickupCode}>{pickupQRData.pickup_code}</Text>
+                  </View>
+                  <Text style={styles.pickupCodeHint}>
+                    Genie enters this 6-digit code if QR scan fails
+                  </Text>
+                </View>
+                
+                {/* Genie Info */}
+                {pickupQRData.assigned_genie && (
+                  <View style={styles.qrGenieInfo}>
+                    <Ionicons name="bicycle" size={20} color="#6366F1" />
+                    <View style={styles.qrGenieDetails}>
+                      <Text style={styles.qrGenieLabel}>Assigned To:</Text>
+                      <Text style={styles.qrGenieName}>{pickupQRData.assigned_genie.name}</Text>
+                      {pickupQRData.assigned_genie.phone && (
+                        <Text style={styles.qrGeniePhone}>{pickupQRData.assigned_genie.phone}</Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+                
+                {/* Items Checklist */}
+                {pickupQRData.items && pickupQRData.items.length > 0 && (
+                  <View style={styles.qrItemsSection}>
+                    <Text style={styles.qrItemsTitle}>Items to Hand Over</Text>
+                    {pickupQRData.items.map((item: any, index: number) => (
+                      <View key={index} style={styles.qrItemRow}>
+                        <Ionicons name="checkbox-outline" size={20} color="#6366F1" />
+                        <Text style={styles.qrItemName}>{item.name}</Text>
+                        <Text style={styles.qrItemQty}>x{item.quantity}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                
+                {/* Expiry Warning */}
+                {pickupQRData.expires_at && (
+                  <View style={styles.qrExpiryWarning}>
+                    <Ionicons name="time-outline" size={16} color="#F59E0B" />
+                    <Text style={styles.qrExpiryText}>
+                      Valid until: {format(new Date(pickupQRData.expires_at), 'hh:mm a')}
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
             )}
           </View>
         </View>
@@ -2271,5 +2415,187 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  // QR Code Modal Styles
+  showQRButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#8B5CF6',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginTop: 12,
+    gap: 8,
+  },
+  showQRButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  qrModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  qrModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
+    padding: 20,
+  },
+  qrModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  qrModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  qrScrollContent: {
+    alignItems: 'center',
+    paddingBottom: 20,
+  },
+  qrCodeContainer: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  qrWrapper: {
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  qrWebPlaceholder: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  qrWebNote: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 8,
+  },
+  qrInstructions: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  fallbackCodeSection: {
+    alignItems: 'center',
+    marginBottom: 20,
+    width: '100%',
+  },
+  fallbackLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  pickupCodeBox: {
+    backgroundColor: '#EEF2FF',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#6366F1',
+    borderStyle: 'dashed',
+  },
+  pickupCode: {
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: 8,
+    color: '#6366F1',
+  },
+  pickupCodeHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 8,
+  },
+  qrGenieInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    padding: 16,
+    borderRadius: 12,
+    width: '100%',
+    marginBottom: 16,
+    gap: 12,
+  },
+  qrGenieDetails: {
+    flex: 1,
+  },
+  qrGenieLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  qrGenieName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  qrGeniePhone: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  qrItemsSection: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 16,
+  },
+  qrItemsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  qrItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 10,
+  },
+  qrItemName: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+  },
+  qrItemQty: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6366F1',
+  },
+  qrExpiryWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+    width: '100%',
+  },
+  qrExpiryText: {
+    fontSize: 13,
+    color: '#D97706',
+    fontWeight: '500',
   },
 });
