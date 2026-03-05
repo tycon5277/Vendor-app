@@ -1,175 +1,148 @@
 <analysis>**original_problem_statement:**
-The user's initial request was to fix a series of critical navigation and UI bugs in their React Native Vendor App. After resolving these, the focus shifted dramatically to a major architectural and feature enhancement project. The goal is to transform the Vendor App's backend into a centralized API service for a separate Wisher App, mimicking the architecture of platforms like Zomato/Swiggy. This includes implementing a multi-vendor ordering system and a sophisticated delivery assignment flow using a Carpet Genie app.
+The user's initial request was to fix critical navigation and UI bugs in their Vendor App. The project's scope then expanded significantly to a major architectural and feature enhancement project. The goal is to transform the Vendor App's backend into a centralized API service for a separate Wisher App (for customers) and a Carpet Genie App (for delivery partners), mimicking platforms like Zomato/Swiggy. The latest request is to implement a comprehensive, industry-standard rating, tipping, and issue reporting system for all three applications.
 
 **PRODUCT REQUIREMENTS:**
-1.  **API Hub (P0):** The Vendor App backend must provide a complete and robust set of APIs for the Wisher App to handle vendors, products, cart management, and ordering.
-2.  **Order Modification Flow (P0):** Vendors must be able to view orders from the Wisher App, modify them, and process partial refunds.
-3.  **Advanced Delivery (P0):** Implement a sophisticated delivery assignment flow involving Carpet Genies. This includes auto-assignment, manual requests, real-time tracking, and a secure pickup process.
-4.  **Multi-Order Feature (P0):** A Wisher must be able to order from multiple vendors in a single checkout. (Note: User has currently requested to hide this feature in the Wisher App UI).
-5.  **UI for New Features (P0):** The Vendor App frontend needs dedicated UI sections to manage Wisher App orders, including live delivery status and QR codes for pickup.
+1.  **API Hub (P0):** The Vendor App backend must provide a complete and robust set of APIs for the Wisher App and Genie App.
+2.  **Advanced Delivery (P0):** Implement a sophisticated delivery assignment flow, real-time tracking, and a secure QR code pickup process.
+3.  **Rating, Tipping, and Issues (P0):** Implement a full-featured system for customers to rate vendors and genies, add tips, and report order issues, with corresponding UIs in all three apps.
+4.  **Order Modification Flow (P1):** Vendors must be able to view and modify orders from the Wisher App.
+5.  **Multi-Order Feature (P1):** A Wisher should be able to order from multiple vendors in a single checkout (currently deprioritized by the user).
 
 **User's preferred language**: English
 
 **what currently exists?**
 The project is a full-stack application with a React Native (Expo) frontend for the Vendor App and a monolithic FastAPI backend using MongoDB.
-
--   **Backend**: A comprehensive delivery assignment system is in place. It automatically broadcasts delivery requests to nearby Carpet Genies when an order is being prepared. It includes an infinite retry mechanism with expanding search radius and increasing fees. The backend has been optimized to fix N+1 query issues and includes database indexes for performance. A secure, JWT-based QR code generation and verification system has been implemented on the backend for order pickups.
--   **Frontend (Vendor App)**: The UI can display live Genie status (e.g., Searching..., Assigned to...). Numerous navigation and UI bugs have been fixed, including issues with web logout and Expo Router hook usage. A cleanup function was added to reset all vendor and order data.
--   **Integrations**: The system is designed to integrate with a Wisher App (for customers) and a Carpet Genie App (for delivery partners), providing all necessary APIs for them to function. The agent has been providing instructions and corrected URLs to the user for these external apps.
+-   **Backend**: A comprehensive delivery assignment and secure QR code pickup system is fully implemented. A new, extensive set of backend APIs and database models for a rating, tipping, and issue-reporting system has just been created and tested via .
+-   **Frontend (Vendor App)**: The UI can display live Genie status and has screens to show QR codes for pickup, both in the main order workflow and the Local Hub orders section. Placeholder files for new Ratings and Issues screens have been created but are empty.
 
 **Last working item**:
--   **Last item agent was working:** The agent had just completed the backend implementation for a secure QR code pickup verification system. The user pointed out that the agent, being the Vendor App, should also implement the frontend UI to display this QR code, which the agent had mistakenly provided as a prompt for the user. The agent acknowledged this and was about to start the frontend implementation.
+-   **Last item agent was working:** Implementing the UI for the new rating and issue reporting features in the Vendor App, as requested by the user. The agent created the placeholder files  and  but has not built the UI yet.
 -   **Status:** IN PROGRESS
--   **Agent Testing Done:** N (Backend was tested via , but frontend UI is not implemented)
--   **Which testing method agent to use?**  to verify the QR code UI on the order detail screen after implementation.
+-   **Agent Testing Done:** N (Backend APIs were tested via , but the UI is not built)
+-   **Which testing method agent to use?**  to verify the UI after it's built, followed by the  for the full feature.
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Expo/ngrok Tunnel Unstable (P1)**
-    -   **Description:** The Expo Go mobile app preview is frequently unavailable due to ngrok tunnel connectivity issues (). This is a recurring infrastructure problem that blocks mobile testing.
-    -   **Attempted fixes:** Restarting the frontend service multiple times. The issue appears to be with the ngrok service itself, not the application code.
-    -   **Next debug checklist:** This is likely an environmental issue. The agent should inform the user that this may be out of its control but can try another frontend: ERROR (no such process)
-frontend: ERROR (no such process). If it persists, focus on web testing if possible.
-    -   **Why fix this issue?** It's a major blocker for the user testing the mobile app experience.
+-   **Issue 1: Persistent '0' Rendering Bug in UI (P0)**
+    -   **Description:** A '0' value is incorrectly rendered on order list cards and in the order detail modal in . This appears to be a React Native Web rendering quirk with falsy values in conditional rendering.
+    -   **Attempted fixes:** The agent tried multiple approaches, including changing  to , using , and explicit  conversion, but the bug persists.
+    -   **Next debug checklist:**
+        1.  In , systematically replace all conditional rendering patterns like  with explicit ternary operators: .
+        2.  Pay close attention to the rendering logic for  in both the order card loop and the order detail modal.
+    -   **Why fix this issue?** It's a distracting visual glitch that makes the UI appear broken and unprofessional.
+    -   **Status:** IN PROGRESS
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?** frontend
+-   **Issue 2: Expo/ngrok Tunnel Unstable (P1)**
+    -   **Description:** The Expo Go mobile app preview is frequently unavailable due to ngrok tunnel connectivity issues, blocking mobile testing. This is an environmental issue.
     -   **Status:** BLOCKED
     -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?** frontend
--   **Issue 2: Expo Router Navigation Errors (P1)**
-    -   **Description:** The app has crashed multiple times with errors related to React Navigation hooks (, ) being called outside of a navigation context.
-    -   **Attempted fixes:** The agent has fixed this in several files (, , ) by replacing imports from  with 's equivalent and ensuring hooks are used correctly.
-    -   **Next debug checklist:** The agent should be vigilant for this error on any new or modified screens and proactively use  hooks only. A global search for  or  from  might be prudent.
-    -   **Why fix this issue?** These are app-breaking crashes that ruin the user experience.
-    -   **Status:** TESTING PENDING (Fixes were applied, but the issue has recurred on different screens).
-    -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?** frontend
--   **Issue 3: Web Logout Not Clearing Session (P2)**
-    -   **Description:** The user reported that the logout button in the web view does not work correctly, leaving them logged into an old session.
-    -   **Attempted fixes:** The agent modified  to explicitly clear  for the web platform, in addition to .
-    -   **Next debug checklist:** Verify if the user can now log out successfully on the web. A hard refresh () was suggested as a temporary workaround.
-    -   **Why fix this issue?** Basic authentication functionality is broken on the web.
-    -   **Status:** USER VERIFICATION PENDING
-    -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?** frontend
 
 **In progress Task List**:
--   **Task 1: Implement Vendor App UI for QR Code Pickup (P0)**
-    -   **Where to resume:** Modify .
+-   **Task 1: Implement Vendor App UI for Ratings & Issues (P0)**
+    -   **Where to resume:**
+        -   
+        -   
     -   **Plan:**
-        1.  When an order's status is  and a Genie is assigned, call the new endpoint: .
-        2.  Use the  from the API response to render a QR code on the screen using a library like .
-        3.  Display the 6-digit  as a fallback option for the Genie.
-        4.  Display the list of items in the order for the vendor to double-check.
-    -   **What will be achieved with this?** This will complete the secure pickup verification feature, ensuring the correct Genie picks up the correct order.
+        1.  Add navigation links to these new screens (e.g., in the profile or tab bar layout).
+        2.  In , call the new  and  endpoints. Build a UI to display the vendor's overall rating, criteria breakdown, and individual reviews.
+        3.  In , call the new  endpoint. Build a UI to display a list of reported issues, their status, and details.
+    -   **What will be achieved with this?** This will complete the vendor-facing part of the new rating and issue management system.
     -   **Status:** IN PROGRESS
     -   **Should Test frontend/backend/both after fix?** frontend
     -   **Blocked on something:** None
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   **(P1) Implement Fee Calculation Algorithm:** Build the logic for calculating the Carpet Genie delivery fee based on distance, time, etc.
+    -   **(P0) Provide UI/Logic Prompts for Wisher & Genie Apps:** After completing the Vendor UI, the user needs detailed prompts and pseudo-code for implementing the new rating, tipping, and issue reporting features in the other two apps.
+    -   **(P1) Implement Fee Calculation Algorithm:** For Carpet Genie delivery fees.
 -   **Future Tasks:**
-    -   **(P1) Wisher App Multi-Order UI:** User asked to hide this for now, but the feature is a core requirement.
+    -   **(P1) Wisher App Multi-Order UI.**
     -   **(P2) Implement Vendor Verification Workflow.**
-    -   **(P2) Enhance the  Feature in the Vendor App.**
-    -   **(P2) Refactor the monolithic  file** into modular route files.
-    -   **(P2) Migrate chat to a dedicated service** like Firebase for production scalability.
-    -   **(P2) Implement masked phone calls** via a service like Twilio for production.
+    -   **(P2) Refactor the monolithic  file.**
+    -   **(P2) Migrate chat to a dedicated service.**
+    -   **(P2) Implement masked phone calls (Twilio).**
 
 **Completed work in this session**
--   **Live Genie Status & Profile:**
-    -   Enhanced Vendor App UI to show live Carpet Genie status (, ).
-    -   Enhanced Wisher App tracking API to include Genie's profile details (photo, rating) and live location.
--   **Robust Delivery Assignment:**
-    -   Implemented an infinite retry logic for Genie assignment if no one accepts an order.
-    -   Added an option for vendors *with* their own delivery service to manually request a Carpet Genie.
-    -   Configured retry radius expansion and fee increase, with a max radius cap of 7km as per user request.
--   **Secure QR Code Pickup:**
-    -   Implemented the full backend system for a secure JWT-based QR code and 6-digit OTP for pickup verification.
-    -   Created endpoints for the Vendor App to generate QR data and for the Genie App to verify it.
--   **Performance Optimization:**
-    -   Fixed critical N+1 query problems in the cart and order creation endpoints.
-    -   Added database indexes to , , and  collections to speed up queries.
--   **Bug Fixes & Maintenance:**
-    -   Resolved multiple Expo Router navigation crashes by standardizing on  hooks.
-    -   Fixed the web logout functionality.
-    -   Corrected a bug preventing Genies from accepting orders with  status.
-    -   Fixed the Genie  endpoint to correctly show pending requests.
-    -   Added an admin endpoint () to delete all vendor/product/order data for a clean slate.
+-   **Backend for Rating, Tipping, and Issue Reporting System:**
+    -   Created new MongoDB collections (, , ) and Pydantic models in .
+    -   Implemented a full suite of API endpoints for the Wisher, Vendor, and Genie apps to manage ratings, tipping, and issue reporting based on industry standards.
+-   **QR Code UI in Main Vendor Workflow:**
+    -   Added the Show Pickup QR Code button and modal to the primary vendor order detail screen (), ensuring the QR code is accessible from all relevant order views.
+-   **Troubleshooting & API Verification:**
+    -   Diagnosed and provided the user with the correct backend URL for their Wisher App to fix order creation.
+    -   Provided a complete, verified API reference for the Genie App, clarifying the correct workflow for accepting orders and verifying pickups.
+    -   Confirmed the backend logic for delivery request assignment (disappearing for other genies upon acceptance) works as intended.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1: OTP Input Flakiness:** Noted in the initial handoff, the OTP input component in the web environment remains unaddressed.
+-   **Issue 1: OTP Input Flakiness:** The OTP input component in the web environment was noted as flaky in the initial handoff and remains unaddressed.
 
 **Known issue recurrence from previous fork**
--   None from the previous fork, but within this session, the **Expo/ngrok tunnel instability** and **Expo Router navigation context errors** have been highly recurrent.
+-   **Expo/ngrok tunnel instability:** A recurring environmental issue that blocks mobile testing.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Service-Oriented Architecture:** Backend serves Vendor, Wisher, and Genie apps.
--   **Real-time Communication:** Expo Push Notifications for delivery requests.
--   **REST API Design:** FastAPI with Pydantic models.
--   **Database Optimization:** N+1 query prevention, manual index creation.
--   **Secure Handover:** JWT-based temporary tokens embedded in QR codes for pickup verification.
--   **React Native (Expo) & Expo Router:** Frontend framework with file-based routing.
+-   **Dynamic Rating Criteria:** The backend supports different rating questions based on vendor category (e.g., Restaurant vs. Grocery).
+-   **Comprehensive Issue Reporting:** The system allows users to report issues with categories, sub-categories, photo uploads, and status tracking.
+-   **Pre- and Post-Delivery Tipping:** The backend model supports adding tips both during checkout and after delivery is complete.
 
 **key DB schema**
--   **users:** Vendor and Genie profiles.
--   **wisher_orders:** Contains , , and now fields for pickup verification (, ).
--   **genie_profiles:** Stores Genie data, including  and .
--   **genie_delivery_requests:** Tracks broadcasted delivery requests.
--   **hub_vendors:** Stores vendor shop data, including  (GeoJSON).
--   **hub_products:** Stores product data.
-
-**changes in tech stack**
--   None.
+-   **ratings:** (New) Stores detailed vendor and genie ratings, including overall scores, criteria breakdown, and text reviews.
+-   **tips:** (New) Stores tip information, including amount, when it was added (checkout/post-delivery), and payment status.
+-   **issues:** (New) Stores support tickets with categories, descriptions, photos, status, and resolution details.
 
 **All files of reference**
--   **/app/backend/server.py**: Heavily modified with performance optimizations, infinite retry logic, and the complete secure QR code pickup verification system.
--   **/app/frontend/app/(main)/order-detail.tsx**: Modified to show Genie status; now needs the QR code UI.
--   **/app/frontend/app/(main)/(tabs)/home.tsx**: Fixed navigation context errors.
--   **/app/frontend/app/(main)/(tabs)/orders.tsx**: Fixed navigation context errors.
--   **/app/frontend/app/_layout.tsx**: Fixed to prevent root navigation context errors.
--   **/app/frontend/src/utils/authStore.ts**: Modified to fix web logout.
+-   **Created:**
+    -   : Placeholder for vendor ratings UI.
+    -   : Placeholder for vendor issues UI.
+-   **Updated:**
+    -   **/app/backend/server.py**: Heavily modified to add all new Pydantic models and API endpoints for the rating, tipping, and issue system. Also fixed a route registration bug.
+    -   **/app/frontend/app/(main)/(tabs)/orders/[id].tsx**: Added the QR code button and modal logic.
+    -   **/app/frontend/app/(main)/wisher-orders.tsx**: Multiple failed attempts were made to fix the persistent '0' rendering bug.
 
 **Areas that need refactoring**:
--   The  file is critically monolithic and urgently needs to be broken down into smaller, domain-specific modules (e.g., , , ). This is a major technical debt.
+-   The  file is critically oversized (now >10,700 lines) and is a major source of technical debt. It urgently needs to be broken down into smaller, domain-specific modules (e.g., , ).
 
 **key api endpoints**
--   : **(New)** For Vendor App to get QR data.
--   : **(New)** For Genie to get item list for verification.
--   : **(New)** For Genie App to verify pickup via QR/OTP.
--   : Endpoint to manually trigger a retry for Genie search.
--   : Enhanced to include live Genie location from the moment of acceptance.
--   : **(New)** Admin endpoint to delete all transactional data.
--   : **(New)** Admin endpoint to bulk-update vendor coordinates.
+-   **New APIs for Wisher App:**
+    -   
+    -   
+    -   
+    -   
+    -   
+-   **New APIs for Vendor App:**
+    -   
+    -   
+    -   
+-   **New APIs for Genie App:**
+    -   
+    -   
+    -   
 
 **Critical Info for New Agent**
--   You are the **Vendor App**. The user manages two other apps (Wisher, Genie) and will paste instructions/errors from them. Your job is to support your part of the ecosystem and provide clear instructions for the other apps. Do not get confused about your role.
--   The last task was to implement the **Vendor App UI for the QR code system**. The backend is done, but the frontend part is pending. This is your highest priority.
--   The **Expo/ngrok tunnel is very unreliable**. Be prepared for the user to have trouble testing on their mobile device.
--   The backend API URL for other apps to use is . The user's other apps have frequently used incorrect/old URLs.
--   Authentication for Genies with the Vendor API is via the same Phone/OTP flow as any other user. The Genie app must get a session token and use it as a Bearer token.
-
-**documents and test reports created in this job**
--    (updated)
+-   You are the **Vendor App** developer. Your primary task is to build the UI for the new Ratings and Issues features using the backend APIs that were just created.
+-   After completing the Vendor App UI, you MUST provide detailed prompts and pseudo-code for the Wisher and Genie apps to implement their parts of the rating, tipping, and issue-reporting flow.
+-   Fixing the persistent '0' rendering bug in  is a high-priority visual issue. The recommended approach is to replace all  conditional renders with explicit ternary operators ().
+-   The  file has become extremely large. Propose refactoring it into smaller route files as a future task to manage technical debt.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Asks for live Genie location tracking for the Wisher App. **Status: COMPLETED** (Agent enhanced the tracking API and provided instructions).
-2.  **User:** Proposes a QR code scanning system for pickup verification. **Status: COMPLETED** (Agent agreed and suggested enhancements).
-3.  **User:** Confirms requirements for the QR system (mandatory checklist, OTP fallback). **Status: COMPLETED**.
-4.  **User:** Points out that the agent, being the Vendor App, should implement the QR UI itself, not just provide a prompt. **Status: PENDING** (This is the current task).
-5.  **User:** Asks for unlimited retries for Genie search and reports an error. **Status: COMPLETED** (Agent implemented unlimited retries and identified the user's error was a session timeout).
-6.  **User:** Reports web logout is not working. **Status: COMPLETED** (Agent implemented a fix).
-7.  **User:** Reports Genie is getting an error when accepting an order. **Status: COMPLETED** (Agent fixed a status mismatch bug on the backend).
-8.  **User:** Reports the order is now visible but still fails to be accepted. **Status: ADDRESSED** (Agent confirmed the backend is working and the issue is in the Genie App's response handling, providing correct response format).
-9.  **User:** Asks to delete all old orders. **Status: COMPLETED**.
-10. **User:** Can't see today's order in the order tab. **Status: ADDRESSED** (Agent clarified the user needs to log in with the correct vendor account).
+1.  **User:** Asks for API implementation for ratings and issues, following industry standards with dynamic criteria. **Status: COMPLETED** (Agent proposed a detailed plan).
+2.  **User:** Adds requirement for a tipping system for the Genie. **Status: COMPLETED** (Agent updated the plan to include tipping).
+3.  **User:** Approves the complete plan for ratings, issues, and tipping. **Status: COMPLETED** (Agent proceeded with backend implementation).
+4.  **User:** Asks for UI implementation in the Vendor App and prompts for the other apps. **Status: PENDING** (This is the current task).
+5.  **User:** Asks if the order timeline logic (On Way) is correct. **Status: COMPLETED** (Agent confirmed the backend logic is correct and the issue is in the Genie App's frontend).
+6.  **User:** Asks for clarification on how Genie search prevents multiple accepts. **Status: COMPLETED** (Agent explained the backend mechanism).
+7.  **User:** Confirms understanding. **Status: COMPLETED**.
+8.  **User:** Asks to delete all orders and restart Expo. **Status: COMPLETED**.
+9.  **User:** Asks for suggestions to improve QR scanning reliability. **Status: COMPLETED** (Agent provided detailed recommendations).
+10. **User:** Asks to delete all orders again. **Status: COMPLETED**.
 
 **Project Health Check:**
 -   **Broken:**
-    -   The Vendor App is missing the UI to display the order pickup QR code.
-    -   The Expo/ngrok mobile preview tunnel is frequently down, blocking mobile testing.
+    -   The  screen has a persistent UI rendering bug that displays an unwanted '0'.
+    -   The Expo/ngrok mobile preview tunnel is frequently unstable.
 -   **Mocked:**
     -   None.
 
@@ -184,14 +157,14 @@ frontend: ERROR (no such process). If it persists, focus on web testing if possi
 -   **Testing agent used after significant changes:** NO
 -   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None.
--   **Known regressions:** Navigation context errors have appeared multiple times after being fixed on other screens.
+-   **Known regressions:** The '0' rendering bug in  has resisted multiple fix attempts.
 
 **Credentials to test flow:**
 -   **Vendor (Grocery Shop):** phone: , OTP: 
 -   **Vendor (Meat shop):** phone: , OTP: 
 -   **Vendor (Fruits shop):** phone: , OTP: 
--   **Wisher User:** phone: , OTP: 
--   **Carpet Genie:** phone: , OTP:  (Same user as Wisher)
+-   **Wisher User / Carpet Genie:** phone: , OTP: 
 
 **What agent forgot to execute**
--   The agent forgot its primary role as the Vendor App developer and provided a prompt for implementing the Vendor App UI instead of implementing it directly. The user corrected this, and it is now the immediate pending task.</analysis>
+-   The agent implemented the backend for the new features but has not yet started the corresponding UI implementation for the Vendor app, which was the user's explicit next step.
+-   The agent has not yet provided the implementation prompts for the Wisher and Genie apps.</analysis>

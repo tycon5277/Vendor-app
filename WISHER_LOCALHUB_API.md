@@ -2,7 +2,7 @@
 
 ## API Base URL
 ```
-https://order-fulfillment-22.preview.emergentagent.com
+https://delivery-ecosystem-4.preview.emergentagent.com
 ```
 
 ## Available Endpoints
@@ -147,7 +147,7 @@ GET /api/localhub/products
 
 ```typescript
 // src/utils/vendorApi.ts
-const VENDOR_API_URL = 'https://order-fulfillment-22.preview.emergentagent.com';
+const VENDOR_API_URL = 'https://delivery-ecosystem-4.preview.emergentagent.com';
 
 export const vendorApi = {
   // Get all vendors

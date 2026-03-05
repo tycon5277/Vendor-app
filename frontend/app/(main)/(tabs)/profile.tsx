@@ -316,6 +316,33 @@ export default function ProfileScreen() {
             </View>
           </View>
 
+          {/* Ratings & Issues */}
+          <View style={styles.menuCard}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => router.push('/(main)/vendor-ratings')}
+              data-testid="vendor-ratings-link"
+            >
+              <View style={[styles.menuIconBg, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="star" size={20} color="#F59E0B" />
+              </View>
+              <Text style={styles.menuText}>Ratings & Reviews</Text>
+              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuItem, { borderBottomWidth: 0 }]}
+              onPress={() => router.push('/(main)/vendor-issues')}
+              data-testid="vendor-issues-link"
+            >
+              <View style={[styles.menuIconBg, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="alert-circle" size={20} color="#EF4444" />
+              </View>
+              <Text style={styles.menuText}>Customer Issues</Text>
+              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            </TouchableOpacity>
+          </View>
+
           {/* Menu Items */}
           <View style={styles.menuCard}>
             <TouchableOpacity style={styles.menuItem}>

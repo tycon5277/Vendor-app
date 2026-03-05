@@ -37,7 +37,7 @@ Build a Vendor App that serves as a centralized API service for a "Wisher App" (
 - **Impact**: Cosmetic only, doesn't affect functionality
 
 ### Backend URL Configuration
-- **Wisher App** should use: `https://order-fulfillment-22.preview.emergentagent.com`
+- **Wisher App** should use: `https://delivery-ecosystem-4.preview.emergentagent.com`
 - **Old URL `multi-vendor-orders-1`** is inactive
 
 ## Test Credentials

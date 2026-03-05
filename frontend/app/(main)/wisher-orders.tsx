@@ -349,17 +349,17 @@ export default function WisherOrdersScreen() {
         <View style={styles.orderHeader}>
           <View style={styles.orderIdContainer}>
             <Text style={styles.orderId}>#{item.order_id.slice(-8)}</Text>
-            {item.is_modified && (
+            {item.is_modified ? (
               <View style={styles.modifiedBadge}>
                 <Text style={styles.modifiedText}>Modified</Text>
               </View>
-            )}
-            {item.is_multi_order && (
+            ) : null}
+            {item.is_multi_order ? (
               <View style={styles.multiOrderBadge}>
                 <Ionicons name="layers-outline" size={12} color="#6366F1" />
                 <Text style={styles.multiOrderText}>{item.vendor_sequence}/{item.total_vendors}</Text>
               </View>
-            )}
+            ) : null}
           </View>
           <View style={[styles.statusBadge, { backgroundColor: `${statusColor}15` }]}>
             <Ionicons name={getStatusIcon(item.status) as any} size={14} color={statusColor} />
@@ -370,22 +370,22 @@ export default function WisherOrdersScreen() {
         </View>
         
         {/* Genie Searching Indicator */}
-        {isSearchingGenie && (
+        {isSearchingGenie ? (
           <View style={styles.searchingGenieBar}>
             <ActivityIndicator size="small" color="#6366F1" />
             <Text style={styles.searchingGenieText}>Finding delivery partner...</Text>
           </View>
-        )}
+        ) : null}
         
         <View style={styles.customerInfo}>
           <Ionicons name="person-outline" size={16} color="#6B7280" />
           <Text style={styles.customerName}>{item.customer_name || item.user_info?.name}</Text>
-          {item.customer_phone && (
+          {item.customer_phone ? (
             <>
               <Text style={styles.separator}>•</Text>
               <Text style={styles.customerPhone}>{item.customer_phone}</Text>
             </>
-          )}
+          ) : null}
         </View>
         
         <View style={styles.orderDetails}>
@@ -395,9 +395,9 @@ export default function WisherOrdersScreen() {
           </View>
           <View style={styles.detailItem}>
             <Text style={styles.totalAmount}>₹{item.total}</Text>
-            {Boolean(item.refund_amount && item.refund_amount > 0) && (
+            {item.refund_amount && item.refund_amount > 0 ? (
               <Text style={styles.refundAmount}>(-₹{item.refund_amount})</Text>
-            )}
+            ) : null}
           </View>
         </View>
         
@@ -416,19 +416,19 @@ export default function WisherOrdersScreen() {
     return (
       <TouchableOpacity
         key={filter}
-        style={[styles.filterChip, isActive && styles.filterChipActive]}
+        style={[styles.filterChip, isActive ? styles.filterChipActive : undefined]}
         onPress={() => setActiveFilter(filter)}
       >
-        <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+        <Text style={[styles.filterChipText, isActive ? styles.filterChipTextActive : undefined]}>
           {label}
         </Text>
-        {count !== undefined && count > 0 && (
-          <View style={[styles.filterCount, isActive && styles.filterCountActive]}>
-            <Text style={[styles.filterCountText, isActive && styles.filterCountTextActive]}>
+        {count !== undefined && count > 0 ? (
+          <View style={[styles.filterCount, isActive ? styles.filterCountActive : undefined]}>
+            <Text style={[styles.filterCountText, isActive ? styles.filterCountTextActive : undefined]}>
               {count}
             </Text>
           </View>
-        )}
+        ) : null}
       </TouchableOpacity>
     );
   };
@@ -522,33 +522,33 @@ export default function WisherOrdersScreen() {
                 <View style={styles.section}>
                   <View style={styles.orderTitleRow}>
                     <Text style={styles.sectionTitle}>Order #{selectedOrder.order_id.slice(-8)}</Text>
-                    {selectedOrder.is_multi_order && (
+                    {selectedOrder.is_multi_order ? (
                       <View style={styles.multiOrderInfoBadge}>
                         <Ionicons name="layers" size={14} color="#6366F1" />
                         <Text style={styles.multiOrderInfoText}>Multi-Order ({selectedOrder.vendor_sequence}/{selectedOrder.total_vendors})</Text>
                       </View>
-                    )}
+                    ) : null}
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(selectedOrder.status)}15`, alignSelf: 'flex-start' }]}>
                     <Text style={[styles.statusText, { color: getStatusColor(selectedOrder.status) }]}>
                       {selectedOrder.status.replace(/_/g, ' ')}
                     </Text>
                   </View>
-                  {selectedOrder.is_multi_order && (
+                  {selectedOrder.is_multi_order ? (
                     <Text style={styles.multiOrderNote}>This is part of a multi-vendor order. Customer ordered from {selectedOrder.total_vendors} shops.</Text>
-                  )}
+                  ) : null}
                 </View>
                 
                 {/* Customer Info */}
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Customer</Text>
                   <Text style={styles.infoText}>{selectedOrder.customer_name || selectedOrder.user_info?.name}</Text>
-                  {selectedOrder.customer_phone && (
+                  {selectedOrder.customer_phone ? (
                     <Text style={styles.infoTextSecondary}>{selectedOrder.customer_phone}</Text>
-                  )}
-                  {selectedOrder.user_info?.email && (
+                  ) : null}
+                  {selectedOrder.user_info?.email ? (
                     <Text style={styles.infoTextSecondary}>{selectedOrder.user_info.email}</Text>
-                  )}
+                  ) : null}
                 </View>
                 
                 {/* Delivery Address */}
@@ -581,12 +581,12 @@ export default function WisherOrdersScreen() {
                     <Text style={styles.totalLabel}>Delivery Fee</Text>
                     <Text style={styles.totalValue}>₹{selectedOrder.delivery_fee}</Text>
                   </View>
-                  {Boolean(selectedOrder.refund_amount && selectedOrder.refund_amount > 0) && (
+                  {selectedOrder.refund_amount && selectedOrder.refund_amount > 0 ? (
                     <View style={styles.totalRow}>
                       <Text style={[styles.totalLabel, { color: '#EF4444' }]}>Refund</Text>
                       <Text style={[styles.totalValue, { color: '#EF4444' }]}>-₹{selectedOrder.refund_amount}</Text>
                     </View>
-                  )}
+                  ) : null}
                   <View style={[styles.totalRow, styles.grandTotal]}>
                     <Text style={styles.grandTotalLabel}>Total</Text>
                     <Text style={styles.grandTotalValue}>₹{selectedOrder.total}</Text>
@@ -595,7 +595,7 @@ export default function WisherOrdersScreen() {
                 
                 {/* Action Buttons */}
                 <View style={styles.actionButtons}>
-                  {selectedOrder.status === 'pending' && (
+                  {selectedOrder.status === 'pending' ? (
                     <>
                       <TouchableOpacity
                         style={[styles.actionBtn, styles.confirmBtn]}
@@ -621,9 +621,9 @@ export default function WisherOrdersScreen() {
                         <Text style={styles.actionBtnText}>Modify</Text>
                       </TouchableOpacity>
                     </>
-                  )}
+                  ) : null}
                   
-                  {selectedOrder.status === 'confirmed' && (
+                  {selectedOrder.status === 'confirmed' ? (
                     <>
                       <TouchableOpacity
                         style={[styles.actionBtn, styles.confirmBtn]}
@@ -633,25 +633,25 @@ export default function WisherOrdersScreen() {
                         <Ionicons name="restaurant" size={20} color="#FFF" />
                         <Text style={styles.actionBtnText}>Start Preparing</Text>
                       </TouchableOpacity>
-                      {!vendorHasOwnDelivery && (
+                      {!vendorHasOwnDelivery ? (
                         <View style={styles.autoSearchNote}>
                           <Ionicons name="information-circle-outline" size={16} color="#6366F1" />
                           <Text style={styles.autoSearchText}>We'll start finding a delivery partner once you begin preparing</Text>
                         </View>
-                      )}
+                      ) : null}
                     </>
-                  )}
+                  ) : null}
                   
-                  {selectedOrder.status === 'preparing' && (
+                  {selectedOrder.status === 'preparing' ? (
                     <>
                       {/* Show genie search status if auto-searching */}
-                      {selectedOrder.genie_status === 'searching' && (
+                      {selectedOrder.genie_status === 'searching' ? (
                         <View style={styles.genieInfoBox}>
                           <ActivityIndicator size="small" color="#6366F1" />
                           <Text style={styles.genieInfoTitle}>Finding Delivery Partner...</Text>
                           <Text style={styles.genieStatusText}>We're looking for the best partner for this order</Text>
                         </View>
-                      )}
+                      ) : null}
                       <TouchableOpacity
                         style={[styles.actionBtn, styles.confirmBtn]}
                         onPress={() => handleReadyForPickup(selectedOrder.order_id)}
@@ -661,12 +661,12 @@ export default function WisherOrdersScreen() {
                         <Text style={styles.actionBtnText}>Ready for Pickup</Text>
                       </TouchableOpacity>
                     </>
-                  )}
+                  ) : null}
                   
-                  {selectedOrder.status === 'ready_for_pickup' && !selectedOrder.genie_status && (
+                  {selectedOrder.status === 'ready_for_pickup' && !selectedOrder.genie_status ? (
                     <>
                       <Text style={styles.deliveryLabel}>Choose Delivery Method:</Text>
-                      {vendorHasOwnDelivery && (
+                      {vendorHasOwnDelivery ? (
                         <TouchableOpacity
                           style={[styles.actionBtn, styles.confirmBtn]}
                           onPress={() => handleAssignDelivery(selectedOrder.order_id, 'own')}
@@ -675,7 +675,7 @@ export default function WisherOrdersScreen() {
                           <Ionicons name="car" size={20} color="#FFF" />
                           <Text style={styles.actionBtnText}>I'll Deliver Myself</Text>
                         </TouchableOpacity>
-                      )}
+                      ) : null}
                       <TouchableOpacity
                         style={[styles.actionBtn, styles.genieBtn]}
                         onPress={() => handleAssignDelivery(selectedOrder.order_id, 'genie')}
@@ -685,19 +685,19 @@ export default function WisherOrdersScreen() {
                         <Text style={styles.actionBtnText}>Request Delivery Partner</Text>
                       </TouchableOpacity>
                     </>
-                  )}
+                  ) : null}
                   
                   {/* Show searching status when genie is being searched */}
-                  {selectedOrder.genie_status === 'searching' && selectedOrder.status !== 'preparing' && (
+                  {selectedOrder.genie_status === 'searching' && selectedOrder.status !== 'preparing' ? (
                     <View style={styles.genieInfoBox}>
                       <ActivityIndicator size="small" color="#6366F1" />
                       <Text style={styles.genieInfoTitle}>Finding Delivery Partner...</Text>
                       <Text style={styles.genieStatusText}>We'll assign the best partner for your order</Text>
                     </View>
-                  )}
+                  ) : null}
                   
                   {/* Show assigned genie info */}
-                  {(selectedOrder.genie_status === 'assigned' || selectedOrder.genie_status === 'accepted') && (
+                  {(selectedOrder.genie_status === 'assigned' || selectedOrder.genie_status === 'accepted') ? (
                     <View style={styles.genieInfoBox}>
                       <View style={styles.genieAssignedHeader}>
                         <Ionicons name="checkmark-circle" size={24} color="#10B981" />
@@ -709,23 +709,23 @@ export default function WisherOrdersScreen() {
                         </View>
                         <View style={styles.genieTextInfo}>
                           <Text style={styles.genieName}>{selectedOrder.genie_name || 'Delivery Partner'}</Text>
-                          {selectedOrder.genie_phone && (
+                          {selectedOrder.genie_phone ? (
                             <Text style={styles.geniePhone}>{selectedOrder.genie_phone}</Text>
-                          )}
+                          ) : null}
                         </View>
                       </View>
                       {/* Live Location Status */}
-                      {selectedOrder.genie_location && (
+                      {selectedOrder.genie_location ? (
                         <View style={styles.liveLocationBadge}>
                           <View style={styles.liveDot} />
                           <Text style={styles.liveLocationText}>Live location available</Text>
                         </View>
-                      )}
+                      ) : null}
                     </View>
-                  )}
+                  ) : null}
                   
                   {/* Show Genie on the way info */}
-                  {selectedOrder.status === 'out_for_delivery' && (
+                  {selectedOrder.status === 'out_for_delivery' ? (
                     <View style={[styles.genieInfoBox, styles.genieOnWayBox]}>
                       <View style={styles.genieAssignedHeader}>
                         <Ionicons name="navigate" size={24} color="#3B82F6" />
@@ -737,25 +737,25 @@ export default function WisherOrdersScreen() {
                         </View>
                         <View style={styles.genieTextInfo}>
                           <Text style={styles.genieName}>{selectedOrder.genie_name || 'Delivery Partner'}</Text>
-                          {selectedOrder.genie_phone && (
+                          {selectedOrder.genie_phone ? (
                             <Text style={styles.geniePhone}>{selectedOrder.genie_phone}</Text>
-                          )}
+                          ) : null}
                         </View>
                       </View>
-                      {selectedOrder.genie_location && (
+                      {selectedOrder.genie_location ? (
                         <View style={styles.liveLocationBadge}>
                           <View style={[styles.liveDot, { backgroundColor: '#3B82F6' }]} />
                           <Text style={[styles.liveLocationText, { color: '#3B82F6' }]}>
                             Tracking live • Updated just now
                           </Text>
                         </View>
-                      )}
+                      ) : null}
                     </View>
-                  )}
+                  ) : null}
                   
                   {/* Show QR Code button when order is ready and genie is assigned/accepted */}
                   {(selectedOrder.status === 'ready_for_pickup' || selectedOrder.status === 'preparing') && 
-                   (selectedOrder.genie_status === 'assigned' || selectedOrder.genie_status === 'accepted') && (
+                   (selectedOrder.genie_status === 'assigned' || selectedOrder.genie_status === 'accepted') ? (
                     <TouchableOpacity
                       style={[styles.actionBtn, styles.qrBtn]}
                       onPress={() => handleShowPickupQR(selectedOrder.order_id)}
@@ -771,9 +771,9 @@ export default function WisherOrdersScreen() {
                         </>
                       )}
                     </TouchableOpacity>
-                  )}
+                  ) : null}
                   
-                  {selectedOrder.status === 'out_for_delivery' && selectedOrder.delivery_type === 'vendor_delivery' && (
+                  {selectedOrder.status === 'out_for_delivery' && selectedOrder.delivery_type === 'vendor_delivery' ? (
                     <TouchableOpacity
                       style={[styles.actionBtn, styles.confirmBtn]}
                       onPress={() => handleStatusUpdate(selectedOrder.order_id, 'delivered')}
@@ -782,22 +782,22 @@ export default function WisherOrdersScreen() {
                       <Ionicons name="checkmark-done" size={20} color="#FFF" />
                       <Text style={styles.actionBtnText}>Mark Delivered</Text>
                     </TouchableOpacity>
-                  )}
+                  ) : null}
                   
-                  {selectedOrder.status === 'out_for_delivery' && selectedOrder.delivery_type === 'genie_delivery' && (
+                  {selectedOrder.status === 'out_for_delivery' && selectedOrder.delivery_type === 'genie_delivery' ? (
                     <View style={styles.genieInfoBox}>
                       <Text style={styles.genieInfoTitle}>Delivery Partner</Text>
                       <Text style={styles.genieInfoText}>{selectedOrder.genie_name || 'Assigned'}</Text>
-                      {selectedOrder.genie_phone && (
+                      {selectedOrder.genie_phone ? (
                         <Text style={styles.genieInfoText}>{selectedOrder.genie_phone}</Text>
-                      )}
+                      ) : null}
                       <Text style={styles.genieStatusText}>
                         Status: {selectedOrder.genie_status?.replace(/_/g, ' ') || 'On the way'}
                       </Text>
                     </View>
-                  )}
+                  ) : null}
                   
-                  {Boolean(selectedOrder.refund_amount && selectedOrder.refund_amount > 0 && selectedOrder.refund_status === 'pending') && (
+                  {selectedOrder.refund_amount && selectedOrder.refund_amount > 0 && selectedOrder.refund_status === 'pending' ? (
                     <TouchableOpacity
                       style={[styles.actionBtn, styles.refundBtn]}
                       onPress={() => handleProcessRefund(selectedOrder.order_id)}
@@ -806,7 +806,7 @@ export default function WisherOrdersScreen() {
                       <Ionicons name="wallet" size={20} color="#FFF" />
                       <Text style={styles.actionBtnText}>Process Refund (₹{selectedOrder.refund_amount})</Text>
                     </TouchableOpacity>
-                  )}
+                  ) : null}
                 </View>
               </ScrollView>
             )}
@@ -961,9 +961,9 @@ export default function WisherOrdersScreen() {
                   <View style={styles.qrGenieDetails}>
                     <Text style={styles.qrGenieLabel}>Assigned To:</Text>
                     <Text style={styles.qrGenieName}>{pickupQRData.assigned_genie?.name || 'Delivery Partner'}</Text>
-                    {pickupQRData.assigned_genie?.phone && (
+                    {pickupQRData.assigned_genie?.phone ? (
                       <Text style={styles.qrGeniePhone}>{pickupQRData.assigned_genie.phone}</Text>
-                    )}
+                    ) : null}
                   </View>
                 </View>
                 
@@ -985,14 +985,14 @@ export default function WisherOrdersScreen() {
                 </View>
                 
                 {/* Expiry Warning */}
-                {pickupQRData.expires_at && (
+                {pickupQRData.expires_at ? (
                   <View style={styles.qrExpiryWarning}>
                     <Ionicons name="time-outline" size={16} color="#F59E0B" />
                     <Text style={styles.qrExpiryText}>
                       Valid until: {format(new Date(pickupQRData.expires_at), 'hh:mm a')}
                     </Text>
                   </View>
-                )}
+                ) : null}
               </ScrollView>
             )}
           </View>

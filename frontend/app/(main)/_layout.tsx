@@ -13,6 +13,8 @@ export default function MainLayout() {
       <Stack.Screen name="discounts/index" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="timings/index" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="wisher-orders" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="vendor-ratings" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="vendor-issues" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }
