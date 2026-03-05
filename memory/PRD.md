@@ -1,57 +1,105 @@
 # QuickWish Vendor App - Product Requirements Document
 
 ## Original Problem Statement
-Build a Vendor App that serves as a centralized API service for a "Wisher App" (customer-facing) and "Carpet Genie App" (delivery partners), mimicking platforms like Zomato/Swiggy. The system includes multi-vendor ordering, delivery assignment, and secure order pickup verification.
+Build a Vendor App that serves as a centralized API service for a "Wisher App" (customer-facing) and "Carpet Genie App" (delivery partners), mimicking platforms like Zomato/Swiggy. The system includes multi-vendor ordering, delivery assignment, secure order pickup verification, and a comprehensive rating/tipping/issue reporting system.
 
-## What's Working
+## Core Requirements
+1. **API Hub (P0):** Vendor App backend provides complete APIs for Wisher & Genie apps
+2. **Advanced Delivery (P0):** Sophisticated delivery assignment, real-time tracking, QR code pickup
+3. **Rating, Tipping, and Issues (P0):** Full-featured system for ratings, tips, and issue reporting across all three apps
+4. **Order Modification Flow (P1):** Vendors can view and modify Wisher App orders
+5. **Multi-Order Feature (P1):** Multiple vendor checkout (deprioritized)
 
-### Order Flow
-- ✅ Orders from Wisher App appear in Vendor App Local Hub Orders
-- ✅ New order just created: `#ce589481` - 9 items, ₹1650, Status: Preparing
-- ✅ Order status flow works (Pending → Confirmed → Preparing → Ready → Out for Delivery → Delivered)
-- ✅ Genie search initiated automatically when order is ready
-- ✅ Genie assignment and tracking
+## What's Implemented
 
 ### Backend APIs (All Working)
-- `GET /api/vendor/wisher-orders` - List orders from Wisher App
-- `GET /api/vendor/wisher-orders/{order_id}/pickup-qr` - Generate QR for pickup
-- `POST /api/genie/deliveries/{order_id}/verify-pickup` - Genie verifies pickup
-- `GET /api/localhub/order/{order_id}/track` - Live tracking with Genie location
-- `POST /api/genie/location` - Genie updates location
+- Full order CRUD, status management, delivery assignment
+- QR code generation and verification for pickup
+- Live tracking with Genie location
+- **Rating system**: Dynamic criteria by vendor category, vendor & genie ratings
+- **Tipping system**: Pre/post-delivery tips, presets, earnings tracking
+- **Issue reporting**: Categories, sub-categories, priority, status tracking
+- Vendor ratings summary, issues dashboard
+- Genie ratings, tips, and earnings dashboard APIs
 
-### Frontend Features Implemented
-- ✅ Local Hub Orders screen with order cards
-- ✅ Order detail modal with customer info, items, totals
-- ✅ QR Code modal with pickup code, items checklist, Genie info
-- ✅ Genie status display (searching, assigned, on the way)
-- ✅ Live location indicator when Genie location is available
-- ✅ Navigation from Home to Local Hub (green globe button)
+### Vendor App Frontend (Completed)
+- Order management (list, detail, status updates, modification)
+- QR Code pickup modal
+- Genie status display (searching, assigned, on the way)
+- Live location indicator
+- **Ratings & Reviews screen** (`vendor-ratings.tsx`) - Overall rating, criteria breakdown, individual reviews
+- **Customer Issues screen** (`vendor-issues.tsx`) - Issue list, status filters, detail view
+- **Profile navigation** to Ratings & Issues screens
+
+### Bug Fixes Applied
+- **'0' rendering bug** in `wisher-orders.tsx` - All `&&` conditional renders converted to explicit ternary operators
+- **Auth token key mismatch** in vendor-ratings.tsx and vendor-issues.tsx - Fixed to read `'token'` from AsyncStorage
+
+### Documentation Created
+- **Wisher & Genie Implementation Guide** (`/app/frontend/WISHER_GENIE_IMPLEMENTATION_GUIDE.md`)
+  - Complete API reference for rating, tipping, and issue reporting
+  - UI pseudo-code and screen flows for both apps
+  - Request/response examples for all endpoints
 
 ## Known Issues
-
-### Bug: Stray "0" Rendering in Order Cards
-- **Description**: A "0" appears after the order total amount (e.g., "₹1650 0")
-- **Location**: Order list cards and order detail modal
-- **Attempted fixes**: Used `Boolean()` wrapper, `?? 0` operator, explicit comparisons
-- **Status**: UNRESOLVED - needs deeper React Native Web investigation
-- **Impact**: Cosmetic only, doesn't affect functionality
-
-### Backend URL Configuration
-- **Wisher App** should use: `https://delivery-ecosystem-4.preview.emergentagent.com`
-- **Old URL `multi-vendor-orders-1`** is inactive
+- **OTP Input Flakiness**: OTP component in web environment is flaky (environmental)
+- **Expo/ngrok Tunnel**: Mobile preview tunnel frequently unstable (environmental)
 
 ## Test Credentials
-- Vendor (Fruits shop): 1414141414 / 123456 (has active orders)
 - Vendor (Grocery Shop): 1212121212 / 123456
 - Vendor (Meat shop): 1313131313 / 123456
+- Vendor (Fruits shop): 1414141414 / 123456
+- Wisher User / Carpet Genie: 1111111111 / 123456
 
-## Current Orders in System
-1. `#ce589481` - Preparing, Searching for Genie, ₹1650
-2. `#bc852452` - Ready For Pickup, Genie Assigned, ₹210
-3. `#e1d69c06` - Out For Delivery, ₹2010
-4. `#5a449478` - Preparing, Genie Assigned, ₹1110
+## Key API Endpoints
 
-## Files Modified This Session
-- `/app/frontend/app/(main)/wisher-orders.tsx` - QR modal, Genie UI, live location
-- `/app/frontend/app/(main)/(tabs)/home.tsx` - Local Hub navigation button
-- `/app/frontend/src/utils/api.ts` - getPickupQR API method
+### Wisher App (Rating/Tipping/Issues)
+- `GET /api/localhub/rating-criteria/{vendor_category}`
+- `GET /api/localhub/issue-categories`
+- `POST /api/localhub/orders/{order_id}/rate-vendor`
+- `POST /api/localhub/orders/{order_id}/rate-genie`
+- `POST /api/localhub/orders/{order_id}/add-tip`
+- `POST /api/localhub/orders/{order_id}/report-issue`
+- `GET /api/localhub/orders/{order_id}/issues`
+- `GET /api/localhub/my-issues`
+- `GET /api/localhub/orders/{order_id}/rating`
+
+### Vendor App
+- `GET /api/vendor/ratings`
+- `GET /api/vendor/ratings/summary`
+- `GET /api/vendor/issues`
+
+### Genie App
+- `GET /api/genie/my-ratings`
+- `GET /api/genie/my-tips`
+- `GET /api/genie/earnings`
+
+## Upcoming Tasks
+- **(P1) Implement Fee Calculation Algorithm** for Carpet Genie delivery fees
+
+## Future/Backlog
+- **(P1) Wisher App "Multi-Order" UI**
+- **(P2) Vendor Verification Workflow**
+- **(P2) Refactor monolithic server.py** into smaller route modules (currently >10,700 lines)
+- **(P2) Migrate chat to dedicated service**
+- **(P2) Implement masked phone calls (Twilio)**
+
+## Architecture
+```
+/app
+├── backend/
+│   └── server.py              # Monolithic FastAPI app (~10,700 lines)
+│   └── tests/
+│       └── test_vendor_ratings_issues.py
+├── frontend/
+│   ├── app/
+│   │   ├── (main)/
+│   │   │   ├── _layout.tsx     # Stack navigator (includes vendor-ratings, vendor-issues routes)
+│   │   │   ├── (tabs)/
+│   │   │   │   ├── profile.tsx  # Profile with Ratings & Issues navigation links
+│   │   │   │   ├── orders/[id].tsx  # Order detail with QR code
+│   │   │   ├── vendor-ratings.tsx   # Vendor ratings & reviews UI
+│   │   │   ├── vendor-issues.tsx    # Customer issues management UI
+│   │   │   ├── wisher-orders.tsx    # Wisher orders (bug fixed)
+│   ├── WISHER_GENIE_IMPLEMENTATION_GUIDE.md
+```
