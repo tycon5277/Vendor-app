@@ -4428,45 +4428,7 @@ async def update_delivery_config(data: UpdateDeliveryConfigRequest):
     raise HTTPException(status_code=400, detail="Invalid config key")
 
 # ===================== NOTIFICATIONS ENDPOINTS =====================
-
-@api_router.get("/vendor/notifications")
-async def get_vendor_notifications(
-    unread_only: bool = False,
-    limit: int = 50,
-    current_user: User = Depends(require_vendor)
-):
-    """Get notifications for vendor"""
-    query = {"user_id": current_user.user_id}
-    if unread_only:
-        query["read"] = False
-    
-    notifications = await db.notifications.find(query, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
-    unread_count = await db.notifications.count_documents({"user_id": current_user.user_id, "read": False})
-    
-    return {
-        "notifications": notifications,
-        "unread_count": unread_count
-    }
-
-@api_router.put("/vendor/notifications/{notification_id}/read")
-async def mark_notification_read(notification_id: str, current_user: User = Depends(require_vendor)):
-    """Mark a notification as read"""
-    result = await db.notifications.update_one(
-        {"notification_id": notification_id, "user_id": current_user.user_id},
-        {"$set": {"read": True}}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Notification not found")
-    return {"message": "Notification marked as read"}
-
-@api_router.put("/vendor/notifications/read-all")
-async def mark_all_notifications_read(current_user: User = Depends(require_vendor)):
-    """Mark all notifications as read"""
-    await db.notifications.update_many(
-        {"user_id": current_user.user_id, "read": False},
-        {"$set": {"read": True}}
-    )
-    return {"message": "All notifications marked as read"}
+# (Moved to bottom of file with new notification system)
 
 # ===================== EARNINGS & ANALYTICS =====================
 
@@ -10126,6 +10088,17 @@ async def rate_vendor(order_id: str, rating: VendorRatingRequest, current_user: 
             {"$set": {"rating": round(avg_rating, 2), "total_ratings": len(vendor_ratings)}}
         )
     
+    # Send notification to vendor
+    stars = int(round(rating.overall_rating))
+    star_text = "★" * stars
+    await create_vendor_notification(
+        vendor_id=order.get("vendor_id"),
+        notification_type="new_rating",
+        title=f"New {star_text} Review!",
+        message=f"{current_user.name or 'A customer'} rated order #{order_id[-8:]} with {rating.overall_rating} stars",
+        data={"order_id": order_id, "rating_id": rating_id, "rating": rating.overall_rating}
+    )
+    
     return {
         "message": "Thank you for your rating!",
         "rating_id": rating_id
@@ -10356,6 +10329,15 @@ async def report_issue(order_id: str, issue: IssueReportRequest, current_user: U
             "$push": {"issues": issue_id},
             "$set": {"has_issues": True}
         }
+    )
+    
+    # Send notification to vendor
+    await create_vendor_notification(
+        vendor_id=order.get("vendor_id"),
+        notification_type="new_issue",
+        title=f"New Issue Reported: {category_config['label']}",
+        message=f"{current_user.name or 'A customer'} reported an issue with order #{order_id[-8:]}: {issue.description[:80]}",
+        data={"order_id": order_id, "issue_id": issue_id, "category": issue.category, "priority": priority}
     )
     
     return {
@@ -10656,6 +10638,66 @@ async def get_genie_earnings(current_user: User = Depends(require_auth), days: i
         "daily_breakdown": daily_earnings
     }
 
+# ===================== NOTIFICATION SYSTEM =====================
+
+async def create_vendor_notification(vendor_id: str, notification_type: str, title: str, message: str, data: dict = None):
+    """Create an in-app notification for a vendor"""
+    now = datetime.now(timezone.utc).isoformat()
+    notif_doc = {
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "vendor_id": vendor_id,
+        "type": notification_type,
+        "title": title,
+        "message": message,
+        "data": data or {},
+        "is_read": False,
+        "created_at": now
+    }
+    await db.vendor_notifications.insert_one(notif_doc)
+
+@api_router.get("/vendor/notifications")
+async def get_vendor_notifications(current_user: User = Depends(require_vendor), limit: int = 50, offset: int = 0):
+    """Get vendor's notifications"""
+    notifications = await db.vendor_notifications.find(
+        {"vendor_id": current_user.user_id},
+        {"_id": 0}
+    ).sort("created_at", -1).skip(offset).limit(limit).to_list(limit)
+    
+    total = await db.vendor_notifications.count_documents({"vendor_id": current_user.user_id})
+    unread = await db.vendor_notifications.count_documents({"vendor_id": current_user.user_id, "is_read": False})
+    
+    return {
+        "notifications": notifications,
+        "total": total,
+        "unread_count": unread
+    }
+
+@api_router.get("/vendor/notifications/unread-count")
+async def get_unread_count(current_user: User = Depends(require_vendor)):
+    """Get unread notification count"""
+    count = await db.vendor_notifications.count_documents({"vendor_id": current_user.user_id, "is_read": False})
+    return {"unread_count": count}
+
+@api_router.patch("/vendor/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, current_user: User = Depends(require_vendor)):
+    """Mark a notification as read"""
+    result = await db.vendor_notifications.update_one(
+        {"notification_id": notification_id, "vendor_id": current_user.user_id},
+        {"$set": {"is_read": True}}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return {"message": "Marked as read"}
+
+@api_router.patch("/vendor/notifications/read-all")
+async def mark_all_notifications_read(current_user: User = Depends(require_vendor)):
+    """Mark all notifications as read"""
+    await db.vendor_notifications.update_many(
+        {"vendor_id": current_user.user_id, "is_read": False},
+        {"$set": {"is_read": True}}
+    )
+    return {"message": "All notifications marked as read"}
+
 # Include the router - must be after all route definitions
 app.include_router(api_router)
 
@@ -10693,6 +10735,10 @@ async def startup_db_indexes():
         await db.genie_profiles.create_index("status")
         await db.genie_delivery_requests.create_index("order_id")
         await db.genie_delivery_requests.create_index("status")
+        
+        # Notification indexes
+        await db.vendor_notifications.create_index([("vendor_id", 1), ("created_at", -1)])
+        await db.vendor_notifications.create_index([("vendor_id", 1), ("is_read", 1)])
         
         logger.info("Database indexes created successfully")
     except Exception as e:

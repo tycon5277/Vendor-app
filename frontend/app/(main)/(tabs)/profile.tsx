@@ -17,8 +17,10 @@ import QRCode from 'react-native-qrcode-svg';
 import { useAuthStore } from '../../../src/store/authStore';
 import { vendorAPI } from '../../../src/utils/api';
 import { Analytics } from '../../../src/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -27,6 +29,7 @@ export default function ProfileScreen() {
   const [showQR, setShowQR] = useState(false);
   const [qrData, setQRData] = useState<any>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
@@ -43,8 +46,27 @@ export default function ProfileScreen() {
     }
   };
 
+  const fetchUnreadCount = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+      const res = await fetch(`${API_URL}/api/vendor/notifications/unread-count`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUnreadNotifCount(data.unread_count || 0);
+      }
+    } catch (e) {
+      console.error('Fetch unread count error:', e);
+    }
+  };
+
   useEffect(() => {
     loadData();
+    fetchUnreadCount();
+    // Poll every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -57,6 +79,7 @@ export default function ProfileScreen() {
         useNativeDriver: true,
       }),
     ]).start();
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogout = () => {
@@ -345,14 +368,20 @@ export default function ProfileScreen() {
 
           {/* Menu Items */}
           <View style={styles.menuCard}>
-            <TouchableOpacity style={styles.menuItem}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => router.push('/(main)/vendor-notifications')}
+              data-testid="vendor-notifications-link"
+            >
               <View style={[styles.menuIconBg, { backgroundColor: '#EEF2FF' }]}>
                 <Ionicons name="notifications" size={20} color="#6366F1" />
               </View>
               <Text style={styles.menuText}>Notifications</Text>
-              <View style={styles.menuBadge}>
-                <Text style={styles.menuBadgeText}>3</Text>
-              </View>
+              {unreadNotifCount > 0 ? (
+                <View style={styles.menuBadge}>
+                  <Text style={styles.menuBadgeText}>{unreadNotifCount > 99 ? '99+' : unreadNotifCount}</Text>
+                </View>
+              ) : null}
               <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
             </TouchableOpacity>
 
