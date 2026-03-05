@@ -729,6 +729,165 @@ class AnalyticsEvent(BaseModel):
     metadata: Dict = {}
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+# ===================== RATING, TIPPING & ISSUE SYSTEM =====================
+
+# Rating criteria configuration by vendor category
+VENDOR_RATING_CRITERIA = {
+    "restaurant": {
+        "name": "Restaurant/Food",
+        "criteria": [
+            {"key": "food_quality", "label": "Food Quality", "description": "How was the food quality?"},
+            {"key": "taste", "label": "Taste", "description": "How was the taste?"},
+            {"key": "packaging", "label": "Packaging", "description": "Was the food well packaged?"},
+            {"key": "portion_size", "label": "Portion Size", "description": "Was the portion size adequate?"},
+            {"key": "value_for_money", "label": "Value for Money", "description": "Was it worth the price?"}
+        ]
+    },
+    "grocery": {
+        "name": "Grocery Store",
+        "criteria": [
+            {"key": "product_freshness", "label": "Product Freshness", "description": "Were products fresh?"},
+            {"key": "packaging", "label": "Packaging", "description": "Were items well packed?"},
+            {"key": "accuracy", "label": "Order Accuracy", "description": "Did you receive correct items?"},
+            {"key": "expiry_dates", "label": "Expiry Dates", "description": "Were expiry dates acceptable?"},
+            {"key": "value_for_money", "label": "Value for Money", "description": "Was it worth the price?"}
+        ]
+    },
+    "pharmacy": {
+        "name": "Pharmacy/Medical",
+        "criteria": [
+            {"key": "accuracy", "label": "Order Accuracy", "description": "Were medicines correct?"},
+            {"key": "packaging", "label": "Packaging", "description": "Were items safely packed?"},
+            {"key": "expiry_check", "label": "Expiry Check", "description": "Were expiry dates good?"},
+            {"key": "authenticity", "label": "Authenticity", "description": "Were products genuine?"},
+            {"key": "instructions", "label": "Instructions", "description": "Were usage instructions provided?"}
+        ]
+    },
+    "bakery": {
+        "name": "Bakery/Sweets",
+        "criteria": [
+            {"key": "freshness", "label": "Freshness", "description": "Were items freshly made?"},
+            {"key": "taste", "label": "Taste", "description": "How was the taste?"},
+            {"key": "packaging", "label": "Packaging", "description": "Were items well packed?"},
+            {"key": "presentation", "label": "Presentation", "description": "How was the presentation?"},
+            {"key": "value_for_money", "label": "Value for Money", "description": "Was it worth the price?"}
+        ]
+    },
+    "meat": {
+        "name": "Meat/Fish Shop",
+        "criteria": [
+            {"key": "freshness", "label": "Freshness", "description": "Was the meat/fish fresh?"},
+            {"key": "quality", "label": "Quality", "description": "How was the quality?"},
+            {"key": "hygiene", "label": "Hygiene", "description": "Was it hygienically packed?"},
+            {"key": "packaging", "label": "Packaging", "description": "Was packaging leak-proof?"},
+            {"key": "quantity_accuracy", "label": "Quantity Accuracy", "description": "Was weight/quantity correct?"}
+        ]
+    },
+    "fruits_vegetables": {
+        "name": "Fruits & Vegetables",
+        "criteria": [
+            {"key": "freshness", "label": "Freshness", "description": "Were items fresh?"},
+            {"key": "ripeness", "label": "Ripeness", "description": "Were items properly ripe?"},
+            {"key": "quality", "label": "Quality", "description": "How was the quality?"},
+            {"key": "packaging", "label": "Packaging", "description": "Were items well packed?"},
+            {"key": "value_for_money", "label": "Value for Money", "description": "Was it worth the price?"}
+        ]
+    },
+    "general": {
+        "name": "General Store",
+        "criteria": [
+            {"key": "product_quality", "label": "Product Quality", "description": "How was the product quality?"},
+            {"key": "packaging", "label": "Packaging", "description": "Were items well packed?"},
+            {"key": "accuracy", "label": "Order Accuracy", "description": "Did you receive correct items?"},
+            {"key": "condition", "label": "Item Condition", "description": "Were items in good condition?"},
+            {"key": "value_for_money", "label": "Value for Money", "description": "Was it worth the price?"}
+        ]
+    }
+}
+
+# Genie rating criteria (fixed for all)
+GENIE_RATING_CRITERIA = [
+    {"key": "behavior", "label": "Behavior", "description": "Was the delivery partner polite and respectful?"},
+    {"key": "professionalism", "label": "Professionalism", "description": "Was the conduct professional?"},
+    {"key": "location_awareness", "label": "Location Awareness", "description": "Did they find location easily with minimal calls?"},
+    {"key": "delivery_care", "label": "Delivery Care", "description": "Was the package handled carefully?"},
+    {"key": "speed", "label": "Delivery Speed", "description": "Was the delivery timely?"},
+    {"key": "followed_instructions", "label": "Followed Instructions", "description": "Did they follow delivery notes?"}
+]
+
+# Issue categories and sub-categories
+ISSUE_CATEGORIES = {
+    "missing_items": {
+        "label": "Missing Items",
+        "sub_categories": ["completely_missing", "partial_quantity"],
+        "priority": "high"
+    },
+    "wrong_items": {
+        "label": "Wrong Items",
+        "sub_categories": ["different_product", "wrong_variant", "wrong_size"],
+        "priority": "high"
+    },
+    "quality_issues": {
+        "label": "Quality Issues",
+        "sub_categories": ["damaged", "spoiled", "stale", "bad_taste", "expired"],
+        "priority": "high"
+    },
+    "packaging": {
+        "label": "Packaging Issues",
+        "sub_categories": ["leaked", "torn", "unhygienic", "improper_sealing"],
+        "priority": "medium"
+    },
+    "delivery": {
+        "label": "Delivery Issues",
+        "sub_categories": ["late_delivery", "wrong_address", "not_delivered", "left_outside"],
+        "priority": "medium"
+    },
+    "genie_behavior": {
+        "label": "Delivery Partner Issues",
+        "sub_categories": ["rude_behavior", "unprofessional", "unsafe_driving", "inappropriate_contact"],
+        "priority": "high"
+    },
+    "payment": {
+        "label": "Payment Issues",
+        "sub_categories": ["overcharged", "double_charged", "refund_pending", "promo_not_applied"],
+        "priority": "medium"
+    },
+    "other": {
+        "label": "Other",
+        "sub_categories": ["other"],
+        "priority": "low"
+    }
+}
+
+# Tip presets
+TIP_PRESETS = [10, 20, 30, 50]
+
+# Pydantic models for requests
+class VendorRatingRequest(BaseModel):
+    overall_rating: float  # 1-5 stars
+    criteria_scores: Dict[str, int]  # key: score (1-5)
+    review_text: Optional[str] = None
+    photos: Optional[List[str]] = []  # Base64 or URLs
+
+class GenieRatingRequest(BaseModel):
+    overall_rating: float  # 1-5 stars
+    criteria_scores: Dict[str, int]  # key: score (1-5)
+    review_text: Optional[str] = None
+    tip_amount: Optional[float] = None  # Can add/increase tip while rating
+
+class TipRequest(BaseModel):
+    amount: float
+    payment_method: Optional[str] = "wallet"  # wallet, upi, card
+
+class IssueReportRequest(BaseModel):
+    category: str
+    sub_category: str
+    description: str
+    photos: Optional[List[str]] = []
+    request_refund: bool = False
+    request_replacement: bool = False
+    affected_items: Optional[List[str]] = []  # Product IDs
+
 # ===================== AUTH HELPERS =====================
 
 async def get_current_user(request: Request, session_token: Optional[str] = Cookie(default=None)) -> Optional[User]:
@@ -9851,9 +10010,656 @@ async def cleanup_old_orders(keep_date: str = None):
         "details": results
     }
 
-# Include the router
+# NOTE: api_router will be included at the end of the file after all endpoints
+
+# ===================== RATING, TIPPING & ISSUE REPORTING APIs =====================
+
+@api_router.get("/localhub/rating-criteria/{vendor_category}")
+async def get_rating_criteria(vendor_category: str):
+    """Get rating criteria based on vendor category - For Wisher App"""
+    category = vendor_category.lower().replace(" ", "_").replace("-", "_")
+    
+    # Map common variations
+    category_map = {
+        "food": "restaurant",
+        "restaurant": "restaurant",
+        "grocery": "grocery",
+        "groceries": "grocery",
+        "pharmacy": "pharmacy",
+        "medical": "pharmacy",
+        "bakery": "bakery",
+        "sweets": "bakery",
+        "meat": "meat",
+        "fish": "meat",
+        "butcher": "meat",
+        "fruits": "fruits_vegetables",
+        "vegetables": "fruits_vegetables",
+        "produce": "fruits_vegetables"
+    }
+    
+    mapped_category = category_map.get(category, "general")
+    criteria = VENDOR_RATING_CRITERIA.get(mapped_category, VENDOR_RATING_CRITERIA["general"])
+    
+    return {
+        "vendor_category": mapped_category,
+        "category_name": criteria["name"],
+        "criteria": criteria["criteria"],
+        "genie_criteria": GENIE_RATING_CRITERIA,
+        "tip_presets": TIP_PRESETS
+    }
+
+@api_router.get("/localhub/issue-categories")
+async def get_issue_categories():
+    """Get all issue categories for reporting - For Wisher App"""
+    return {
+        "categories": ISSUE_CATEGORIES
+    }
+
+@api_router.post("/localhub/orders/{order_id}/rate-vendor")
+async def rate_vendor(order_id: str, rating: VendorRatingRequest, current_user: User = Depends(require_auth)):
+    """Submit rating for vendor after delivery - For Wisher App"""
+    
+    # Get the order
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Verify this is the customer's order
+    if order.get("user_id") != current_user.user_id:
+        raise HTTPException(status_code=403, detail="This is not your order")
+    
+    # Check order is delivered
+    if order.get("status") != "delivered":
+        raise HTTPException(status_code=400, detail="Can only rate delivered orders")
+    
+    # Check if already rated
+    existing_rating = await db.ratings.find_one({
+        "order_id": order_id,
+        "user_id": current_user.user_id,
+        "vendor_rating": {"$exists": True, "$ne": None}
+    })
+    if existing_rating:
+        raise HTTPException(status_code=400, detail="You have already rated this vendor")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    rating_id = f"rating_{uuid.uuid4().hex[:12]}"
+    
+    # Create or update rating document
+    rating_doc = {
+        "rating_id": rating_id,
+        "order_id": order_id,
+        "user_id": current_user.user_id,
+        "user_name": current_user.name,
+        "vendor_id": order.get("vendor_id"),
+        "vendor_name": order.get("vendor_name"),
+        "vendor_rating": {
+            "overall": rating.overall_rating,
+            "criteria_scores": rating.criteria_scores,
+            "review_text": rating.review_text,
+            "photos": rating.photos or [],
+            "helpful_count": 0
+        },
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    # Upsert rating
+    await db.ratings.update_one(
+        {"order_id": order_id, "user_id": current_user.user_id},
+        {"$set": rating_doc},
+        upsert=True
+    )
+    
+    # Update vendor's average rating
+    vendor_ratings = await db.ratings.find(
+        {"vendor_id": order.get("vendor_id"), "vendor_rating.overall": {"$exists": True}}
+    ).to_list(1000)
+    
+    if vendor_ratings:
+        avg_rating = sum(r["vendor_rating"]["overall"] for r in vendor_ratings) / len(vendor_ratings)
+        await db.users.update_one(
+            {"user_id": order.get("vendor_id")},
+            {"$set": {"partner_rating": round(avg_rating, 2), "partner_total_ratings": len(vendor_ratings)}}
+        )
+        await db.hub_vendors.update_one(
+            {"vendor_id": order.get("vendor_id")},
+            {"$set": {"rating": round(avg_rating, 2), "total_ratings": len(vendor_ratings)}}
+        )
+    
+    return {
+        "message": "Thank you for your rating!",
+        "rating_id": rating_id
+    }
+
+@api_router.post("/localhub/orders/{order_id}/rate-genie")
+async def rate_genie(order_id: str, rating: GenieRatingRequest, current_user: User = Depends(require_auth)):
+    """Submit rating for Carpet Genie after delivery - For Wisher App"""
+    
+    # Get the order
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Verify this is the customer's order
+    if order.get("user_id") != current_user.user_id:
+        raise HTTPException(status_code=403, detail="This is not your order")
+    
+    # Check order is delivered
+    if order.get("status") != "delivered":
+        raise HTTPException(status_code=400, detail="Can only rate delivered orders")
+    
+    # Check if genie was assigned
+    genie_id = order.get("genie_id")
+    if not genie_id:
+        raise HTTPException(status_code=400, detail="No delivery partner to rate")
+    
+    # Check if already rated
+    existing_rating = await db.ratings.find_one({
+        "order_id": order_id,
+        "user_id": current_user.user_id,
+        "genie_rating": {"$exists": True, "$ne": None}
+    })
+    if existing_rating:
+        raise HTTPException(status_code=400, detail="You have already rated this delivery partner")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Create or update rating document
+    await db.ratings.update_one(
+        {"order_id": order_id, "user_id": current_user.user_id},
+        {
+            "$set": {
+                "genie_id": genie_id,
+                "genie_name": order.get("genie_name"),
+                "genie_rating": {
+                    "overall": rating.overall_rating,
+                    "criteria_scores": rating.criteria_scores,
+                    "review_text": rating.review_text
+                },
+                "updated_at": now
+            },
+            "$setOnInsert": {
+                "rating_id": f"rating_{uuid.uuid4().hex[:12]}",
+                "order_id": order_id,
+                "user_id": current_user.user_id,
+                "user_name": current_user.name,
+                "vendor_id": order.get("vendor_id"),
+                "created_at": now
+            }
+        },
+        upsert=True
+    )
+    
+    # Handle tip if provided
+    if rating.tip_amount and rating.tip_amount > 0:
+        await add_or_update_tip(order_id, current_user.user_id, genie_id, rating.tip_amount, "post_delivery")
+    
+    # Update genie's average rating
+    genie_ratings = await db.ratings.find(
+        {"genie_id": genie_id, "genie_rating.overall": {"$exists": True}}
+    ).to_list(1000)
+    
+    if genie_ratings:
+        avg_rating = sum(r["genie_rating"]["overall"] for r in genie_ratings) / len(genie_ratings)
+        await db.genie_profiles.update_one(
+            {"genie_id": genie_id},
+            {"$set": {"rating": round(avg_rating, 2), "total_ratings": len(genie_ratings)}}
+        )
+        await db.users.update_one(
+            {"user_id": genie_id},
+            {"$set": {"partner_rating": round(avg_rating, 2)}}
+        )
+    
+    return {
+        "message": "Thank you for rating your delivery partner!",
+        "tip_added": rating.tip_amount if rating.tip_amount else 0
+    }
+
+async def add_or_update_tip(order_id: str, user_id: str, genie_id: str, amount: float, added_at: str):
+    """Helper function to add or update tip"""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    existing_tip = await db.tips.find_one({"order_id": order_id, "user_id": user_id})
+    
+    if existing_tip:
+        # Update existing tip (can only increase)
+        if amount > existing_tip.get("amount", 0):
+            await db.tips.update_one(
+                {"order_id": order_id, "user_id": user_id},
+                {
+                    "$set": {
+                        "amount": amount,
+                        "modified_at": now,
+                        "original_amount": existing_tip.get("amount", 0)
+                    }
+                }
+            )
+    else:
+        # Create new tip
+        tip_doc = {
+            "tip_id": f"tip_{uuid.uuid4().hex[:12]}",
+            "order_id": order_id,
+            "user_id": user_id,
+            "genie_id": genie_id,
+            "amount": amount,
+            "added_at": added_at,
+            "original_amount": amount,
+            "modified_at": None,
+            "status": "pending",
+            "paid_at": None,
+            "created_at": now
+        }
+        await db.tips.insert_one(tip_doc)
+    
+    # Update order with tip info
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {"$set": {"tip_amount": amount, "tip_status": "pending"}}
+    )
+
+@api_router.post("/localhub/orders/{order_id}/add-tip")
+async def add_tip(order_id: str, tip: TipRequest, current_user: User = Depends(require_auth)):
+    """Add or increase tip for Carpet Genie - For Wisher App"""
+    
+    if tip.amount <= 0:
+        raise HTTPException(status_code=400, detail="Tip amount must be positive")
+    
+    if tip.amount > 1000:
+        raise HTTPException(status_code=400, detail="Maximum tip amount is ₹1000")
+    
+    # Get the order
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Verify this is the customer's order
+    if order.get("user_id") != current_user.user_id:
+        raise HTTPException(status_code=403, detail="This is not your order")
+    
+    # Check if genie is assigned
+    genie_id = order.get("genie_id")
+    if not genie_id:
+        # For pre-delivery tips, store without genie_id
+        genie_id = None
+    
+    # Determine if this is checkout or post-delivery tip
+    added_at = "checkout" if order.get("status") in ["pending", "confirmed", "preparing", "ready_for_pickup"] else "post_delivery"
+    
+    await add_or_update_tip(order_id, current_user.user_id, genie_id, tip.amount, added_at)
+    
+    return {
+        "message": "Tip added successfully! 100% goes to your delivery partner.",
+        "amount": tip.amount,
+        "added_at": added_at
+    }
+
+@api_router.post("/localhub/orders/{order_id}/report-issue")
+async def report_issue(order_id: str, issue: IssueReportRequest, current_user: User = Depends(require_auth)):
+    """Report an issue with order - For Wisher App"""
+    
+    # Validate category
+    if issue.category not in ISSUE_CATEGORIES:
+        raise HTTPException(status_code=400, detail="Invalid issue category")
+    
+    category_config = ISSUE_CATEGORIES[issue.category]
+    if issue.sub_category not in category_config["sub_categories"]:
+        raise HTTPException(status_code=400, detail="Invalid sub-category for this issue type")
+    
+    # Get the order
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Verify this is the customer's order
+    if order.get("user_id") != current_user.user_id:
+        raise HTTPException(status_code=403, detail="This is not your order")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    issue_id = f"issue_{uuid.uuid4().hex[:12]}"
+    
+    # Determine priority
+    priority = category_config.get("priority", "medium")
+    if issue.request_refund or issue.request_replacement:
+        priority = "high"
+    
+    issue_doc = {
+        "issue_id": issue_id,
+        "order_id": order_id,
+        "user_id": current_user.user_id,
+        "user_name": current_user.name,
+        "user_phone": current_user.phone,
+        "vendor_id": order.get("vendor_id"),
+        "vendor_name": order.get("vendor_name"),
+        "genie_id": order.get("genie_id"),
+        "genie_name": order.get("genie_name"),
+        "category": issue.category,
+        "category_label": category_config["label"],
+        "sub_category": issue.sub_category,
+        "description": issue.description,
+        "photos": issue.photos or [],
+        "affected_items": issue.affected_items or [],
+        "request_refund": issue.request_refund,
+        "request_replacement": issue.request_replacement,
+        "priority": priority,
+        "status": "open",
+        "resolution": None,
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    await db.issues.insert_one(issue_doc)
+    
+    # Update order with issue reference
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$push": {"issues": issue_id},
+            "$set": {"has_issues": True}
+        }
+    )
+    
+    return {
+        "message": "Issue reported successfully. We'll look into this shortly.",
+        "issue_id": issue_id,
+        "priority": priority,
+        "expected_response": "24 hours" if priority == "low" else ("12 hours" if priority == "medium" else "4 hours")
+    }
+
+@api_router.get("/localhub/orders/{order_id}/issues")
+async def get_order_issues(order_id: str, current_user: User = Depends(require_auth)):
+    """Get issues reported for an order - For Wisher App"""
+    
+    # Get the order
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Verify this is the customer's order
+    if order.get("user_id") != current_user.user_id:
+        raise HTTPException(status_code=403, detail="This is not your order")
+    
+    issues = await db.issues.find(
+        {"order_id": order_id},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    
+    return {
+        "order_id": order_id,
+        "issues": issues,
+        "total": len(issues)
+    }
+
+@api_router.get("/localhub/my-issues")
+async def get_my_issues(current_user: User = Depends(require_auth), status: Optional[str] = None):
+    """Get all issues reported by user - For Wisher App"""
+    
+    query = {"user_id": current_user.user_id}
+    if status:
+        query["status"] = status
+    
+    issues = await db.issues.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    
+    # Group by status
+    by_status = {
+        "open": [],
+        "in_progress": [],
+        "resolved": [],
+        "closed": []
+    }
+    
+    for issue in issues:
+        s = issue.get("status", "open")
+        if s in by_status:
+            by_status[s].append(issue)
+    
+    return {
+        "issues": issues,
+        "total": len(issues),
+        "by_status": {k: len(v) for k, v in by_status.items()}
+    }
+
+@api_router.get("/localhub/orders/{order_id}/rating")
+async def get_order_rating(order_id: str, current_user: User = Depends(require_auth)):
+    """Get rating submitted for an order - For Wisher App"""
+    
+    rating = await db.ratings.find_one(
+        {"order_id": order_id, "user_id": current_user.user_id},
+        {"_id": 0}
+    )
+    
+    tip = await db.tips.find_one(
+        {"order_id": order_id, "user_id": current_user.user_id},
+        {"_id": 0}
+    )
+    
+    return {
+        "order_id": order_id,
+        "rating": rating,
+        "tip": tip,
+        "has_rated_vendor": rating.get("vendor_rating") is not None if rating else False,
+        "has_rated_genie": rating.get("genie_rating") is not None if rating else False,
+        "tip_amount": tip.get("amount") if tip else 0
+    }
+
+# ===================== VENDOR APP - RATINGS & ISSUES APIs =====================
+
+@api_router.get("/vendor/ratings")
+async def get_vendor_ratings(current_user: User = Depends(require_vendor), limit: int = 50, offset: int = 0):
+    """Get vendor's ratings and reviews - For Vendor App"""
+    
+    ratings = await db.ratings.find(
+        {"vendor_id": current_user.user_id, "vendor_rating": {"$exists": True, "$ne": None}},
+        {"_id": 0}
+    ).sort("created_at", -1).skip(offset).limit(limit).to_list(limit)
+    
+    total = await db.ratings.count_documents({
+        "vendor_id": current_user.user_id,
+        "vendor_rating": {"$exists": True, "$ne": None}
+    })
+    
+    return {
+        "ratings": ratings,
+        "total": total,
+        "limit": limit,
+        "offset": offset
+    }
+
+@api_router.get("/vendor/ratings/summary")
+async def get_vendor_ratings_summary(current_user: User = Depends(require_vendor)):
+    """Get vendor's rating summary statistics - For Vendor App"""
+    
+    ratings = await db.ratings.find(
+        {"vendor_id": current_user.user_id, "vendor_rating.overall": {"$exists": True}},
+        {"_id": 0, "vendor_rating": 1}
+    ).to_list(1000)
+    
+    if not ratings:
+        return {
+            "average_rating": 0,
+            "total_ratings": 0,
+            "rating_distribution": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+            "criteria_averages": {}
+        }
+    
+    # Calculate distribution
+    distribution = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+    criteria_totals = {}
+    criteria_counts = {}
+    
+    for r in ratings:
+        vr = r.get("vendor_rating", {})
+        overall = int(round(vr.get("overall", 0)))
+        if 1 <= overall <= 5:
+            distribution[overall] += 1
+        
+        for key, score in vr.get("criteria_scores", {}).items():
+            if key not in criteria_totals:
+                criteria_totals[key] = 0
+                criteria_counts[key] = 0
+            criteria_totals[key] += score
+            criteria_counts[key] += 1
+    
+    avg_rating = sum(r["vendor_rating"]["overall"] for r in ratings) / len(ratings)
+    criteria_averages = {k: round(criteria_totals[k] / criteria_counts[k], 2) for k in criteria_totals}
+    
+    return {
+        "average_rating": round(avg_rating, 2),
+        "total_ratings": len(ratings),
+        "rating_distribution": distribution,
+        "criteria_averages": criteria_averages
+    }
+
+@api_router.get("/vendor/issues")
+async def get_vendor_issues(current_user: User = Depends(require_vendor), status: Optional[str] = None):
+    """Get issues reported against vendor - For Vendor App"""
+    
+    query = {"vendor_id": current_user.user_id}
+    if status:
+        query["status"] = status
+    
+    issues = await db.issues.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    
+    return {
+        "issues": issues,
+        "total": len(issues),
+        "open_count": len([i for i in issues if i.get("status") == "open"]),
+        "resolved_count": len([i for i in issues if i.get("status") == "resolved"])
+    }
+
+# ===================== GENIE APP - RATINGS, TIPS & EARNINGS APIs =====================
+
+@api_router.get("/genie/my-ratings")
+async def get_genie_ratings(current_user: User = Depends(require_auth), limit: int = 50):
+    """Get Genie's ratings - For Genie App"""
+    
+    ratings = await db.ratings.find(
+        {"genie_id": current_user.user_id, "genie_rating": {"$exists": True, "$ne": None}},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    # Calculate average
+    if ratings:
+        avg_rating = sum(r["genie_rating"]["overall"] for r in ratings) / len(ratings)
+    else:
+        avg_rating = 5.0
+    
+    # Calculate criteria averages
+    criteria_totals = {}
+    criteria_counts = {}
+    for r in ratings:
+        for key, score in r.get("genie_rating", {}).get("criteria_scores", {}).items():
+            if key not in criteria_totals:
+                criteria_totals[key] = 0
+                criteria_counts[key] = 0
+            criteria_totals[key] += score
+            criteria_counts[key] += 1
+    
+    criteria_averages = {k: round(criteria_totals[k] / criteria_counts[k], 2) for k in criteria_totals}
+    
+    return {
+        "ratings": ratings,
+        "total_ratings": len(ratings),
+        "average_rating": round(avg_rating, 2),
+        "criteria_averages": criteria_averages,
+        "badge": "Top Rated" if avg_rating >= 4.8 and len(ratings) >= 10 else None
+    }
+
+@api_router.get("/genie/my-tips")
+async def get_genie_tips(current_user: User = Depends(require_auth), days: int = 30):
+    """Get Genie's tip history - For Genie App"""
+    
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    
+    tips = await db.tips.find(
+        {
+            "genie_id": current_user.user_id,
+            "created_at": {"$gte": since.isoformat()}
+        },
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(500)
+    
+    total_tips = sum(t.get("amount", 0) for t in tips)
+    
+    # Group by day
+    daily_tips = {}
+    for t in tips:
+        date = t.get("created_at", "")[:10]
+        if date not in daily_tips:
+            daily_tips[date] = 0
+        daily_tips[date] += t.get("amount", 0)
+    
+    return {
+        "tips": tips,
+        "total_tips": total_tips,
+        "tip_count": len(tips),
+        "average_tip": round(total_tips / len(tips), 2) if tips else 0,
+        "daily_breakdown": daily_tips,
+        "period_days": days
+    }
+
+@api_router.get("/genie/earnings")
+async def get_genie_earnings(current_user: User = Depends(require_auth), days: int = 7):
+    """Get Genie's total earnings (delivery fees + tips) - For Genie App"""
+    
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    since_str = since.isoformat()
+    
+    # Get delivered orders
+    orders = await db.wisher_orders.find(
+        {
+            "genie_id": current_user.user_id,
+            "status": "delivered",
+            "delivered_at": {"$gte": since_str}
+        },
+        {"_id": 0, "order_id": 1, "delivery_fee": 1, "delivered_at": 1}
+    ).to_list(500)
+    
+    # Get tips
+    tips = await db.tips.find(
+        {
+            "genie_id": current_user.user_id,
+            "created_at": {"$gte": since_str}
+        },
+        {"_id": 0}
+    ).to_list(500)
+    
+    delivery_earnings = sum(o.get("delivery_fee", 0) for o in orders)
+    tip_earnings = sum(t.get("amount", 0) for t in tips)
+    total_earnings = delivery_earnings + tip_earnings
+    
+    # Daily breakdown
+    daily_earnings = {}
+    for o in orders:
+        date = o.get("delivered_at", "")[:10]
+        if date not in daily_earnings:
+            daily_earnings[date] = {"deliveries": 0, "tips": 0, "total": 0, "order_count": 0}
+        daily_earnings[date]["deliveries"] += o.get("delivery_fee", 0)
+        daily_earnings[date]["order_count"] += 1
+    
+    for t in tips:
+        date = t.get("created_at", "")[:10]
+        if date not in daily_earnings:
+            daily_earnings[date] = {"deliveries": 0, "tips": 0, "total": 0, "order_count": 0}
+        daily_earnings[date]["tips"] += t.get("amount", 0)
+    
+    for date in daily_earnings:
+        daily_earnings[date]["total"] = daily_earnings[date]["deliveries"] + daily_earnings[date]["tips"]
+    
+    return {
+        "period_days": days,
+        "total_earnings": total_earnings,
+        "delivery_earnings": delivery_earnings,
+        "tip_earnings": tip_earnings,
+        "total_deliveries": len(orders),
+        "total_tips_received": len(tips),
+        "average_per_delivery": round(total_earnings / len(orders), 2) if orders else 0,
+        "daily_breakdown": daily_earnings
+    }
+
+# Include the router - must be after all route definitions
 app.include_router(api_router)
 
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
