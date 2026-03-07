@@ -797,7 +797,7 @@ export default function OrderDetailScreen() {
             </View>
             {order.delivery_fee > 0 && (
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Service Fee</Text>
+                <Text style={styles.totalLabel}>Handling & Transportation</Text>
                 <Text style={styles.totalValue}>₹{Number(order.delivery_fee).toFixed(2)}</Text>
               </View>
             )}

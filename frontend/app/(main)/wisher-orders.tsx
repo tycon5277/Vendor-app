@@ -578,7 +578,7 @@ export default function WisherOrdersScreen() {
                     <Text style={styles.totalValue}>₹{selectedOrder.subtotal}</Text>
                   </View>
                   <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Delivery Fee</Text>
+                    <Text style={styles.totalLabel}>Handling & Transportation</Text>
                     <Text style={styles.totalValue}>₹{selectedOrder.delivery_fee}</Text>
                   </View>
                   {selectedOrder.refund_amount && selectedOrder.refund_amount > 0 ? (
