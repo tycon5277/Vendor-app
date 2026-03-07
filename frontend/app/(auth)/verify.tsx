@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,17 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { authAPI } from '../../src/utils/api';
 import { useAuthStore } from '../../src/store/authStore';
+import { useTheme, typography, spacing, borderRadius } from '../../src/context/ThemeContext';
+import { Button } from '../../src/components/ios';
 
 export default function VerifyScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const { phone } = useLocalSearchParams<{ phone: string }>();
   const { setUser, setToken } = useAuthStore();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -29,7 +31,6 @@ export default function VerifyScreen() {
     newOtp[index] = value;
     setOtp(newOtp);
 
-    // Auto-focus next input
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
@@ -51,20 +52,14 @@ export default function VerifyScreen() {
     setLoading(true);
     try {
       const response = await authAPI.verifyOTP(phone || '', otpString);
-      const { user, session_token, is_new_user, is_vendor } = response.data;
+      const { user, session_token, is_vendor } = response.data;
       
       setToken(session_token);
       setUser(user);
 
-      // Navigation logic:
-      // 1. If user is already a registered vendor -> go to dashboard
-      // 2. If existing user but not a vendor yet -> go to register
-      // 3. If brand new user -> go to register
       if (is_vendor) {
-        // Existing vendor - go directly to dashboard
         router.replace('/(main)/(tabs)/home');
       } else {
-        // New user OR existing user who hasn't completed vendor registration
         router.replace('/(auth)/register');
       }
     } catch (error: any) {
@@ -85,29 +80,33 @@ export default function VerifyScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background.grouped }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
       >
+        {/* Back Button */}
         <TouchableOpacity
+          testID="back-btn"
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#374151" />
+          <Ionicons name="chevron-back" size={28} color={colors.primary} />
         </TouchableOpacity>
 
+        {/* Header */}
         <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="shield-checkmark" size={48} color="#6366F1" />
+          <View style={[styles.iconContainer, { backgroundColor: isDark ? colors.background.tertiary : 'rgba(0, 122, 255, 0.1)' }]}>
+            <Ionicons name="shield-checkmark" size={44} color={colors.primary} />
           </View>
-          <Text style={styles.title}>Verify OTP</Text>
-          <Text style={styles.subtitle}>
-            Enter the 6-digit code sent to{' '}\n
-            <Text style={styles.phone}>+91 {phone}</Text>
+          <Text style={[styles.title, { color: colors.text.primary }]}>Verify OTP</Text>
+          <Text style={[styles.subtitle, { color: colors.text.secondary }]}>
+            Enter the 6-digit code sent to{'\n'}
+            <Text style={[styles.phone, { color: colors.text.primary }]}>+91 {phone}</Text>
           </Text>
         </View>
 
+        {/* OTP Inputs */}
         <View style={styles.otpContainer}>
           {otp.map((digit, index) => (
             <TextInput
@@ -115,9 +114,14 @@ export default function VerifyScreen() {
               ref={(ref) => {
                 if (ref) inputRefs.current[index] = ref;
               }}
+              testID={`otp-input-${index}`}
               style={[
                 styles.otpInput,
-                digit && styles.otpInputFilled,
+                {
+                  backgroundColor: digit ? (isDark ? colors.background.tertiary : 'rgba(0, 122, 255, 0.1)') : colors.background.secondary,
+                  borderColor: digit ? colors.primary : colors.separator,
+                  color: colors.text.primary,
+                },
               ]}
               value={digit}
               onChangeText={(value) => handleOtpChange(value, index)}
@@ -129,120 +133,94 @@ export default function VerifyScreen() {
           ))}
         </View>
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+        {/* Verify Button */}
+        <Button
+          testID="verify-btn"
+          title={loading ? 'Verifying...' : 'Verify & Continue'}
           onPress={handleVerify}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Verifying...' : 'Verify & Continue'}
-          </Text>
-        </TouchableOpacity>
+          disabled={loading || otp.join('').length !== 6}
+          loading={loading}
+        />
 
+        {/* Resend Link */}
         <View style={styles.resendContainer}>
-          <Text style={styles.resendText}>Didn't receive code? </Text>
-          <TouchableOpacity onPress={handleResend}>
-            <Text style={styles.resendLink}>Resend OTP</Text>
+          <Text style={[styles.resendText, { color: colors.text.secondary }]}>
+            Didn't receive code?{' '}
+          </Text>
+          <TouchableOpacity testID="resend-btn" onPress={handleResend}>
+            <Text style={[styles.resendLink, { color: colors.primary }]}>Resend OTP</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.l,
   },
   backButton: {
     width: 44,
     height: 44,
     justifyContent: 'center',
-    marginTop: 8,
+    marginTop: spacing.s,
   },
   header: {
     alignItems: 'center',
-    marginTop: 40,
-    marginBottom: 40,
+    marginTop: spacing.xxxl,
+    marginBottom: spacing.xxxl,
   },
   iconContainer: {
-    width: 100,
-    height: 100,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 50,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: spacing.xxl,
   },
   title: {
-    fontSize: 24,
+    fontSize: typography.title2.fontSize,
     fontWeight: '700',
-    color: '#111827',
-    marginBottom: 12,
+    marginBottom: spacing.m,
   },
   subtitle: {
-    fontSize: 15,
-    color: '#6B7280',
+    fontSize: typography.callout.fontSize,
     textAlign: 'center',
     lineHeight: 22,
   },
   phone: {
     fontWeight: '600',
-    color: '#374151',
   },
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 12,
-    marginBottom: 32,
+    gap: spacing.m,
+    marginBottom: spacing.xxl,
   },
   otpInput: {
     width: 48,
     height: 56,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: borderRadius.m,
     borderWidth: 2,
-    borderColor: '#E5E7EB',
     fontSize: 24,
     fontWeight: '600',
     textAlign: 'center',
-    color: '#111827',
-  },
-  otpInputFilled: {
-    borderColor: '#6366F1',
-    backgroundColor: '#EEF2FF',
-  },
-  button: {
-    backgroundColor: '#6366F1',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    backgroundColor: '#A5B4FC',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
   resendContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 24,
+    marginTop: spacing.xxl,
   },
   resendText: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: typography.subhead.fontSize,
   },
   resendLink: {
-    fontSize: 14,
+    fontSize: typography.subhead.fontSize,
     fontWeight: '600',
-    color: '#6366F1',
   },
 });

@@ -3,20 +3,22 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { authAPI } from '../../src/utils/api';
+import { useTheme, typography, spacing, borderRadius } from '../../src/context/ThemeContext';
+import { Button } from '../../src/components/ios';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -40,27 +42,30 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background.grouped }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
       >
+        {/* Header */}
         <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Ionicons name="storefront" size={64} color="#6366F1" />
+          <View style={[styles.logoContainer, { backgroundColor: isDark ? colors.background.tertiary : 'rgba(0, 122, 255, 0.1)' }]}>
+            <Ionicons name="storefront" size={56} color={colors.primary} />
           </View>
-          <Text style={styles.title}>QuickWish Vendor</Text>
-          <Text style={styles.subtitle}>Manage your shop, orders & earnings</Text>
+          <Text style={[styles.title, { color: colors.text.primary }]}>QuickWish Vendor</Text>
+          <Text style={[styles.subtitle, { color: colors.text.secondary }]}>Manage your shop, orders & earnings</Text>
         </View>
 
-        <View style={styles.form}>
-          <Text style={styles.label}>Phone Number</Text>
-          <View style={styles.inputContainer}>
-            <Text style={styles.countryCode}>+91</Text>
+        {/* Form */}
+        <View style={[styles.formCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.label, { color: colors.text.secondary }]}>Phone Number</Text>
+          <View style={[styles.inputContainer, { backgroundColor: colors.background.secondary }]}>
+            <Text style={[styles.countryCode, { color: colors.text.primary, borderRightColor: colors.separator }]}>+91</Text>
             <TextInput
-              style={styles.input}
+              testID="phone-input"
+              style={[styles.input, { color: colors.text.primary }]}
               placeholder="Enter your phone number"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.text.tertiary}
               keyboardType="phone-pad"
               maxLength={10}
               value={phone}
@@ -68,127 +73,101 @@ export default function LoginScreen() {
             />
           </View>
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+          <Button
+            testID="send-otp-btn"
+            title={loading ? 'Sending OTP...' : 'Get OTP'}
             onPress={handleSendOTP}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? 'Sending OTP...' : 'Get OTP'}
-            </Text>
-          </TouchableOpacity>
+            disabled={loading || phone.length < 10}
+            loading={loading}
+          />
 
-          <Text style={styles.hint}>
+          <Text style={[styles.hint, { color: colors.text.tertiary }]}>
             Test OTP: 123456
           </Text>
         </View>
 
+        {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>
+          <Text style={[styles.footerText, { color: colors.text.tertiary }]}>
             By continuing, you agree to our Terms of Service
           </Text>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.l,
     justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: spacing.xxxl,
   },
   logoContainer: {
-    width: 120,
-    height: 120,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 60,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: spacing.xxl,
   },
   title: {
-    fontSize: 28,
+    fontSize: typography.title1.fontSize,
     fontWeight: '700',
-    color: '#111827',
-    marginBottom: 8,
+    marginBottom: spacing.s,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
+    fontSize: typography.callout.fontSize,
     textAlign: 'center',
   },
-  form: {
-    marginBottom: 32,
+  formCard: {
+    borderRadius: borderRadius.l,
+    padding: spacing.xl,
+    marginBottom: spacing.xxl,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
+    fontSize: typography.footnote.fontSize,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    marginBottom: spacing.s,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 20,
+    borderRadius: borderRadius.m,
+    marginBottom: spacing.xl,
     overflow: 'hidden',
   },
   countryCode: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    fontSize: 16,
+    paddingHorizontal: spacing.l,
+    paddingVertical: spacing.l,
+    fontSize: typography.body.fontSize,
     fontWeight: '600',
-    color: '#374151',
-    backgroundColor: '#F3F4F6',
-    borderRightWidth: 1,
-    borderRightColor: '#E5E7EB',
+    borderRightWidth: StyleSheet.hairlineWidth,
   },
   input: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    fontSize: 16,
-    color: '#111827',
-  },
-  button: {
-    backgroundColor: '#6366F1',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    backgroundColor: '#A5B4FC',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    paddingHorizontal: spacing.l,
+    paddingVertical: spacing.l,
+    fontSize: typography.body.fontSize,
   },
   hint: {
-    marginTop: 16,
+    marginTop: spacing.l,
     textAlign: 'center',
-    fontSize: 13,
-    color: '#9CA3AF',
+    fontSize: typography.footnote.fontSize,
   },
   footer: {
     alignItems: 'center',
   },
   footerText: {
-    fontSize: 13,
-    color: '#9CA3AF',
+    fontSize: typography.footnote.fontSize,
     textAlign: 'center',
   },
 });

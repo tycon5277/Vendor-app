@@ -6,6 +6,7 @@ import { useAuthStore } from '../src/store/authStore';
 import { LoadingScreen } from '../src/components/LoadingScreen';
 import { AlertProvider } from '../src/context/AlertContext';
 import { NewOrderNotificationProvider } from '../src/context/NewOrderNotificationContext';
+import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 
 function InitialLayout() {
   const { isLoading, isAuthenticated, isVendor, loadStoredAuth } = useAuthStore();
@@ -62,11 +63,13 @@ function InitialLayout() {
 
 export default function RootLayout() {
   return (
-    <AlertProvider>
-      <NewOrderNotificationProvider>
-        <StatusBar style="dark" />
-        <InitialLayout />
-      </NewOrderNotificationProvider>
-    </AlertProvider>
+    <ThemeProvider>
+      <AlertProvider>
+        <NewOrderNotificationProvider>
+          <StatusBar style="auto" />
+          <InitialLayout />
+        </NewOrderNotificationProvider>
+      </AlertProvider>
+    </ThemeProvider>
   );
 }
