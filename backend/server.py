@@ -15,6 +15,12 @@ import hashlib
 import hmac
 import json
 
+# New modules for scalable architecture
+import redis_manager
+import zone_service
+import assignment_engine
+from sse_handler import genie_delivery_stream, create_sse_response
+
 ROOT_DIR = Path(__file__).parent
 
 # Secret key for signing QR codes (in production, use environment variable)
@@ -7939,164 +7945,55 @@ async def assign_wisher_order_delivery(
         }
     
     elif assignment.delivery_type == "genie":
-        # Request Carpet Genie
-        # Get vendor location
+        # Request Carpet Genie — triggers automatic assignment engine
         vendor = await db.users.find_one({"user_id": current_user.user_id})
         vendor_location = vendor.get("vendor_shop_location", {})
         
         if not vendor_location.get("lat") or not vendor_location.get("lng"):
             raise HTTPException(status_code=400, detail="Vendor location not set")
         
-        # Find available genies nearby
-        available_genies = await db.users.find({
-            "partner_type": "genie",
-            "partner_status": "available",
-            "current_location": {"$exists": True}
-        }).to_list(20)
-        
-        if not available_genies:
-            # No genies available - create open request
-            await db.wisher_orders.update_one(
-                {"order_id": order_id},
-                {
-                    "$set": {
-                        "delivery_type": "genie_delivery",
-                        "genie_status": "searching",
-                        "genie_request_time": now,
-                        "updated_at": now
-                    },
-                    "$push": {
-                        "status_history": {
-                            "status": "searching_genie",
-                            "timestamp": now,
-                            "note": "Looking for available delivery partner"
-                        }
-                    }
-                }
-            )
-            
-            # Create delivery request for genies to see
-            delivery_request = {
-                "request_id": f"delivery_{uuid.uuid4().hex[:12]}",
-                "order_id": order_id,
-                "vendor_id": current_user.user_id,
-                "vendor_name": vendor.get("vendor_shop_name", "Unknown"),
-                "vendor_location": vendor_location,
-                "customer_location": order.get("delivery_address", {}),
-                "items_count": len(order.get("items", [])),
-                "order_total": order.get("total", 0),
-                "delivery_fee": order.get("delivery_fee", 30),
-                "status": "open",
-                "created_at": now
-            }
-            await db.genie_delivery_requests.insert_one(delivery_request)
-            
-            return {
-                "message": "Searching for delivery partner",
-                "order_id": order_id,
-                "delivery_type": "genie_delivery",
-                "genie_status": "searching"
-            }
-        
-        # Find closest genie
-        closest_genie = None
-        min_distance = float('inf')
-        
-        for genie in available_genies:
-            genie_loc = genie.get("current_location", {})
-            if genie_loc.get("lat") and genie_loc.get("lng"):
-                distance = calculate_distance_km(
-                    vendor_location["lat"], vendor_location["lng"],
-                    genie_loc["lat"], genie_loc["lng"]
-                )
-                if distance < min_distance and distance <= 5:  # Within 5km
-                    min_distance = distance
-                    closest_genie = genie
-        
-        if not closest_genie:
-            # No genie within range - create open request
-            await db.wisher_orders.update_one(
-                {"order_id": order_id},
-                {
-                    "$set": {
-                        "delivery_type": "genie_delivery",
-                        "genie_status": "searching",
-                        "genie_request_time": now,
-                        "updated_at": now
-                    },
-                    "$push": {
-                        "status_history": {
-                            "status": "searching_genie",
-                            "timestamp": now,
-                            "note": "Looking for nearby delivery partner"
-                        }
-                    }
-                }
-            )
-            
-            delivery_request = {
-                "request_id": f"delivery_{uuid.uuid4().hex[:12]}",
-                "order_id": order_id,
-                "vendor_id": current_user.user_id,
-                "vendor_name": vendor.get("vendor_shop_name", "Unknown"),
-                "vendor_location": vendor_location,
-                "customer_location": order.get("delivery_address", {}),
-                "items_count": len(order.get("items", [])),
-                "order_total": order.get("total", 0),
-                "delivery_fee": order.get("delivery_fee", 30),
-                "status": "open",
-                "created_at": now
-            }
-            await db.genie_delivery_requests.insert_one(delivery_request)
-            
-            return {
-                "message": "Searching for nearby delivery partner",
-                "order_id": order_id,
-                "delivery_type": "genie_delivery",
-                "genie_status": "searching"
-            }
-        
-        # Assign to closest genie
+        # Set order to searching status
         await db.wisher_orders.update_one(
             {"order_id": order_id},
             {
                 "$set": {
                     "delivery_type": "genie_delivery",
-                    "genie_status": "assigned",
-                    "genie_id": closest_genie["user_id"],
-                    "genie_name": closest_genie.get("name", "Delivery Partner"),
-                    "genie_phone": closest_genie.get("phone", ""),
-                    "genie_assigned_at": now,
+                    "genie_status": "searching",
+                    "genie_request_time": now,
                     "updated_at": now
                 },
                 "$push": {
                     "status_history": {
-                        "status": "genie_assigned",
+                        "status": "searching_genie",
                         "timestamp": now,
-                        "note": f"Delivery partner {closest_genie.get('name', 'assigned')}"
+                        "note": "Automatic delivery partner search started"
                     }
                 }
             }
         )
         
-        # Update genie status
-        await db.users.update_one(
-            {"user_id": closest_genie["user_id"]},
-            {
-                "$set": {
-                    "partner_status": "busy",
-                    "current_order_id": order_id
-                }
-            }
-        )
+        # Start automatic assignment engine (background task)
+        order_details = {
+            "vendor_id": current_user.user_id,
+            "vendor_name": vendor.get("vendor_shop_name", vendor.get("name", "Unknown")),
+            "vendor_phone": vendor.get("phone", ""),
+            "vendor_address": vendor.get("vendor_shop_address", ""),
+            "vendor_location": vendor_location,
+            "customer_location": order.get("delivery_address", {}),
+            "customer_name": order.get("customer_name", ""),
+            "items_count": len(order.get("items", [])),
+            "order_total": order.get("total", 0),
+            "delivery_fee": order.get("delivery_fee", 30)
+        }
+        
+        await assignment_engine.start_assignment(order_id, order_details)
         
         return {
-            "message": "Delivery partner assigned",
+            "message": "Automatic delivery partner search started",
             "order_id": order_id,
             "delivery_type": "genie_delivery",
-            "genie_status": "assigned",
-            "genie_name": closest_genie.get("name"),
-            "genie_phone": closest_genie.get("phone")
+            "genie_status": "searching",
+            "note": "The system will automatically find and assign the best delivery partner"
         }
     
     else:
@@ -10698,6 +10595,217 @@ async def mark_all_notifications_read(current_user: User = Depends(require_vendo
     )
     return {"message": "All notifications marked as read"}
 
+# ===================== ZONE MANAGEMENT API =====================
+
+class CreateZoneRequest(BaseModel):
+    name: str
+    district: str = ""
+    zone_type: str  # "circle" or "polygon"
+    center: Optional[dict] = None  # {"lat": float, "lng": float} - required for circle
+    radius_km: Optional[float] = 2.5
+    boundary: Optional[dict] = None  # GeoJSON polygon - required for polygon
+    base_delivery_fee: float = 30.0
+    fee_increase_per_retry: float = 5.0
+    max_fee_increase: float = 25.0
+    genie_switch_fee: float = 500.0
+    max_genies: int = 0
+    max_vendors: int = 0
+    is_active: bool = True
+
+class ZoneAssignmentRequest(BaseModel):
+    entity_id: str
+    entity_type: str  # "vendor" or "genie"
+    zone_id: str
+
+class ZoneSwitchRequest(BaseModel):
+    target_zone_id: str
+
+@api_router.post("/admin/zones")
+async def create_zone_endpoint(data: CreateZoneRequest):
+    """Create a new zone (circle or polygon)"""
+    result = await zone_service.create_zone(data.dict())
+    return result
+
+@api_router.get("/admin/zones")
+async def list_zones_endpoint(district: str = None, active_only: bool = True):
+    """List all zones"""
+    zones = await zone_service.list_zones(district, active_only)
+    return {"zones": zones, "total": len(zones)}
+
+@api_router.get("/admin/zones/find-for-point")
+async def find_zones_for_point_endpoint(lat: float, lng: float):
+    """Find which zones contain a given point (useful for testing overlap)"""
+    zones = await zone_service.find_zones_for_point(lat, lng)
+    return {"zones": zones, "count": len(zones)}
+
+@api_router.get("/admin/zones/{zone_id}")
+async def get_zone_endpoint(zone_id: str):
+    """Get zone details"""
+    zone = await zone_service.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    stats = await zone_service.get_zone_stats(zone_id)
+    return {**zone, **stats}
+
+@api_router.put("/admin/zones/{zone_id}")
+async def update_zone_endpoint(zone_id: str, data: CreateZoneRequest):
+    """Update a zone"""
+    result = await zone_service.update_zone(zone_id, data.dict())
+    if not result:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    return result
+
+@api_router.delete("/admin/zones/{zone_id}")
+async def delete_zone_endpoint(zone_id: str):
+    """Delete a zone"""
+    success = await zone_service.delete_zone(zone_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    return {"message": "Zone deleted"}
+
+@api_router.post("/admin/zones/assign")
+async def assign_to_zone_endpoint(data: ZoneAssignmentRequest):
+    """Assign a vendor or genie to a zone"""
+    result = await zone_service.assign_to_zone(data.entity_id, data.entity_type, data.zone_id)
+    return result
+
+@api_router.get("/admin/zones/{zone_id}/genies")
+async def get_zone_genies_endpoint(zone_id: str):
+    """Get all genies assigned to a zone"""
+    genie_ids = await zone_service.get_zone_genies(zone_id)
+    return {"zone_id": zone_id, "genies": genie_ids, "count": len(genie_ids)}
+
+@api_router.get("/admin/zones/{zone_id}/vendors")
+async def get_zone_vendors_endpoint(zone_id: str):
+    """Get all vendors assigned to a zone"""
+    vendor_ids = await zone_service.get_zone_vendors(zone_id)
+    return {"zone_id": zone_id, "vendors": vendor_ids, "count": len(vendor_ids)}
+
+@api_router.get("/admin/zones/{zone_id}/stats")
+async def get_zone_stats_endpoint(zone_id: str):
+    """Get zone statistics"""
+    return await zone_service.get_zone_stats(zone_id)
+
+# ===================== GENIE ZONE SWITCH API =====================
+
+@api_router.post("/genie/zone-switch-request")
+async def genie_request_zone_switch(data: ZoneSwitchRequest, current_user: User = Depends(require_carpet_genie)):
+    """Genie requests to switch to a different zone (premium fee)"""
+    result = await zone_service.request_zone_switch(current_user.user_id, data.target_zone_id)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@api_router.get("/genie/my-zone")
+async def get_genie_zone_endpoint(current_user: User = Depends(require_carpet_genie)):
+    """Get genie's current zone assignment"""
+    zone = await zone_service.get_genie_zone(current_user.user_id)
+    if not zone:
+        return {"zone": None, "message": "Not assigned to any zone"}
+    return {"zone": zone}
+
+@api_router.post("/admin/zone-switch/{request_id}/approve")
+async def approve_zone_switch_endpoint(request_id: str):
+    """Admin approves a zone switch request"""
+    result = await zone_service.approve_zone_switch(request_id, "admin")
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+# ===================== SSE DELIVERY STREAM =====================
+
+@api_router.get("/genie/delivery-stream")
+async def genie_delivery_stream_endpoint(request: Request, current_user: User = Depends(require_carpet_genie)):
+    """SSE stream for real-time delivery requests to a Genie"""
+    zone = await zone_service.get_genie_zone(current_user.user_id)
+    zone_id = zone["zone_id"] if zone else None
+
+    generator = genie_delivery_stream(current_user.user_id, zone_id)
+    return create_sse_response(generator)
+
+# ===================== GENIE ACCEPT/DECLINE (NEW ENGINE) =====================
+
+@api_router.post("/genie/delivery-requests/{request_id}/accept")
+async def accept_delivery_request_new(request_id: str, current_user: User = Depends(require_carpet_genie)):
+    """Genie accepts a delivery request (works with new assignment engine)"""
+    result = await assignment_engine.handle_genie_accept(request_id, current_user.user_id)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@api_router.post("/genie/delivery-requests/{request_id}/decline")
+async def decline_delivery_request(request_id: str, reason: str = "", current_user: User = Depends(require_carpet_genie)):
+    """Genie explicitly declines a delivery request"""
+    result = await assignment_engine.handle_genie_decline(request_id, current_user.user_id, reason)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+# ===================== ASSIGNMENT STATUS =====================
+
+@api_router.get("/orders/{order_id}/assignment-status")
+async def get_order_assignment_status(order_id: str):
+    """Get current assignment engine status for an order"""
+    status = await assignment_engine.get_assignment_status(order_id)
+    return status
+
+# ===================== GENIE LOCATION (REDIS-BACKED) =====================
+
+@api_router.put("/genie/location-update")
+async def update_genie_location_redis(request: Request, current_user: User = Depends(require_carpet_genie)):
+    """Update genie location — writes to Redis GEO for fast proximity search"""
+    body = await request.json()
+    lat = body.get("lat", 0)
+    lng = body.get("lng", 0)
+
+    zone = await zone_service.get_genie_zone(current_user.user_id)
+    zone_id = zone["zone_id"] if zone else None
+
+    # Write to Redis (fast, for proximity search)
+    await redis_manager.update_genie_location(current_user.user_id, lat, lng, zone_id)
+
+    # Write to MongoDB (persistent, for analytics)
+    await db.genie_profiles.update_one(
+        {"genie_id": current_user.user_id},
+        {"$set": {
+            "current_location": {"lat": lat, "lng": lng},
+            "last_location_update": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    return {"status": "ok"}
+
+# ===================== ORDER STATUS CACHE =====================
+
+@api_router.get("/orders/{order_id}/status-cached")
+async def get_order_status_cached(order_id: str):
+    """Get order status with Redis cache (for Wisher App high-frequency polling)"""
+    # Try cache first
+    cached = await redis_manager.get_cached_order_status(order_id)
+    if cached:
+        return cached
+
+    # Cache miss — read from MongoDB
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    status_data = {
+        "order_id": order_id,
+        "status": order.get("status"),
+        "genie_status": order.get("genie_status"),
+        "genie_name": order.get("genie_name"),
+        "genie_phone": order.get("genie_phone"),
+        "genie_location": order.get("genie_location"),
+        "delivery_type": order.get("delivery_type"),
+        "updated_at": order.get("updated_at"),
+        "cached": False
+    }
+
+    # Write to cache with 15s TTL
+    await redis_manager.cache_order_status(order_id, {**status_data, "cached": True}, ttl=15)
+    return status_data
+
 # Include the router - must be after all route definitions
 app.include_router(api_router)
 
@@ -10714,6 +10822,10 @@ app.add_middleware(
 async def startup_db_indexes():
     """Create database indexes for fast queries"""
     try:
+        # Initialize new scalable modules
+        zone_service.set_db(db)
+        assignment_engine.set_db(db)
+
         # Cart indexes
         await db.wisher_carts.create_index("user_id")
         await db.wisher_carts.create_index([("user_id", 1), ("product_id", 1)])
@@ -10740,6 +10852,15 @@ async def startup_db_indexes():
         await db.vendor_notifications.create_index([("vendor_id", 1), ("created_at", -1)])
         await db.vendor_notifications.create_index([("vendor_id", 1), ("is_read", 1)])
         
+        # Zone indexes
+        await db.zones.create_index("zone_id", unique=True)
+        await db.zones.create_index("district")
+        await db.zones.create_index("is_active")
+        await db.zone_assignments.create_index([("entity_id", 1), ("entity_type", 1), ("is_active", 1)])
+        await db.zone_assignments.create_index([("zone_id", 1), ("entity_type", 1)])
+        await db.zone_switch_requests.create_index("genie_id")
+        await db.zone_switch_requests.create_index("status")
+        
         logger.info("Database indexes created successfully")
     except Exception as e:
         logger.warning(f"Index creation warning (may already exist): {e}")
@@ -10747,3 +10868,4 @@ async def startup_db_indexes():
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+    await redis_manager.close_redis()
