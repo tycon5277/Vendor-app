@@ -1,176 +1,234 @@
 {
-  "identity": {
-    "name": "E1",
-    "persona": "The Anti-AI Designer",
-    "principles": [
-      "Fusion over Imitation",
-      "Emotion First",
-      "Content is King",
-      "Zoom In",
-      "Negative Space",
-      "Contrast"
-    ]
-  },
-  "typography": {
-    "font_family": {
-      "headings": "Manrope",
-      "body": "Inter",
-      "mono": "SpaceMono"
+  "design_system": {
+    "identity": {
+      "name": "Vendor App iOS Overhaul",
+      "style": "Apple Human Interface Guidelines (iOS 17)",
+      "tone": "Professional, Clean, Efficient, Trustworthy",
+      "platform": "React Native (Expo)"
     },
-    "scale": {
-      "h1": "text-4xl font-bold tracking-tight",
-      "h2": "text-3xl font-bold tracking-tight",
-      "h3": "text-2xl font-semibold",
-      "h4": "text-xl font-semibold",
-      "body_lg": "text-lg leading-relaxed",
-      "body_base": "text-base leading-relaxed text-slate-600",
-      "caption": "text-sm text-slate-500 uppercase tracking-wider"
-    }
-  },
-  "colors": {
-    "palette": {
-      "primary": {
-        "DEFAULT": "#6366F1",
-        "foreground": "#FFFFFF",
-        "light": "#818CF8",
-        "dark": "#4F46E5"
+    "colors": {
+      "light": {
+        "background": {
+          "primary": "#FFFFFF",
+          "secondary": "#F2F2F7",
+          "tertiary": "#FFFFFF",
+          "modal": "#FFFFFF",
+          "grouped": "#F2F2F7"
+        },
+        "text": {
+          "primary": "#000000",
+          "secondary": "#3C3C4399",
+          "tertiary": "#3C3C434D",
+          "tint": "#007AFF",
+          "inverse": "#FFFFFF"
+        },
+        "border": "#C6C6C8",
+        "separator": "#3C3C435C",
+        "primary": "#007AFF",
+        "success": "#34C759",
+        "warning": "#FF9500",
+        "danger": "#FF3B30",
+        "card": "#FFFFFF"
       },
-      "secondary": {
-        "DEFAULT": "#8B5CF6",
-        "foreground": "#FFFFFF"
-      },
-      "background": "#F8FAFC",
-      "surface": "#FFFFFF",
-      "text": {
-        "primary": "#0F172A",
-        "secondary": "#475569",
-        "muted": "#94A3B8"
-      },
-      "success": "#10B981",
-      "warning": "#F59E0B",
-      "error": "#EF4444",
-      "border": "#E2E8F0"
+      "dark": {
+        "background": {
+          "primary": "#000000",
+          "secondary": "#1C1C1E",
+          "tertiary": "#2C2C2E",
+          "modal": "#1C1C1E",
+          "grouped": "#000000"
+        },
+        "text": {
+          "primary": "#FFFFFF",
+          "secondary": "#EBEBF599",
+          "tertiary": "#EBEBF54D",
+          "tint": "#0A84FF",
+          "inverse": "#000000"
+        },
+        "border": "#38383A",
+        "separator": "#545458A6",
+        "primary": "#0A84FF",
+        "success": "#30D158",
+        "warning": "#FF9F0A",
+        "danger": "#FF453A",
+        "card": "#1C1C1E"
+      }
     },
-    "gradients": {
-      "primary_to_secondary": "from-indigo-500 to-violet-500",
-      "surface_shine": "from-white/50 to-white/10"
-    }
-  },
-  "layout_strategies": {
+    "typography": {
+      "fontFamily": {
+        "ios": "System",
+        "android": "Roboto"
+      },
+      "styles": {
+        "largeTitle": { "fontSize": 34, "fontWeight": "700", "lineHeight": 41, "letterSpacing": 0.37 },
+        "title1": { "fontSize": 28, "fontWeight": "700", "lineHeight": 34, "letterSpacing": 0.36 },
+        "title2": { "fontSize": 22, "fontWeight": "600", "lineHeight": 28, "letterSpacing": 0.35 },
+        "title3": { "fontSize": 20, "fontWeight": "600", "lineHeight": 25, "letterSpacing": 0.38 },
+        "headline": { "fontSize": 17, "fontWeight": "600", "lineHeight": 22, "letterSpacing": -0.41 },
+        "body": { "fontSize": 17, "fontWeight": "400", "lineHeight": 22, "letterSpacing": -0.41 },
+        "callout": { "fontSize": 16, "fontWeight": "400", "lineHeight": 21, "letterSpacing": -0.32 },
+        "subhead": { "fontSize": 15, "fontWeight": "400", "lineHeight": 20, "letterSpacing": -0.24 },
+        "footnote": { "fontSize": 13, "fontWeight": "400", "lineHeight": 18, "letterSpacing": -0.08 },
+        "caption1": { "fontSize": 12, "fontWeight": "400", "lineHeight": 16, "letterSpacing": 0 },
+        "caption2": { "fontSize": 11, "fontWeight": "400", "lineHeight": 13, "letterSpacing": 0.07 }
+      }
+    },
     "spacing": {
-      "container_padding": "p-6",
-      "section_gap": "gap-8",
-      "item_gap": "gap-4",
-      "safe_area": "pt-12 pb-8"
+      "xs": 4,
+      "s": 8,
+      "m": 12,
+      "l": 16,
+      "xl": 20,
+      "xxl": 24,
+      "xxxl": 32,
+      "section": 32
     },
-    "containers": {
-      "card": "bg-white rounded-2xl p-5 shadow-sm border border-slate-100",
-      "card_hover": "active:scale-[0.98] transition-transform",
-      "screen": "flex-1 bg-slate-50"
+    "borderRadius": {
+      "s": 8,
+      "m": 12,
+      "l": 16,
+      "xl": 20,
+      "full": 9999
     },
-    "grids": {
-      "dashboard_widgets": "grid grid-cols-2 gap-4",
-      "list_items": "flex flex-col gap-3"
+    "shadows": {
+      "light": {
+        "shadowColor": "#000",
+        "shadowOffset": { "width": 0, "height": 2 },
+        "shadowOpacity": 0.1,
+        "shadowRadius": 8,
+        "elevation": 2
+      },
+      "dark": {
+        "shadowColor": "#000",
+        "shadowOffset": { "width": 0, "height": 4 },
+        "shadowOpacity": 0.3,
+        "shadowRadius": 10,
+        "elevation": 4
+      }
     }
   },
   "components": {
-    "Discounts": {
-      "DiscountCard": {
-        "description": "Card displaying discount details with active/expired status.",
-        "props": ["title", "code", "percentage", "validity", "usageCount", "status"],
-        "style": "bg-white rounded-2xl p-4 border-l-4 border-indigo-500 shadow-sm flex-row justify-between items-center"
+    "Button": {
+      "base": {
+        "height": 50,
+        "borderRadius": 12,
+        "justifyContent": "center",
+        "alignItems": "center",
+        "flexDirection": "row",
+        "gap": 8
       },
-      "CreateDiscountForm": {
-        "description": "Multi-step form for creating discounts.",
-        "steps": ["Type Selection", "Details Input", "Product Selection", "Review"],
-        "elements": ["Slider for Percentage", "DatePicker", "Toggle for Active"]
+      "primary": {
+        "backgroundColor": "primary",
+        "text": "inverse"
+      },
+      "secondary": {
+        "backgroundColor": "background.secondary",
+        "text": "primary"
+      },
+      "destructive": {
+        "backgroundColor": "background.secondary",
+        "text": "danger"
+      },
+      "ghost": {
+        "backgroundColor": "transparent",
+        "text": "primary"
       }
     },
-    "Timings": {
-      "DayRow": {
-        "description": "Row for each day with open/close toggle and time slots.",
-        "props": ["day", "isOpen", "openTime", "closeTime", "onToggle"],
-        "style": "flex-row justify-between items-center p-4 bg-white rounded-xl mb-2"
-      },
-      "HolidayCalendar": {
-        "description": "Calendar view to select specific dates for closure.",
-        "library": "react-native-calendars (recommended)"
+    "Input": {
+      "base": {
+        "height": 50,
+        "borderRadius": 12,
+        "paddingHorizontal": 16,
+        "fontSize": 17,
+        "backgroundColor": "background.secondary",
+        "color": "text.primary"
       }
     },
-    "ShopQR": {
-      "QRCard": {
-        "description": "Swipeable card showing different QR types (Shop, Product).",
-        "props": ["type", "qrData", "color"],
-        "style": "w-full aspect-square bg-white rounded-3xl items-center justify-center shadow-lg"
-      },
-      "ActionButtons": {
-        "description": "Row of circular buttons for Share, Download, Print.",
-        "style": "flex-row justify-center gap-6 mt-8"
+    "Card": {
+      "base": {
+        "backgroundColor": "background.primary",
+        "borderRadius": 16,
+        "padding": 16,
+        "marginBottom": 16
       }
     },
-    "Promote": {
-      "CampaignCard": {
-        "description": "Card showing active campaign stats.",
-        "props": ["title", "reach", "clicks", "budget", "status"],
-        "style": "bg-white rounded-2xl p-5 border border-slate-100"
-      },
-      "TemplateSelector": {
-        "description": "Horizontal scroll list of campaign templates.",
-        "items": ["Social Post", "Push Notification", "Banner Ad"]
+    "ListItem": {
+      "base": {
+        "minHeight": 44,
+        "flexDirection": "row",
+        "alignItems": "center",
+        "justifyContent": "space-between",
+        "backgroundColor": "background.primary",
+        "paddingHorizontal": 16,
+        "paddingVertical": 12,
+        "borderBottomWidth": 0.5,
+        "borderColor": "separator"
       }
+    },
+    "Badge": {
+      "base": {
+        "paddingHorizontal": 10,
+        "paddingVertical": 4,
+        "borderRadius": 12
+      },
+      "text": {
+        "fontSize": 12,
+        "fontWeight": "600",
+        "textTransform": "uppercase"
+      }
+    }
+  },
+  "navigation": {
+    "header": {
+      "largeTitle": true,
+      "transparent": true,
+      "blurEffect": "regular"
+    },
+    "tabBar": {
+      "blurEffect": "regular",
+      "activeTintColor": "primary",
+      "inactiveTintColor": "text.secondary"
     }
   },
   "assets": {
     "icons": {
-      "library": "lucide-react-native",
-      "mapping": {
-        "discounts": "Tag",
-        "timings": "Clock",
-        "qr": "QrCode",
-        "promote": "Megaphone",
-        "calendar": "Calendar",
-        "share": "Share2",
-        "download": "Download",
-        "copy": "Copy",
-        "edit": "Edit3",
-        "delete": "Trash2",
-        "add": "Plus"
+      "library": "@expo/vector-icons",
+      "family": "Ionicons",
+      "size": {
+        "s": 16,
+        "m": 20,
+        "l": 24,
+        "xl": 28
       }
-    },
-    "images": {
-      "placeholders": [
-        "https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?auto=format&fit=crop&q=80&w=800",
-        "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&q=80&w=800"
-      ]
     }
   },
-  "accessibility": {
-    "contrast": "Ensure text-to-background ratio is at least 4.5:1",
-    "touch_targets": "Minimum 44x44px for all interactive elements",
-    "labels": "All inputs and buttons must have aria-label or accessibilityLabel"
-  },
-  "motion": {
-    "transitions": "LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)",
-    "feedback": "Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light) on press"
+  "copywriting": {
+    "replacements": {
+      "Delivery Fee": "Handling & Transportation"
+    }
   },
   "instructions_to_main_agent": [
-    "1. Install 'nativewind' and 'tailwindcss' if not present, as the design relies on utility classes.",
-    "2. Use 'lucide-react-native' for icons.",
-    "3. Create a 'MyShop' stack navigator in the existing navigation structure.",
-    "4. Implement 'Discounts', 'Timings', 'Shop QR', and 'Promote' screens as detailed in the 'components' section.",
-    "5. Ensure high contrast and large touch targets for the target audience (Indian vendors).",
-    "6. Use 'react-native-gifted-charts' for analytics in 'Promote' and 'Discounts' dashboards.",
-    "7. Mock data for all screens initially.",
-    "8. Follow the 'Anti-AI Designer' persona: Avoid generic layouts, use bold spacing and typography.",
-    "9. Use 'data-testid' for all interactive elements.",
-    "10. Respect the directory structure: put new screens in '/app/frontend/app/(main)/myshop/'."
+    "1. SETUP THEME CONTEXT: Create 'src/context/ThemeContext.tsx' to manage light/dark mode and provide colors globally.",
+    "2. CREATE UI KIT: Implement the following components in 'src/components/ui/':",
+    "   - 'Button.tsx': Supports variant (primary, secondary, destructive, ghost) and size.",
+    "   - 'Input.tsx': Supports label, error, and left/right icons.",
+    "   - 'Card.tsx': Simple wrapper with shadow and rounded corners.",
+    "   - 'ScreenWrapper.tsx': Handles SafeAreaView and StatusBar.",
+    "   - 'Typography.tsx': Components for Title1, Headline, Body, etc.",
+    "   - 'ListItem.tsx': Standard iOS list row with left/right content.",
+    "3. UPDATE NAVIGATION: Modify 'app/_layout.tsx' and 'app/(main)/_layout.tsx' to use the new theme colors and blur headers.",
+    "4. REFACTOR SCREENS: Go through each screen in 'app/' and replace native 'View'/'Text' with your new UI Kit components.",
+    "5. PRESERVE LOGIC: Do not change the business logic in 'src/store' or api calls. Only change the 'render' part of components.",
+    "6. LISTS: Ensure all lists use 'FlatList' or 'SectionList' with 'ListHeaderComponent' for titles to avoid scrolling issues.",
+    "7. MODALS: Use Expo Router's 'presentation: modal' for edit screens or details.",
+    "8. KEYBOARD: Wrap forms in 'KeyboardAwareScrollView' (already installed).",
+    "9. TESTID: Add 'testID' (React Native) prop to all interactive elements for testing."
   ],
-  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
-    "Do not use default 'SaaS Blue'. Use the defined Indigo #6366F1.",
-    "Every interaction needs micro-animations (press states).",
-    "Use 2-3x more spacing than feels comfortable.",
-    "Subtle grain textures or noise overlays can be used for 'Promote' cards to make them pop.",
-    "Never use generic AI emojis for icons.",
-    "Use 'sonner' for toasts if available, or a custom accessible toast component."
+  "universal_guidelines": [
+    "Use 'StyleSheet.create' for performance, but drive values from the theme constants.",
+    "Do NOT use inline styles for static properties.",
+    "Ensure 44x44pt minimum touch targets.",
+    "Use 'ActivityIndicator' for loading states.",
+    "Respect Safe Area insets."
   ]
 }
