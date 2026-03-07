@@ -7,22 +7,21 @@ import {
   TouchableOpacity,
   RefreshControl,
   Animated,
-  Dimensions,
   AppState,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../../src/store/authStore';
 import { vendorAPI, orderAPI, productAPI } from '../../../src/utils/api';
 import { Analytics, Order, Product } from '../../../src/types';
 import { useAlert } from '../../../src/context/AlertContext';
-
-const { width } = Dimensions.get('window');
+import { useTheme, typography, spacing, borderRadius } from '../../../src/context/ThemeContext';
+import { Card, Badge } from '../../../src/components/ios';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const { user } = useAuthStore();
   const { showAlert } = useAlert();
   const [refreshing, setRefreshing] = useState(false);
@@ -30,11 +29,9 @@ export default function HomeScreen() {
   const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   
-  // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
 
-  // Calculate inventory alerts
   const lowStockProducts = products.filter(p => p.stock_quantity <= 10 && p.in_stock);
   const outOfStockProducts = products.filter(p => !p.in_stock);
   const hasInventoryAlerts = lowStockProducts.length > 0 || outOfStockProducts.length > 0;
@@ -54,44 +51,25 @@ export default function HomeScreen() {
     }
   };
 
-  // Auto-refresh when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadData();
-      
-      // Set up interval for periodic refresh (every 30 seconds)
-      const intervalId = setInterval(() => {
-        loadData();
-      }, 30000);
-      
+      const intervalId = setInterval(() => loadData(), 30000);
       return () => clearInterval(intervalId);
     }, [])
   );
 
-  // Refresh when app comes to foreground
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active') {
-        loadData();
-      }
+      if (nextAppState === 'active') loadData();
     });
-
     return () => subscription.remove();
   }, []);
 
   useEffect(() => {
-    // Entrance animation
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
     ]).start();
   }, []);
 
@@ -101,31 +79,10 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, []);
 
-  const handleSeedData = async () => {
-    try {
-      await vendorAPI.seedData();
-      showAlert({
-        type: 'success',
-        title: 'Success! 🎉',
-        message: 'Sample data created! Your shop now has demo orders and products.',
-      });
-      loadData();
-    } catch (error) {
-      showAlert({
-        type: 'error',
-        title: 'Oops!',
-        message: 'Failed to create sample data. Please try again.',
-      });
-    }
-  };
-
-  // Calculate level based on total orders
   const totalOrders = analytics?.total_orders || 0;
   const level = Math.floor(totalOrders / 10) + 1;
   const xpProgress = (totalOrders % 10) / 10;
-  const xpToNext = 10 - (totalOrders % 10);
 
-  // Get greeting based on time
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning';
@@ -133,274 +90,235 @@ export default function HomeScreen() {
     return 'Good Evening';
   };
 
-  // Get level badge color
-  const getLevelColor = () => {
-    if (level >= 10) return '#F59E0B'; // Gold
-    if (level >= 5) return '#8B5CF6'; // Purple
-    return '#6366F1'; // Indigo
-  };
-
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background.grouped }]} edges={['top']}>
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366F1']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
       >
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <Text style={styles.greeting}>{getGreeting()} 👋</Text>
-              <Text style={styles.shopName}>{user?.vendor_shop_name || 'Your Shop'}</Text>
+              <Text style={[styles.greeting, { color: colors.text.secondary }]}>{getGreeting()}</Text>
+              <Text style={[styles.shopName, { color: colors.text.primary }]}>
+                {user?.vendor_shop_name || 'Your Shop'}
+              </Text>
             </View>
             <View style={styles.headerRight}>
               <TouchableOpacity 
-                style={styles.localHubBtn}
+                style={[styles.headerBtn, { backgroundColor: colors.success }]}
                 onPress={() => router.push('/(main)/wisher-orders')}
-                data-testid="local-hub-btn"
+                testID="local-hub-btn"
               >
-                <View style={styles.localHubAvatar}>
-                  <Ionicons name="globe-outline" size={20} color="#FFFFFF" />
-                </View>
+                <Ionicons name="globe-outline" size={20} color="#FFFFFF" />
               </TouchableOpacity>
               <TouchableOpacity 
-                style={styles.profileBtn}
+                style={[styles.headerBtn, { backgroundColor: colors.primary }]}
                 onPress={() => router.push('/(main)/profile')}
+                testID="profile-btn"
               >
-                <View style={styles.profileAvatar}>
-                  <Ionicons name="storefront" size={20} color="#FFFFFF" />
-                </View>
+                <Ionicons name="storefront" size={20} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Level Card - Gamified */}
-          <View style={styles.levelCard}>
+          {/* Level Card */}
+          <View style={[styles.levelCard, { backgroundColor: colors.card }]}>
             <View style={styles.levelHeader}>
-              <View style={[styles.levelBadge, { backgroundColor: getLevelColor() }]}>
-                <Ionicons name="trophy" size={20} color="#FFFFFF" />
+              <View style={[styles.levelBadge, { backgroundColor: colors.primary }]}>
+                <Ionicons name="trophy" size={18} color="#FFFFFF" />
                 <Text style={styles.levelNumber}>Lv.{level}</Text>
               </View>
               <View style={styles.levelInfo}>
-                <Text style={styles.levelTitle}>Vendor Level {level}</Text>
-                <Text style={styles.levelSubtitle}>{xpToNext} orders to next level</Text>
-              </View>
-              <View style={styles.levelStars}>
-                {[...Array(Math.min(level, 5))].map((_, i) => (
-                  <Ionicons key={i} name="star" size={14} color="#F59E0B" />
-                ))}
+                <Text style={[styles.levelTitle, { color: colors.text.primary }]}>Vendor Level {level}</Text>
+                <Text style={[styles.levelSubtitle, { color: colors.text.secondary }]}>
+                  {10 - (totalOrders % 10)} orders to next level
+                </Text>
               </View>
             </View>
             <View style={styles.xpBarContainer}>
-              <View style={styles.xpBar}>
-                <View style={[styles.xpProgress, { width: `${xpProgress * 100}%` }]} />
+              <View style={[styles.xpBar, { backgroundColor: isDark ? colors.background.tertiary : '#E5E7EB' }]}>
+                <View style={[styles.xpProgress, { width: `${xpProgress * 100}%`, backgroundColor: colors.primary }]} />
               </View>
-              <Text style={styles.xpText}>{totalOrders % 10}/10 XP</Text>
+              <Text style={[styles.xpText, { color: colors.primary }]}>{totalOrders % 10}/10</Text>
             </View>
           </View>
 
-          {/* Inventory Alerts Section - AT THE TOP */}
+          {/* Inventory Alerts */}
           {hasInventoryAlerts && (
-            <View style={styles.inventorySectionTop}>
+            <View style={styles.alertsSection}>
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleRow}>
-                  <Ionicons name="warning" size={20} color="#DC2626" />
-                  <Text style={styles.sectionTitle}>Inventory Alerts</Text>
+                  <Ionicons name="warning" size={18} color={colors.danger} />
+                  <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>Inventory Alerts</Text>
                 </View>
                 <TouchableOpacity onPress={() => router.push('/(main)/warehouse')}>
-                  <Text style={styles.seeAllBtn}>Manage →</Text>
+                  <Text style={[styles.seeAllBtn, { color: colors.primary }]}>Manage</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Out of Stock Alert */}
               {outOfStockProducts.length > 0 && (
                 <TouchableOpacity 
-                  style={styles.alertCard}
-                  onPress={() => router.push({ 
-                    pathname: '/(main)/warehouse', 
-                    params: { filter: 'out_of_stock' } 
-                  })}
-                  activeOpacity={0.7}
+                  style={[styles.alertCard, { backgroundColor: colors.card }]}
+                  onPress={() => router.push({ pathname: '/(main)/warehouse', params: { filter: 'out_of_stock' } })}
                 >
-                  <View style={[styles.alertIconBg, { backgroundColor: '#FEE2E2' }]}>
-                    <Ionicons name="close-circle" size={24} color="#DC2626" />
+                  <View style={[styles.alertIconBg, { backgroundColor: isDark ? 'rgba(255, 69, 58, 0.2)' : '#FEE2E2' }]}>
+                    <Ionicons name="close-circle" size={22} color={colors.danger} />
                   </View>
                   <View style={styles.alertContent}>
-                    <Text style={styles.alertTitle}>Out of Stock</Text>
-                    <Text style={styles.alertSubtitle}>
-                      {outOfStockProducts.length} product{outOfStockProducts.length > 1 ? 's' : ''} unavailable
+                    <Text style={[styles.alertTitle, { color: colors.danger }]}>Out of Stock</Text>
+                    <Text style={[styles.alertSubtitle, { color: colors.text.secondary }]}>
+                      {outOfStockProducts.length} product{outOfStockProducts.length > 1 ? 's' : ''}
                     </Text>
-                    <View style={styles.alertProductList}>
-                      {outOfStockProducts.slice(0, 2).map((p, i) => (
-                        <Text key={i} style={styles.alertProductName}>• {p.name}</Text>
-                      ))}
-                      {outOfStockProducts.length > 2 && (
-                        <Text style={styles.alertMoreText}>+{outOfStockProducts.length - 2} more</Text>
-                      )}
-                    </View>
                   </View>
-                  <View style={styles.alertArrow}>
-                    <Ionicons name="chevron-forward" size={20} color="#DC2626" />
-                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
                 </TouchableOpacity>
               )}
 
-              {/* Low Stock Alert */}
               {lowStockProducts.length > 0 && (
                 <TouchableOpacity 
-                  style={styles.alertCard}
-                  onPress={() => router.push({ 
-                    pathname: '/(main)/warehouse', 
-                    params: { filter: 'low_stock' } 
-                  })}
-                  activeOpacity={0.7}
+                  style={[styles.alertCard, { backgroundColor: colors.card }]}
+                  onPress={() => router.push({ pathname: '/(main)/warehouse', params: { filter: 'low_stock' } })}
                 >
-                  <View style={[styles.alertIconBg, { backgroundColor: '#FEF3C7' }]}>
-                    <Ionicons name="alert-circle" size={24} color="#D97706" />
+                  <View style={[styles.alertIconBg, { backgroundColor: isDark ? 'rgba(255, 159, 10, 0.2)' : '#FEF3C7' }]}>
+                    <Ionicons name="alert-circle" size={22} color={colors.warning} />
                   </View>
                   <View style={styles.alertContent}>
-                    <Text style={[styles.alertTitle, { color: '#92400E' }]}>Low Stock</Text>
-                    <Text style={styles.alertSubtitle}>
-                      {lowStockProducts.length} product{lowStockProducts.length > 1 ? 's' : ''} running low
+                    <Text style={[styles.alertTitle, { color: colors.warning }]}>Low Stock</Text>
+                    <Text style={[styles.alertSubtitle, { color: colors.text.secondary }]}>
+                      {lowStockProducts.length} product{lowStockProducts.length > 1 ? 's' : ''}
                     </Text>
-                    <View style={styles.alertProductList}>
-                      {lowStockProducts.slice(0, 2).map((p, i) => (
-                        <Text key={i} style={styles.alertProductName}>
-                          • {p.name} ({p.stock_quantity} left)
-                        </Text>
-                      ))}
-                      {lowStockProducts.length > 2 && (
-                        <Text style={styles.alertMoreText}>+{lowStockProducts.length - 2} more</Text>
-                      )}
-                    </View>
                   </View>
-                  <View style={styles.alertArrow}>
-                    <Ionicons name="chevron-forward" size={20} color="#D97706" />
-                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
                 </TouchableOpacity>
               )}
             </View>
           )}
 
-          {/* Today's Performance - Clickable */}
+          {/* Today's Performance */}
           <TouchableOpacity 
-            style={styles.heroSection}
+            style={[styles.performanceCard, { backgroundColor: colors.primary }]}
             onPress={() => router.push('/(main)/performance')}
             activeOpacity={0.9}
+            testID="performance-card"
           >
-            <View style={styles.heroHeader}>
-              <Text style={styles.heroLabel}>TODAY'S PERFORMANCE</Text>
-              <View style={styles.heroArrow}>
-                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.7)" />
+            <View style={styles.performanceHeader}>
+              <Text style={styles.performanceLabel}>TODAY'S PERFORMANCE</Text>
+              <View style={styles.performanceArrow}>
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
               </View>
             </View>
-            <View style={styles.heroStats}>
-              <View style={styles.heroStatMain}>
-                <Text style={styles.heroValue}>₹{(analytics?.today.earnings || 0).toLocaleString()}</Text>
-                <Text style={styles.heroSubtext}>Earnings</Text>
+            <View style={styles.performanceStats}>
+              <View style={styles.performanceMain}>
+                <Text style={styles.performanceValue}>₹{(analytics?.today.earnings || 0).toLocaleString()}</Text>
+                <Text style={styles.performanceSubtext}>Earnings</Text>
               </View>
-              <View style={styles.heroDivider} />
-              <View style={styles.heroStatSecondary}>
-                <View style={styles.heroStatItem}>
-                  <Text style={styles.heroStatValue}>{analytics?.today.orders || 0}</Text>
-                  <Text style={styles.heroStatLabel}>Orders</Text>
+              <View style={styles.performanceDivider} />
+              <View style={styles.performanceSecondary}>
+                <View style={styles.performanceStatItem}>
+                  <Text style={styles.performanceStatValue}>{analytics?.today.orders || 0}</Text>
+                  <Text style={styles.performanceStatLabel}>Orders</Text>
                 </View>
-                <View style={styles.heroStatItem}>
-                  <Text style={styles.heroStatValue}>{analytics?.products?.in_stock || 0}</Text>
-                  <Text style={styles.heroStatLabel}>In Stock</Text>
+                <View style={styles.performanceStatItem}>
+                  <Text style={styles.performanceStatValue}>{analytics?.products?.in_stock || 0}</Text>
+                  <Text style={styles.performanceStatLabel}>In Stock</Text>
                 </View>
               </View>
-            </View>
-            <View style={styles.heroFooter}>
-              <Ionicons name="analytics" size={16} color="rgba(255,255,255,0.6)" />
-              <Text style={styles.heroFooterText}>Tap to see detailed analytics</Text>
             </View>
           </TouchableOpacity>
 
           {/* Recent Orders */}
           <View style={styles.ordersSection}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Recent Orders</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>Recent Orders</Text>
               <TouchableOpacity onPress={() => router.push('/(main)/orders')}>
-                <Text style={styles.seeAllBtn}>See All →</Text>
+                <Text style={[styles.seeAllBtn, { color: colors.primary }]}>See All</Text>
               </TouchableOpacity>
             </View>
 
-            {pendingOrders.slice(0, 3).map((order, index) => (
-              <TouchableOpacity
-                key={order.order_id}
-                style={styles.orderCard}
-                onPress={() => router.push('/(main)/orders')}
-                activeOpacity={0.7}
-              >
-                <View style={styles.orderLeft}>
-                  <View style={[styles.orderIndex, order.status === 'pending' && styles.orderIndexPending]}>
-                    <Text style={styles.orderIndexText}>{index + 1}</Text>
-                  </View>
-                  <View style={styles.orderInfo}>
-                    <Text style={styles.orderId}>#{order.order_id.slice(-6).toUpperCase()}</Text>
-                    <Text style={styles.orderCustomer}>{order.customer_name || 'Customer'}</Text>
-                  </View>
-                </View>
-                <View style={styles.orderRight}>
-                  <Text style={styles.orderAmount}>₹{order.total_amount}</Text>
-                  <View style={[
-                    styles.orderStatus,
-                    order.status === 'pending' ? styles.orderStatusPending : styles.orderStatusActive
-                  ]}>
-                    <Text style={[
-                      styles.orderStatusText,
-                      order.status === 'pending' ? styles.orderStatusTextPending : styles.orderStatusTextActive
+            <View style={[styles.ordersCard, { backgroundColor: colors.card }]}>
+              {pendingOrders.slice(0, 3).map((order, index) => (
+                <TouchableOpacity
+                  key={order.order_id}
+                  style={[
+                    styles.orderItem,
+                    index < Math.min(pendingOrders.length - 1, 2) && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.separator }
+                  ]}
+                  onPress={() => router.push('/(main)/orders')}
+                  testID={`order-item-${index}`}
+                >
+                  <View style={styles.orderLeft}>
+                    <View style={[
+                      styles.orderIndex, 
+                      { backgroundColor: order.status === 'pending' ? (isDark ? 'rgba(255, 69, 58, 0.2)' : '#FEE2E2') : colors.background.secondary }
                     ]}>
-                      {order.status.toUpperCase()}
-                    </Text>
+                      <Text style={[styles.orderIndexText, { color: colors.text.primary }]}>{index + 1}</Text>
+                    </View>
+                    <View style={styles.orderInfo}>
+                      <Text style={[styles.orderId, { color: colors.text.primary }]}>
+                        #{order.order_id.slice(-6).toUpperCase()}
+                      </Text>
+                      <Text style={[styles.orderCustomer, { color: colors.text.secondary }]}>
+                        {order.customer_name || 'Customer'}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+                  <View style={styles.orderRight}>
+                    <Text style={[styles.orderAmount, { color: colors.text.primary }]}>₹{order.total_amount}</Text>
+                    <Badge 
+                      text={order.status.toUpperCase()} 
+                      variant={order.status === 'pending' ? 'warning' : 'success'} 
+                    />
+                  </View>
+                </TouchableOpacity>
+              ))}
 
-            {pendingOrders.length === 0 && (
-              <View style={styles.emptyState}>
-                <View style={styles.emptyIconBg}>
-                  <Ionicons name="cube-outline" size={40} color="#D1D5DB" />
+              {pendingOrders.length === 0 && (
+                <View style={styles.emptyState}>
+                  <View style={[styles.emptyIconBg, { backgroundColor: colors.background.secondary }]}>
+                    <Ionicons name="cube-outline" size={32} color={colors.text.tertiary} />
+                  </View>
+                  <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>No orders yet</Text>
+                  <Text style={[styles.emptySubtitle, { color: colors.text.secondary }]}>
+                    Orders will appear here
+                  </Text>
                 </View>
-                <Text style={styles.emptyTitle}>No orders yet</Text>
-                <Text style={styles.emptySubtitle}>Orders will appear here when customers place them</Text>
-              </View>
-            )}
+              )}
+            </View>
           </View>
 
           {/* Insights Card */}
           <TouchableOpacity 
-            style={styles.insightsCard}
+            style={[styles.insightsCard, { backgroundColor: isDark ? colors.background.secondary : '#FFFBEB', borderColor: isDark ? colors.border : '#FDE68A' }]}
             onPress={() => router.push('/(main)/performance')}
+            testID="insights-card"
           >
-            <View style={styles.insightsIcon}>
-              <Ionicons name="bulb" size={24} color="#F59E0B" />
+            <View style={[styles.insightsIcon, { backgroundColor: isDark ? colors.background.tertiary : '#FEF3C7' }]}>
+              <Ionicons name="bulb" size={22} color={colors.warning} />
             </View>
             <View style={styles.insightsContent}>
-              <Text style={styles.insightsTitle}>Business Insights</Text>
-              <Text style={styles.insightsText}>
-                Tap to view detailed analytics and performance metrics for your shop.
+              <Text style={[styles.insightsTitle, { color: isDark ? colors.warning : '#92400E' }]}>Business Insights</Text>
+              <Text style={[styles.insightsText, { color: colors.text.secondary }]}>
+                View detailed analytics and performance
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
           </TouchableOpacity>
 
           <View style={{ height: 100 }} />
         </Animated.View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   scrollView: {
     flex: 1,
@@ -409,61 +327,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
+    paddingHorizontal: spacing.l,
+    paddingTop: spacing.m,
+    paddingBottom: spacing.l,
   },
   headerLeft: {
     flex: 1,
   },
   greeting: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: typography.subhead.fontSize,
     fontWeight: '500',
   },
   shopName: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#111827',
+    fontSize: typography.title2.fontSize,
+    fontWeight: '700',
     marginTop: 2,
   },
   headerRight: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: spacing.s,
   },
-  localHubBtn: {
-    marginRight: 8,
-  },
-  localHubAvatar: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#10B981',
-    borderRadius: 16,
+  headerBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.m,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  profileBtn: {
-    marginLeft: 4,
-  },
-  profileAvatar: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#6366F1',
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  // Level Card
   levelCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    padding: 16,
-    borderRadius: 20,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    marginHorizontal: spacing.l,
+    padding: spacing.l,
+    borderRadius: borderRadius.l,
   },
   levelHeader: {
     flexDirection: 'row',
@@ -472,83 +366,116 @@ const styles = StyleSheet.create({
   levelBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingHorizontal: spacing.m,
+    paddingVertical: spacing.s,
+    borderRadius: borderRadius.s,
     gap: 6,
   },
   levelNumber: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   levelInfo: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: spacing.m,
   },
   levelTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: typography.headline.fontSize,
+    fontWeight: '600',
   },
   levelSubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
+    fontSize: typography.footnote.fontSize,
     marginTop: 2,
-  },
-  levelStars: {
-    flexDirection: 'row',
-    gap: 2,
   },
   xpBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 14,
-    gap: 12,
+    marginTop: spacing.m,
+    gap: spacing.m,
   },
   xpBar: {
     flex: 1,
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 4,
+    height: 6,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   xpProgress: {
     height: '100%',
-    backgroundColor: '#6366F1',
-    borderRadius: 4,
+    borderRadius: 3,
   },
   xpText: {
-    fontSize: 12,
+    fontSize: typography.footnote.fontSize,
     fontWeight: '600',
-    color: '#6366F1',
   },
-  // Inventory Alerts Section at Top
-  inventorySectionTop: {
-    marginHorizontal: 16,
-    marginTop: 16,
+  alertsSection: {
+    marginHorizontal: spacing.l,
+    marginTop: spacing.l,
   },
-  // Hero Section - Clickable
-  heroSection: {
-    backgroundColor: '#6366F1',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 20,
-    borderRadius: 20,
-  },
-  heroHeader: {
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.m,
   },
-  heroLabel: {
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+  },
+  sectionTitle: {
+    fontSize: typography.headline.fontSize,
+    fontWeight: '600',
+  },
+  seeAllBtn: {
+    fontSize: typography.subhead.fontSize,
+    fontWeight: '600',
+  },
+  alertCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.m,
+    borderRadius: borderRadius.m,
+    marginBottom: spacing.s,
+  },
+  alertIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.s,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  alertContent: {
+    flex: 1,
+    marginLeft: spacing.m,
+  },
+  alertTitle: {
+    fontSize: typography.subhead.fontSize,
+    fontWeight: '600',
+  },
+  alertSubtitle: {
+    fontSize: typography.footnote.fontSize,
+    marginTop: 2,
+  },
+  performanceCard: {
+    marginHorizontal: spacing.l,
+    marginTop: spacing.l,
+    padding: spacing.l,
+    borderRadius: borderRadius.l,
+  },
+  performanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.m,
+  },
+  performanceLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     color: 'rgba(255,255,255,0.7)',
     letterSpacing: 1,
   },
-  heroArrow: {
+  performanceArrow: {
     width: 28,
     height: 28,
     backgroundColor: 'rgba(255,255,255,0.15)',
@@ -556,93 +483,57 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  heroStats: {
+  performanceStats: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  heroStatMain: {
+  performanceMain: {
     flex: 1,
   },
-  heroValue: {
-    fontSize: 36,
-    fontWeight: '800',
+  performanceValue: {
+    fontSize: 32,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
-  heroSubtext: {
-    fontSize: 14,
+  performanceSubtext: {
+    fontSize: typography.subhead.fontSize,
     color: 'rgba(255,255,255,0.8)',
     marginTop: 2,
   },
-  heroDivider: {
+  performanceDivider: {
     width: 1,
     height: 50,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    marginHorizontal: 20,
+    marginHorizontal: spacing.l,
   },
-  heroStatSecondary: {
-    gap: 16,
+  performanceSecondary: {
+    gap: spacing.m,
   },
-  heroStatItem: {
+  performanceStatItem: {
     alignItems: 'flex-end',
   },
-  heroStatValue: {
-    fontSize: 20,
+  performanceStatValue: {
+    fontSize: typography.title3.fontSize,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  heroStatLabel: {
-    fontSize: 12,
+  performanceStatLabel: {
+    fontSize: typography.caption1.fontSize,
     color: 'rgba(255,255,255,0.7)',
   },
-  heroFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 16,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.15)',
-    gap: 6,
-  },
-  heroFooterText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
-  },
-  // Orders Section
   ordersSection: {
-    paddingHorizontal: 16,
-    marginTop: 24,
+    marginHorizontal: spacing.l,
+    marginTop: spacing.xl,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 14,
+  ordersCard: {
+    borderRadius: borderRadius.l,
+    overflow: 'hidden',
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  seeAllBtn: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6366F1',
-  },
-  orderCard: {
+  orderItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: 14,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    padding: spacing.m,
   },
   orderLeft: {
     flexDirection: 'row',
@@ -651,202 +542,79 @@ const styles = StyleSheet.create({
   orderIndex: {
     width: 32,
     height: 32,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 10,
+    borderRadius: borderRadius.s,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  orderIndexPending: {
-    backgroundColor: '#FEE2E2',
-  },
   orderIndexText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#374151',
+    fontSize: typography.subhead.fontSize,
+    fontWeight: '600',
   },
   orderInfo: {
-    marginLeft: 12,
+    marginLeft: spacing.m,
   },
   orderId: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: typography.subhead.fontSize,
+    fontWeight: '600',
   },
   orderCustomer: {
-    fontSize: 12,
-    color: '#6B7280',
+    fontSize: typography.footnote.fontSize,
     marginTop: 2,
   },
   orderRight: {
     alignItems: 'flex-end',
+    gap: 4,
   },
   orderAmount: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: typography.headline.fontSize,
+    fontWeight: '600',
   },
-  orderStatus: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    marginTop: 4,
-  },
-  orderStatusPending: {
-    backgroundColor: '#FEF3C7',
-  },
-  orderStatusActive: {
-    backgroundColor: '#DCFCE7',
-  },
-  orderStatusText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  orderStatusTextPending: {
-    color: '#D97706',
-  },
-  orderStatusTextActive: {
-    color: '#22C55E',
-  },
-  // Empty State
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 32,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    padding: spacing.xxl,
   },
   emptyIconBg: {
-    width: 72,
-    height: 72,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.m,
   },
   emptyTitle: {
-    fontSize: 16,
+    fontSize: typography.headline.fontSize,
     fontWeight: '600',
-    color: '#374151',
   },
   emptySubtitle: {
-    fontSize: 13,
-    color: '#9CA3AF',
+    fontSize: typography.subhead.fontSize,
     marginTop: 4,
-    textAlign: 'center',
-    paddingHorizontal: 40,
   },
-  seedBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginTop: 20,
-    gap: 8,
-  },
-  seedBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6366F1',
-  },
-  // Insights Card
   insightsCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    marginHorizontal: 16,
-    marginTop: 24,
-    padding: 16,
-    borderRadius: 16,
+    marginHorizontal: spacing.l,
+    marginTop: spacing.xl,
+    padding: spacing.m,
+    borderRadius: borderRadius.m,
     borderWidth: 1,
-    borderColor: '#FDE68A',
   },
   insightsIcon: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.m,
     justifyContent: 'center',
     alignItems: 'center',
   },
   insightsContent: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: spacing.m,
   },
   insightsTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#92400E',
+    fontSize: typography.subhead.fontSize,
+    fontWeight: '600',
   },
   insightsText: {
-    fontSize: 12,
-    color: '#78350F',
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  // Inventory Alerts Section
-  inventorySection: {
-    marginHorizontal: 16,
-    marginTop: 24,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  alertCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: 16,
-    marginTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  alertIconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  alertContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  alertTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#991B1B',
-  },
-  alertSubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
+    fontSize: typography.footnote.fontSize,
     marginTop: 2,
-  },
-  alertProductList: {
-    marginTop: 8,
-  },
-  alertProductName: {
-    fontSize: 12,
-    color: '#374151',
-    marginBottom: 2,
-  },
-  alertMoreText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6366F1',
-    marginTop: 4,
-  },
-  alertArrow: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });

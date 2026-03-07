@@ -7,9 +7,17 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
 
 ## Latest Updates (December 2025)
+- **iOS-style UI overhaul** — ThemeContext, iOS components, light/dark mode support
 - Created comprehensive implementation guides for Wisher and Genie apps
 - SSE delivery stream tested and working (requires Redis)
 - Redis must be running for zone-based assignment to work
+- Terminology: "Delivery Fee" → "Handling & Transportation"
+
+## iOS Design System (NEW)
+- **ThemeContext** — `/app/frontend/src/context/ThemeContext.tsx` with light/dark mode, iOS system colors
+- **iOS Components** — `/app/frontend/src/components/ios/` (Button, Card, ListItem, ListSection, Badge, Separator, ScreenWrapper)
+- **Updated Screens** — Login, Verify OTP, Home, Profile, Tabs layout
+- **Primary Color** — iOS Blue (#007AFF light, #0A84FF dark)
 
 ## What's Implemented
 

@@ -12,15 +12,15 @@ import {
   Vibration,
   AppState,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-// Note: expo-av removed - deprecated in SDK 53+, using Vibration instead
 import { orderAPI } from '../../../../src/utils/api';
 import { Order } from '../../../../src/types';
 import { useAlert } from '../../../../src/context/AlertContext';
 import { format } from 'date-fns';
+import { useTheme, typography, spacing, borderRadius } from '../../../../src/context/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
 

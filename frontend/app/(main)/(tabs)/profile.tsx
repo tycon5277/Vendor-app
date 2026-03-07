@@ -8,9 +8,8 @@ import {
   Alert,
   Image,
   Animated,
-  Dimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
@@ -18,20 +17,20 @@ import { useAuthStore } from '../../../src/store/authStore';
 import { vendorAPI } from '../../../src/utils/api';
 import { Analytics } from '../../../src/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme, typography, spacing, borderRadius } from '../../../src/context/ThemeContext';
+import { ListItem, ListSection, Badge } from '../../../src/components/ios';
 
-const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const { user, logout } = useAuthStore();
   const [showQR, setShowQR] = useState(false);
   const [qrData, setQRData] = useState<any>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
 
   const loadData = async () => {
     try {
@@ -65,370 +64,232 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadData();
     fetchUnreadCount();
-    // Poll every 30 seconds
     const interval = setInterval(fetchUnreadCount, 30000);
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
     return () => clearInterval(interval);
   }, []);
 
   const handleLogout = () => {
-    // Use confirm for web compatibility, Alert for native
     if (typeof window !== 'undefined' && window.confirm) {
-      // Web environment
       if (window.confirm('Are you sure you want to logout?')) {
-        logout().then(() => {
-          router.replace('/(auth)/login');
-        });
+        logout().then(() => router.replace('/(auth)/login'));
       }
     } else {
-      // Native environment
-      Alert.alert(
-        'Logout',
-        'Are you sure you want to logout?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Logout',
-            style: 'destructive',
-            onPress: async () => {
-              await logout();
-              router.replace('/(auth)/login');
-            },
-          },
-        ]
-      );
+      Alert.alert('Logout', 'Are you sure you want to logout?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', style: 'destructive', onPress: async () => { await logout(); router.replace('/(auth)/login'); } },
+      ]);
     }
   };
 
   const isShopOpen = user?.partner_status === 'available';
-  
-  // Calculate achievements
   const totalOrders = analytics?.total_orders || 0;
-  const achievements = [
-    { id: 1, name: 'First Sale', icon: 'star', unlocked: totalOrders >= 1 },
-    { id: 2, name: '10 Orders', icon: 'ribbon', unlocked: totalOrders >= 10 },
-    { id: 3, name: '50 Orders', icon: 'trophy', unlocked: totalOrders >= 50 },
-    { id: 4, name: '100 Orders', icon: 'medal', unlocked: totalOrders >= 100 },
-  ];
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background.grouped }]} edges={['top']}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+        <Animated.View style={{ opacity: fadeAnim }}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Profile</Text>
-            <TouchableOpacity style={styles.settingsBtn}>
-              <Ionicons name="settings-outline" size={24} color="#374151" />
+            <Text style={[styles.title, { color: colors.text.primary }]}>Profile</Text>
+            <TouchableOpacity style={styles.settingsBtn} testID="settings-btn">
+              <Ionicons name="settings-outline" size={24} color={colors.text.secondary} />
             </TouchableOpacity>
           </View>
 
           {/* Profile Card */}
-          <View style={styles.profileCard}>
+          <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
             <View style={styles.profileHeader}>
               <View style={styles.profileImageContainer}>
                 {user?.vendor_shop_image ? (
                   <Image source={{ uri: user.vendor_shop_image }} style={styles.profileImage} />
                 ) : (
-                  <View style={styles.profileImagePlaceholder}>
-                    <Ionicons name="storefront" size={40} color="#FFFFFF" />
+                  <View style={[styles.profileImagePlaceholder, { backgroundColor: colors.primary }]}>
+                    <Ionicons name="storefront" size={36} color="#FFFFFF" />
                   </View>
                 )}
-                <View style={[styles.statusDot, isShopOpen ? styles.statusDotOnline : styles.statusDotOffline]} />
+                <View style={[styles.statusDot, { backgroundColor: isShopOpen ? colors.success : colors.text.tertiary }]} />
               </View>
               
               <View style={styles.profileInfo}>
-                <Text style={styles.shopName}>{user?.vendor_shop_name || 'Your Shop'}</Text>
-                <Text style={styles.shopType}>{user?.vendor_shop_type}</Text>
+                <Text style={[styles.shopName, { color: colors.text.primary }]}>
+                  {user?.vendor_shop_name || 'Your Shop'}
+                </Text>
+                <Text style={[styles.shopType, { color: colors.text.secondary }]}>{user?.vendor_shop_type}</Text>
                 
                 <View style={styles.profileMeta}>
-                  <View style={styles.ratingBadge}>
-                    <Ionicons name="star" size={14} color="#F59E0B" />
-                    <Text style={styles.ratingText}>{user?.partner_rating?.toFixed(1) || '5.0'}</Text>
-                  </View>
-                  <View style={[
-                    styles.statusBadge,
-                    isShopOpen ? styles.statusBadgeOnline : styles.statusBadgeOffline
-                  ]}>
-                    <View style={[
-                      styles.statusIndicator,
-                      isShopOpen ? styles.statusIndicatorOnline : styles.statusIndicatorOffline
-                    ]} />
-                    <Text style={[
-                      styles.statusText,
-                      isShopOpen ? styles.statusTextOnline : styles.statusTextOffline
-                    ]}>
-                      {isShopOpen ? 'Online' : 'Offline'}
+                  <View style={[styles.ratingBadge, { backgroundColor: isDark ? colors.background.tertiary : '#FEF3C7' }]}>
+                    <Ionicons name="star" size={14} color={colors.warning} />
+                    <Text style={[styles.ratingText, { color: colors.warning }]}>
+                      {user?.partner_rating?.toFixed(1) || '5.0'}
                     </Text>
                   </View>
+                  <Badge text={isShopOpen ? 'Online' : 'Offline'} variant={isShopOpen ? 'success' : 'neutral'} />
                 </View>
               </View>
             </View>
             
-            <TouchableOpacity style={styles.editProfileBtn}>
-              <Ionicons name="create-outline" size={18} color="#6366F1" />
-              <Text style={styles.editProfileText}>Edit Profile</Text>
+            <TouchableOpacity style={[styles.editProfileBtn, { backgroundColor: colors.background.secondary }]}>
+              <Ionicons name="create-outline" size={18} color={colors.primary} />
+              <Text style={[styles.editProfileText, { color: colors.primary }]}>Edit Profile</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Performance Card - NEW */}
-          <TouchableOpacity 
-            style={styles.performanceCard}
-            onPress={() => router.push('/(main)/performance')}
-            activeOpacity={0.9}
-          >
-            <View style={styles.performanceHeader}>
-              <View style={styles.performanceIconBg}>
-                <Ionicons name="analytics" size={24} color="#FFFFFF" />
-              </View>
-              <View style={styles.performanceInfo}>
-                <Text style={styles.performanceTitle}>Performance & Analytics</Text>
-                <Text style={styles.performanceSubtitle}>View detailed business insights</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={24} color="#6366F1" />
+          {/* Stats Card */}
+          <View style={[styles.statsCard, { backgroundColor: colors.primary }]}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>₹{(analytics?.total_earnings || 0).toLocaleString()}</Text>
+              <Text style={styles.statLabel}>Total Earnings</Text>
             </View>
-            <View style={styles.performanceStats}>
-              <View style={styles.performanceStat}>
-                <Text style={styles.performanceStatValue}>₹{(analytics?.total_earnings || 0).toLocaleString()}</Text>
-                <Text style={styles.performanceStatLabel}>Total Earnings</Text>
-              </View>
-              <View style={styles.performanceStatDivider} />
-              <View style={styles.performanceStat}>
-                <Text style={styles.performanceStatValue}>{analytics?.total_orders || 0}</Text>
-                <Text style={styles.performanceStatLabel}>Total Orders</Text>
-              </View>
-              <View style={styles.performanceStatDivider} />
-              <View style={styles.performanceStat}>
-                <Text style={styles.performanceStatValue}>{analytics?.rating?.toFixed(1) || '5.0'}</Text>
-                <Text style={styles.performanceStatLabel}>Rating</Text>
-              </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{analytics?.total_orders || 0}</Text>
+              <Text style={styles.statLabel}>Orders</Text>
             </View>
-          </TouchableOpacity>
-
-          {/* Achievements */}
-          <View style={styles.achievementsCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Achievements</Text>
-              <Text style={styles.sectionSubtitle}>{achievements.filter(a => a.unlocked).length}/4 unlocked</Text>
-            </View>
-            <View style={styles.achievementsRow}>
-              {achievements.map((achievement) => (
-                <View key={achievement.id} style={styles.achievementItem}>
-                  <View style={[
-                    styles.achievementIcon,
-                    achievement.unlocked ? styles.achievementIconUnlocked : styles.achievementIconLocked
-                  ]}>
-                    <Ionicons
-                      name={achievement.icon as any}
-                      size={24}
-                      color={achievement.unlocked ? '#FFFFFF' : '#D1D5DB'}
-                    />
-                  </View>
-                  <Text style={[
-                    styles.achievementName,
-                    !achievement.unlocked && styles.achievementNameLocked
-                  ]}>{achievement.name}</Text>
-                </View>
-              ))}
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{analytics?.rating?.toFixed(1) || '5.0'}</Text>
+              <Text style={styles.statLabel}>Rating</Text>
             </View>
           </View>
 
           {/* QR Code Section */}
-          <TouchableOpacity style={styles.qrCard} onPress={() => setShowQR(!showQR)} activeOpacity={0.8}>
-            <View style={styles.qrHeader}>
-              <View style={styles.qrHeaderLeft}>
-                <View style={styles.qrIconBg}>
-                  <Ionicons name="qr-code" size={24} color="#6366F1" />
-                </View>
-                <View style={styles.qrHeaderText}>
-                  <Text style={styles.qrTitle}>Shop QR Code</Text>
-                  <Text style={styles.qrSubtitle}>Share with customers to visit your shop</Text>
-                </View>
+          <ListSection>
+            <TouchableOpacity 
+              style={[styles.qrRow, { backgroundColor: colors.card }]} 
+              onPress={() => setShowQR(!showQR)}
+            >
+              <View style={[styles.qrIconBg, { backgroundColor: isDark ? colors.background.tertiary : 'rgba(0, 122, 255, 0.1)' }]}>
+                <Ionicons name="qr-code" size={22} color={colors.primary} />
               </View>
-              <Ionicons name={showQR ? 'chevron-up' : 'chevron-down'} size={24} color="#9CA3AF" />
-            </View>
+              <View style={styles.qrContent}>
+                <Text style={[styles.qrTitle, { color: colors.text.primary }]}>Shop QR Code</Text>
+                <Text style={[styles.qrSubtitle, { color: colors.text.secondary }]}>Share with customers</Text>
+              </View>
+              <Ionicons name={showQR ? 'chevron-up' : 'chevron-down'} size={22} color={colors.text.tertiary} />
+            </TouchableOpacity>
             {showQR && qrData && (
-              <View style={styles.qrContainer}>
+              <View style={[styles.qrContainer, { backgroundColor: colors.card, borderTopColor: colors.separator }]}>
                 <View style={styles.qrBox}>
                   <QRCode
                     value={qrData.qr_url || `quickwish://vendor/${user?.user_id}`}
-                    size={180}
+                    size={160}
                     backgroundColor="#FFFFFF"
-                    color="#111827"
+                    color="#000000"
                   />
-                </View>
-                <View style={styles.qrActions}>
-                  <TouchableOpacity style={styles.qrActionBtn}>
-                    <Ionicons name="download-outline" size={20} color="#6366F1" />
-                    <Text style={styles.qrActionText}>Save</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.qrActionBtn}>
-                    <Ionicons name="share-outline" size={20} color="#6366F1" />
-                    <Text style={styles.qrActionText}>Share</Text>
-                  </TouchableOpacity>
                 </View>
               </View>
             )}
-          </TouchableOpacity>
+          </ListSection>
 
           {/* Shop Details */}
-          <View style={styles.detailsCard}>
-            <Text style={styles.sectionTitle}>Shop Details</Text>
-            
-            <View style={styles.detailRow}>
-              <View style={styles.detailIconBg}>
-                <Ionicons name="location" size={20} color="#6366F1" />
-              </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Address</Text>
-                <Text style={styles.detailValue}>{user?.vendor_shop_address || 'Not set'}</Text>
-              </View>
-              <TouchableOpacity>
-                <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.detailRow}>
-              <View style={styles.detailIconBg}>
-                <Ionicons name="time" size={20} color="#6366F1" />
-              </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Opening Hours</Text>
-                <Text style={styles.detailValue}>{user?.vendor_opening_hours || 'Not set'}</Text>
-              </View>
-              <TouchableOpacity>
-                <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.detailRow}>
-              <View style={styles.detailIconBg}>
-                <Ionicons name="call" size={20} color="#6366F1" />
-              </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Phone</Text>
-                <Text style={styles.detailValue}>{user?.phone || 'Not set'}</Text>
-              </View>
-              <TouchableOpacity>
-                <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
-              <View style={styles.detailIconBg}>
-                <Ionicons name="bicycle" size={20} color="#6366F1" />
-              </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Own Delivery</Text>
-                <Text style={styles.detailValue}>{user?.vendor_can_deliver ? 'Yes' : 'No'}</Text>
-              </View>
-              <TouchableOpacity>
-                <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <ListSection title="SHOP DETAILS">
+            <ListItem
+              title="Address"
+              subtitle={user?.vendor_shop_address || 'Not set'}
+              leftIcon="location"
+              leftIconColor={colors.primary}
+              showChevron
+            />
+            <ListItem
+              title="Opening Hours"
+              subtitle={user?.vendor_opening_hours || 'Not set'}
+              leftIcon="time"
+              leftIconColor={colors.primary}
+              showChevron
+            />
+            <ListItem
+              title="Phone"
+              subtitle={user?.phone || 'Not set'}
+              leftIcon="call"
+              leftIconColor={colors.primary}
+              showChevron
+              bottomBorder={false}
+            />
+          </ListSection>
 
           {/* Ratings & Issues */}
-          <View style={styles.menuCard}>
-            <TouchableOpacity
-              style={styles.menuItem}
+          <ListSection title="FEEDBACK">
+            <ListItem
+              title="Ratings & Reviews"
+              leftIcon="star"
+              leftIconColor={colors.warning}
+              showChevron
               onPress={() => router.push('/(main)/vendor-ratings')}
-              data-testid="vendor-ratings-link"
-            >
-              <View style={[styles.menuIconBg, { backgroundColor: '#FEF3C7' }]}>
-                <Ionicons name="star" size={20} color="#F59E0B" />
-              </View>
-              <Text style={styles.menuText}>Ratings & Reviews</Text>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.menuItem, { borderBottomWidth: 0 }]}
+              testID="vendor-ratings-link"
+            />
+            <ListItem
+              title="Customer Issues"
+              leftIcon="alert-circle"
+              leftIconColor={colors.danger}
+              showChevron
+              bottomBorder={false}
               onPress={() => router.push('/(main)/vendor-issues')}
-              data-testid="vendor-issues-link"
-            >
-              <View style={[styles.menuIconBg, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="alert-circle" size={20} color="#EF4444" />
-              </View>
-              <Text style={styles.menuText}>Customer Issues</Text>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-            </TouchableOpacity>
-          </View>
+              testID="vendor-issues-link"
+            />
+          </ListSection>
 
           {/* Menu Items */}
-          <View style={styles.menuCard}>
-            <TouchableOpacity
-              style={styles.menuItem}
+          <ListSection title="SETTINGS">
+            <ListItem
+              title="Notifications"
+              leftIcon="notifications"
+              leftIconColor={colors.primary}
+              showChevron
               onPress={() => router.push('/(main)/vendor-notifications')}
-              data-testid="vendor-notifications-link"
-            >
-              <View style={[styles.menuIconBg, { backgroundColor: '#EEF2FF' }]}>
-                <Ionicons name="notifications" size={20} color="#6366F1" />
-              </View>
-              <Text style={styles.menuText}>Notifications</Text>
-              {unreadNotifCount > 0 ? (
-                <View style={styles.menuBadge}>
-                  <Text style={styles.menuBadgeText}>{unreadNotifCount > 99 ? '99+' : unreadNotifCount}</Text>
+              testID="vendor-notifications-link"
+              rightContent={unreadNotifCount > 0 ? (
+                <View style={styles.notifBadge}>
+                  <Badge text={unreadNotifCount > 99 ? '99+' : String(unreadNotifCount)} variant="danger" />
                 </View>
-              ) : null}
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-            </TouchableOpacity>
+              ) : undefined}
+            />
+            <ListItem
+              title="Payment Settings"
+              leftIcon="card"
+              leftIconColor={colors.success}
+              showChevron
+            />
+            <ListItem
+              title="Help & Support"
+              leftIcon="help-circle"
+              leftIconColor={colors.warning}
+              showChevron
+            />
+            <ListItem
+              title="Terms & Privacy"
+              leftIcon="document-text"
+              leftIconColor={colors.text.secondary}
+              showChevron
+              bottomBorder={false}
+            />
+          </ListSection>
 
-            <TouchableOpacity style={styles.menuItem}>
-              <View style={[styles.menuIconBg, { backgroundColor: '#DCFCE7' }]}>
-                <Ionicons name="card" size={20} color="#22C55E" />
-              </View>
-              <Text style={styles.menuText}>Payment Settings</Text>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-            </TouchableOpacity>
+          {/* Logout */}
+          <ListSection>
+            <ListItem
+              title="Logout"
+              leftIcon="log-out-outline"
+              leftIconColor={colors.danger}
+              destructive
+              onPress={handleLogout}
+              bottomBorder={false}
+              testID="logout-btn"
+            />
+          </ListSection>
 
-            <TouchableOpacity style={styles.menuItem}>
-              <View style={[styles.menuIconBg, { backgroundColor: '#FEF3C7' }]}>
-                <Ionicons name="help-circle" size={20} color="#F59E0B" />
-              </View>
-              <Text style={styles.menuText}>Help & Support</Text>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]}>
-              <View style={[styles.menuIconBg, { backgroundColor: '#F3F4F6' }]}>
-                <Ionicons name="document-text" size={20} color="#6B7280" />
-              </View>
-              <Text style={styles.menuText}>Terms & Privacy</Text>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Logout Button */}
-          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={22} color="#DC2626" />
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.version}>QuickWish Vendor v1.0.0</Text>
+          <Text style={[styles.version, { color: colors.text.tertiary }]}>QuickWish Vendor v1.0.0</Text>
 
           <View style={{ height: 100 }} />
         </Animated.View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   scrollView: {
     flex: 1,
@@ -437,38 +298,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: spacing.l,
+    paddingVertical: spacing.m,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#111827',
+    fontSize: typography.largeTitle.fontSize,
+    fontWeight: '700',
   },
   settingsBtn: {
     width: 44,
     height: 44,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
-  // Profile Card
   profileCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    padding: 20,
-    borderRadius: 24,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    marginHorizontal: spacing.l,
+    padding: spacing.l,
+    borderRadius: borderRadius.l,
   },
   profileHeader: {
     flexDirection: 'row',
@@ -478,15 +324,14 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   profileImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
   },
   profileImagePlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: '#6366F1',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -494,418 +339,121 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 2,
     right: 2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     borderWidth: 3,
     borderColor: '#FFFFFF',
   },
-  statusDotOnline: {
-    backgroundColor: '#22C55E',
-  },
-  statusDotOffline: {
-    backgroundColor: '#9CA3AF',
-  },
   profileInfo: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: spacing.l,
   },
   shopName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: typography.title3.fontSize,
+    fontWeight: '600',
   },
   shopType: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: typography.subhead.fontSize,
     marginTop: 2,
+    textTransform: 'capitalize',
   },
   profileMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
-    gap: 10,
+    marginTop: spacing.s,
+    gap: spacing.s,
   },
   ratingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
+    paddingHorizontal: spacing.s,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: borderRadius.s,
     gap: 4,
   },
   ratingText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#D97706',
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 6,
-  },
-  statusBadgeOnline: {
-    backgroundColor: '#DCFCE7',
-  },
-  statusBadgeOffline: {
-    backgroundColor: '#F3F4F6',
-  },
-  statusIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusIndicatorOnline: {
-    backgroundColor: '#22C55E',
-  },
-  statusIndicatorOffline: {
-    backgroundColor: '#9CA3AF',
-  },
-  statusText: {
-    fontSize: 12,
+    fontSize: typography.footnote.fontSize,
     fontWeight: '600',
-  },
-  statusTextOnline: {
-    color: '#22C55E',
-  },
-  statusTextOffline: {
-    color: '#6B7280',
   },
   editProfileBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EEF2FF',
-    marginTop: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: spacing.m,
+    borderRadius: borderRadius.m,
+    marginTop: spacing.l,
+    gap: spacing.s,
   },
   editProfileText: {
-    fontSize: 14,
+    fontSize: typography.subhead.fontSize,
     fontWeight: '600',
-    color: '#6366F1',
   },
-  // Performance Card
-  performanceCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 18,
-    borderRadius: 20,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 2,
-    borderColor: '#EEF2FF',
-  },
-  performanceHeader: {
+  statsCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    marginHorizontal: spacing.l,
+    marginTop: spacing.l,
+    padding: spacing.l,
+    borderRadius: borderRadius.l,
   },
-  performanceIconBg: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#6366F1',
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  performanceInfo: {
+  statItem: {
     flex: 1,
-    marginLeft: 14,
-  },
-  performanceTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  performanceSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  performanceStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  performanceStat: {
     alignItems: 'center',
   },
-  performanceStatValue: {
-    fontSize: 18,
+  statValue: {
+    fontSize: typography.title3.fontSize,
     fontWeight: '700',
-    color: '#111827',
+    color: '#FFFFFF',
   },
-  performanceStatLabel: {
-    fontSize: 11,
-    color: '#6B7280',
-    marginTop: 2,
+  statLabel: {
+    fontSize: typography.caption1.fontSize,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 4,
   },
-  performanceStatDivider: {
+  statDivider: {
     width: 1,
-    height: 36,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginVertical: spacing.xs,
   },
-  // Achievements
-  achievementsCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 20,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  achievementsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  achievementItem: {
-    alignItems: 'center',
-    width: (width - 72) / 4,
-  },
-  achievementIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  achievementIconUnlocked: {
-    backgroundColor: '#6366F1',
-  },
-  achievementIconLocked: {
-    backgroundColor: '#F3F4F6',
-  },
-  achievementName: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#374151',
-    textAlign: 'center',
-  },
-  achievementNameLocked: {
-    color: '#9CA3AF',
-  },
-  // QR Card
-  qrCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 18,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  qrHeader: {
+  qrRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  qrHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+    padding: spacing.m,
   },
   qrIconBg: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.s,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  qrHeaderText: {
+  qrContent: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: spacing.m,
   },
   qrTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: typography.body.fontSize,
   },
   qrSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
+    fontSize: typography.footnote.fontSize,
     marginTop: 2,
   },
   qrContainer: {
     alignItems: 'center',
-    paddingTop: 24,
-    marginTop: 18,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    padding: spacing.l,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   qrBox: {
-    padding: 20,
+    padding: spacing.l,
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderRadius: borderRadius.m,
   },
-  qrActions: {
-    flexDirection: 'row',
-    marginTop: 20,
-    gap: 16,
-  },
-  qrActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-    gap: 8,
-  },
-  qrActionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6366F1',
-  },
-  // Details Card
-  detailsCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 20,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  detailIconBg: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  detailContent: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  detailLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  detailValue: {
-    fontSize: 15,
-    color: '#111827',
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  // Menu Card
-  menuCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-    overflow: 'hidden',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  menuIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  menuText: {
-    flex: 1,
-    fontSize: 15,
-    color: '#374151',
-    fontWeight: '500',
-    marginLeft: 14,
-  },
-  menuBadge: {
-    backgroundColor: '#EF4444',
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-    paddingHorizontal: 6,
-  },
-  menuBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  // Logout
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FEE2E2',
-    marginHorizontal: 16,
-    marginTop: 24,
-    padding: 16,
-    borderRadius: 16,
-    gap: 8,
-  },
-  logoutText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#DC2626',
+  notifBadge: {
+    marginRight: spacing.s,
   },
   version: {
     textAlign: 'center',
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 24,
+    fontSize: typography.footnote.fontSize,
+    marginTop: spacing.xxl,
   },
 });
