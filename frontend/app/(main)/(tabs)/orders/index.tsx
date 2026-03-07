@@ -28,7 +28,7 @@ type TabType = 'new' | 'active' | 'completed';
 
 export default function OrdersScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const { showAlert } = useAlert();
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -292,23 +292,18 @@ export default function OrdersScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return { bg: '#FEF3C7', text: '#D97706', border: '#FDE68A' };
-      // PRIORITY: Confirmed but not started - RED/URGENT
-      case 'accepted': return { bg: '#FEE2E2', text: '#DC2626', border: '#FECACA' };
-      case 'confirmed': return { bg: '#FEE2E2', text: '#DC2626', border: '#FECACA' };
-      // Preparing - ORANGE/IN PROGRESS
-      case 'preparing': return { bg: '#FEF3C7', text: '#D97706', border: '#FDE68A' };
-      // Ready - GREEN/COMPLETED PREP
-      case 'ready': return { bg: '#D1FAE5', text: '#059669', border: '#A7F3D0' };
-      // Delivery stages - BLUE
-      case 'awaiting_pickup': return { bg: '#DBEAFE', text: '#2563EB', border: '#BFDBFE' };
-      case 'picked_up': return { bg: '#E0E7FF', text: '#4F46E5', border: '#C7D2FE' };
-      case 'out_for_delivery': return { bg: '#EDE9FE', text: '#7C3AED', border: '#DDD6FE' };
-      // Final statuses
-      case 'delivered': return { bg: '#DCFCE7', text: '#22C55E', border: '#BBF7D0' };
-      case 'cancelled': return { bg: '#FEE2E2', text: '#DC2626', border: '#FECACA' };
-      case 'rejected': return { bg: '#FEE2E2', text: '#DC2626', border: '#FECACA' };
-      default: return { bg: '#F3F4F6', text: '#6B7280', border: '#E5E7EB' };
+      case 'pending': return { bg: isDark ? 'rgba(255, 159, 10, 0.2)' : '#FEF3C7', text: colors.warning, border: isDark ? 'rgba(255, 159, 10, 0.3)' : '#FDE68A' };
+      case 'accepted': return { bg: isDark ? 'rgba(255, 69, 58, 0.2)' : '#FEE2E2', text: colors.danger, border: isDark ? 'rgba(255, 69, 58, 0.3)' : '#FECACA' };
+      case 'confirmed': return { bg: isDark ? 'rgba(255, 69, 58, 0.2)' : '#FEE2E2', text: colors.danger, border: isDark ? 'rgba(255, 69, 58, 0.3)' : '#FECACA' };
+      case 'preparing': return { bg: isDark ? 'rgba(255, 159, 10, 0.2)' : '#FEF3C7', text: colors.warning, border: isDark ? 'rgba(255, 159, 10, 0.3)' : '#FDE68A' };
+      case 'ready': return { bg: isDark ? 'rgba(48, 209, 88, 0.2)' : '#D1FAE5', text: colors.success, border: isDark ? 'rgba(48, 209, 88, 0.3)' : '#A7F3D0' };
+      case 'awaiting_pickup': return { bg: isDark ? 'rgba(10, 132, 255, 0.2)' : '#DBEAFE', text: colors.primary, border: isDark ? 'rgba(10, 132, 255, 0.3)' : '#BFDBFE' };
+      case 'picked_up': return { bg: isDark ? 'rgba(10, 132, 255, 0.2)' : '#E0E7FF', text: colors.primary, border: isDark ? 'rgba(10, 132, 255, 0.3)' : '#C7D2FE' };
+      case 'out_for_delivery': return { bg: isDark ? 'rgba(10, 132, 255, 0.2)' : '#EDE9FE', text: colors.primary, border: isDark ? 'rgba(10, 132, 255, 0.3)' : '#DDD6FE' };
+      case 'delivered': return { bg: isDark ? 'rgba(48, 209, 88, 0.2)' : '#DCFCE7', text: colors.success, border: isDark ? 'rgba(48, 209, 88, 0.3)' : '#BBF7D0' };
+      case 'cancelled': return { bg: isDark ? 'rgba(255, 69, 58, 0.2)' : '#FEE2E2', text: colors.danger, border: isDark ? 'rgba(255, 69, 58, 0.3)' : '#FECACA' };
+      case 'rejected': return { bg: isDark ? 'rgba(255, 69, 58, 0.2)' : '#FEE2E2', text: colors.danger, border: isDark ? 'rgba(255, 69, 58, 0.3)' : '#FECACA' };
+      default: return { bg: colors.background.secondary, text: colors.text.secondary, border: colors.separator };
     }
   };
 
@@ -371,15 +366,16 @@ export default function OrdersScreen() {
         onPress={() => router.push(`/(main)/orders/${item.order_id}`)}
         style={[
           styles.orderCard,
-          isPending && styles.orderCardPending,
-          isPriority && styles.orderCardPriority,
-          isPreparing && styles.orderCardPreparing,
-          isReady && styles.orderCardReady,
+          { backgroundColor: colors.card },
+          isPending && [styles.orderCardPending, { borderColor: colors.warning }],
+          isPriority && [styles.orderCardPriority, { borderColor: colors.danger }],
+          isPreparing && [styles.orderCardPreparing, { borderColor: colors.warning }],
+          isReady && [styles.orderCardReady, { borderColor: colors.success }],
         ]}
       >
         {/* Priority Badge for Confirmed Orders */}
         {isPriority && (
-          <View style={styles.priorityBadge}>
+          <View style={[styles.priorityBadge, { backgroundColor: colors.danger }]}>
             <Ionicons name="alert-circle" size={14} color="#FFFFFF" />
             <Text style={styles.priorityBadgeText}>ACTION NEEDED</Text>
           </View>
@@ -387,7 +383,7 @@ export default function OrdersScreen() {
 
         {/* Countdown Badge for Pending */}
         {isPending && autoAcceptSeconds > 0 && (
-          <View style={styles.countdownBadge}>
+          <View style={[styles.countdownBadge, { backgroundColor: colors.warning }]}>
             <Ionicons name="timer" size={14} color="#FFFFFF" />
             <Text style={styles.countdownBadgeText}>
               {formatCountdown(autoAcceptSeconds)}
@@ -402,8 +398,8 @@ export default function OrdersScreen() {
               <Ionicons name={getStatusIcon(item.status) as any} size={18} color={statusColor.text} />
             </View>
             <View>
-              <Text style={styles.orderId}>#{item.order_id.slice(-6).toUpperCase()}</Text>
-              <Text style={styles.orderTime}>
+              <Text style={[styles.orderId, { color: colors.text.primary }]}>#{item.order_id.slice(-6).toUpperCase()}</Text>
+              <Text style={[styles.orderTime, { color: colors.text.secondary }]}>
                 {format(new Date(item.created_at), 'MMM d, h:mm a')}
               </Text>
             </View>
@@ -417,23 +413,23 @@ export default function OrdersScreen() {
 
         {/* Customer Info */}
         <View style={styles.customerRow}>
-          <View style={styles.customerAvatar}>
+          <View style={[styles.customerAvatar, { backgroundColor: colors.primary }]}>
             <Text style={styles.customerInitial}>
               {(item.customer_name || 'C')[0].toUpperCase()}
             </Text>
           </View>
           <View style={styles.customerInfo}>
-            <Text style={styles.customerName}>{item.customer_name || 'Customer'}</Text>
+            <Text style={[styles.customerName, { color: colors.text.primary }]}>{item.customer_name || 'Customer'}</Text>
             {item.customer_phone && (
-              <Text style={styles.customerPhone}>{item.customer_phone}</Text>
+              <Text style={[styles.customerPhone, { color: colors.text.secondary }]}>{item.customer_phone}</Text>
             )}
           </View>
-          <Text style={styles.totalAmount}>₹{Number(item.total_amount).toFixed(2)}</Text>
+          <Text style={[styles.totalAmount, { color: colors.text.primary }]}>₹{Number(item.total_amount).toFixed(2)}</Text>
         </View>
 
         {/* Items Preview */}
-        <View style={styles.itemsPreview}>
-          <Text style={styles.itemsText}>
+        <View style={[styles.itemsPreview, { backgroundColor: colors.background.secondary }]}>
+          <Text style={[styles.itemsText, { color: colors.text.secondary }]}>
             {(item.items?.length || 0)} items • {(item.items || []).slice(0, 2).map(i => i.name).join(', ')}
             {(item.items?.length || 0) > 2 ? ` +${item.items.length - 2} more` : ''}
           </Text>
@@ -443,13 +439,13 @@ export default function OrdersScreen() {
         {isPending && (
           <View style={styles.quickActions}>
             <TouchableOpacity 
-              style={styles.rejectBtnSmall}
+              style={[styles.rejectBtnSmall, { borderColor: colors.danger }]}
               onPress={(e) => { e.stopPropagation(); handleRejectOrder(item); }}
             >
-              <Ionicons name="close" size={18} color="#DC2626" />
+              <Ionicons name="close" size={18} color={colors.danger} />
             </TouchableOpacity>
             <TouchableOpacity 
-              style={styles.acceptBtnSmall}
+              style={[styles.acceptBtnSmall, { backgroundColor: colors.success }]}
               onPress={(e) => { e.stopPropagation(); handleAcceptOrder(item); }}
             >
               <Ionicons name="checkmark" size={18} color="#FFFFFF" />
@@ -462,7 +458,7 @@ export default function OrdersScreen() {
         {isConfirmed && (
           <View style={styles.quickActions}>
             <TouchableOpacity 
-              style={styles.startPreparingBtn}
+              style={[styles.startPreparingBtn, { backgroundColor: colors.warning }]}
               onPress={() => router.push(`/(main)/orders/${item.order_id}`)}
             >
               <Ionicons name="flame" size={18} color="#FFFFFF" />
@@ -476,7 +472,7 @@ export default function OrdersScreen() {
         {isPreparing && (
           <View style={styles.quickActions}>
             <TouchableOpacity 
-              style={styles.markReadyBtn}
+              style={[styles.markReadyBtn, { backgroundColor: colors.success }]}
               onPress={() => router.push(`/(main)/orders/${item.order_id}`)}
             >
               <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
@@ -490,12 +486,12 @@ export default function OrdersScreen() {
         {isReady && (
           <View style={styles.quickActionsRow}>
             <TouchableOpacity 
-              style={styles.assignDeliveryBtn}
+              style={[styles.assignDeliveryBtn, { borderColor: colors.success }]}
               onPress={() => router.push(`/(main)/orders/${item.order_id}`)}
             >
-              <Ionicons name="bicycle" size={16} color="#059669" />
-              <Text style={styles.assignDeliveryBtnText}>Assign Delivery</Text>
-              <Ionicons name="chevron-forward" size={14} color="#059669" style={{ marginLeft: 4 }} />
+              <Ionicons name="bicycle" size={16} color={colors.success} />
+              <Text style={[styles.assignDeliveryBtnText, { color: colors.success }]}>Assign Delivery</Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.success} style={{ marginLeft: 4 }} />
             </TouchableOpacity>
           </View>
         )}
@@ -509,35 +505,35 @@ export default function OrdersScreen() {
   });
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background.grouped }]} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.title}>Orders</Text>
+          <Text style={[styles.title, { color: colors.text.primary }]}>Orders</Text>
           {newOrdersCount > 0 && (
             <Animated.View style={[styles.newOrderIndicator, { transform: [{ scale: pulseAnim }] }]}>
-              <View style={styles.newOrderDot} />
-              <Text style={styles.newOrderText}>{newOrdersCount} new</Text>
+              <View style={[styles.newOrderDot, { backgroundColor: colors.danger }]} />
+              <Text style={[styles.newOrderText, { color: colors.danger }]}>{newOrdersCount} new</Text>
             </Animated.View>
           )}
         </View>
         <TouchableOpacity style={styles.refreshBtn} onPress={onRefresh}>
-          <Ionicons name="refresh" size={22} color="#6366F1" />
+          <Ionicons name="refresh" size={22} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
       {/* Tab Bar */}
       <View style={styles.tabContainer}>
-        <View style={styles.tabBar}>
+        <View style={[styles.tabBar, { backgroundColor: colors.background.secondary }]}>
           <TouchableOpacity
             style={styles.tab}
             onPress={() => handleTabChange('new')}
           >
-            <Text style={[styles.tabText, activeTab === 'new' && styles.tabTextActive]}>
+            <Text style={[styles.tabText, { color: colors.text.secondary }, activeTab === 'new' && { color: colors.primary }]}>
               Pending
             </Text>
             {newOrdersCount > 0 && (
-              <Animated.View style={[styles.tabBadge, styles.tabBadgeNew, { transform: [{ scale: pulseAnim }] }]}>
+              <Animated.View style={[styles.tabBadge, { backgroundColor: colors.danger }, { transform: [{ scale: pulseAnim }] }]}>
                 <Text style={styles.tabBadgeText}>{newOrdersCount}</Text>
               </Animated.View>
             )}
@@ -547,11 +543,11 @@ export default function OrdersScreen() {
             style={styles.tab}
             onPress={() => handleTabChange('active')}
           >
-            <Text style={[styles.tabText, activeTab === 'active' && styles.tabTextActive]}>
+            <Text style={[styles.tabText, { color: colors.text.secondary }, activeTab === 'active' && { color: colors.primary }]}>
               Active
             </Text>
             {activeOrdersCount > 0 && (
-              <View style={[styles.tabBadge, styles.tabBadgeActive]}>
+              <View style={[styles.tabBadge, { backgroundColor: colors.primary }]}>
                 <Text style={styles.tabBadgeText}>{activeOrdersCount}</Text>
               </View>
             )}
@@ -561,7 +557,7 @@ export default function OrdersScreen() {
             style={styles.tab}
             onPress={() => handleTabChange('completed')}
           >
-            <Text style={[styles.tabText, activeTab === 'completed' && styles.tabTextActive]}>
+            <Text style={[styles.tabText, { color: colors.text.secondary }, activeTab === 'completed' && { color: colors.primary }]}>
               History
             </Text>
           </TouchableOpacity>
@@ -570,6 +566,7 @@ export default function OrdersScreen() {
           <Animated.View
             style={[
               styles.tabIndicator,
+              { backgroundColor: colors.primary },
               { transform: [{ translateX: indicatorPosition }] }
             ]}
           />
@@ -583,26 +580,26 @@ export default function OrdersScreen() {
         keyExtractor={(item) => item.order_id}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366F1']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <View style={styles.emptyIconBg}>
+            <View style={[styles.emptyIconBg, { backgroundColor: colors.background.secondary }]}>
               <Ionicons
                 name={
                   activeTab === 'new' ? 'notifications-off' :
                   activeTab === 'active' ? 'hourglass-outline' : 'archive-outline'
                 }
                 size={48}
-                color="#D1D5DB"
+                color={colors.text.tertiary}
               />
             </View>
-            <Text style={styles.emptyTitle}>
+            <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>
               {activeTab === 'new' ? 'No pending orders' :
                activeTab === 'active' ? 'No active orders' : 'No order history'}
             </Text>
-            <Text style={styles.emptySubtitle}>
+            <Text style={[styles.emptySubtitle, { color: colors.text.secondary }]}>
               {activeTab === 'new' ? 'New orders will appear here instantly' :
                activeTab === 'active' ? 'Orders being processed will show here' :
                'Completed orders will be archived here'}
@@ -725,7 +722,7 @@ export default function OrdersScreen() {
           </Animated.View>
         </Animated.View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

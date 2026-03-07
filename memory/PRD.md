@@ -13,11 +13,18 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - Redis must be running for zone-based assignment to work
 - Terminology: "Delivery Fee" → "Handling & Transportation"
 
-## iOS Design System (NEW)
+## iOS Design System (COMPLETE)
 - **ThemeContext** — `/app/frontend/src/context/ThemeContext.tsx` with light/dark mode, iOS system colors
 - **iOS Components** — `/app/frontend/src/components/ios/` (Button, Card, ListItem, ListSection, Badge, Separator, ScreenWrapper)
-- **Updated Screens** — Login, Verify OTP, Home, Profile, Tabs layout
 - **Primary Color** — iOS Blue (#007AFF light, #0A84FF dark)
+- **Updated Screens:**
+  - Login & OTP Verification ✅
+  - Home ✅
+  - Profile ✅
+  - My Shop (Products) ✅
+  - Orders ✅
+  - Local Hub Orders (Wisher Orders) ✅
+  - Tabs Layout ✅
 
 ## What's Implemented
 

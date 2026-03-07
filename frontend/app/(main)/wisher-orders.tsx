@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -94,6 +94,7 @@ interface WisherOrder {
 export default function WisherOrdersScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const { showAlert } = useAlert();
   
   const [orders, setOrders] = useState<WisherOrder[]>([]);
@@ -444,31 +445,31 @@ export default function WisherOrdersScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background.grouped }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.card }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Local Hub Orders</Text>
-        <View style={styles.headerBadge}>
-          <Ionicons name="globe-outline" size={18} color="#6366F1" />
+        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Local Hub Orders</Text>
+        <View style={[styles.headerBadge, { backgroundColor: isDark ? colors.background.tertiary : 'rgba(0, 122, 255, 0.1)' }]}>
+          <Ionicons name="globe-outline" size={18} color={colors.primary} />
         </View>
       </View>
 
       {/* Summary Cards */}
       <View style={styles.summaryContainer}>
-        <View style={[styles.summaryCard, { backgroundColor: '#FEF3C7' }]}>
-          <Text style={styles.summaryCount}>{summary.pending}</Text>
-          <Text style={styles.summaryLabel}>Pending</Text>
+        <View style={[styles.summaryCard, { backgroundColor: isDark ? 'rgba(255, 159, 10, 0.2)' : '#FEF3C7' }]}>
+          <Text style={[styles.summaryCount, { color: colors.warning }]}>{summary.pending}</Text>
+          <Text style={[styles.summaryLabel, { color: colors.text.secondary }]}>Pending</Text>
         </View>
-        <View style={[styles.summaryCard, { backgroundColor: '#DBEAFE' }]}>
-          <Text style={styles.summaryCount}>{summary.confirmed + summary.preparing}</Text>
-          <Text style={styles.summaryLabel}>Active</Text>
+        <View style={[styles.summaryCard, { backgroundColor: isDark ? 'rgba(10, 132, 255, 0.2)' : '#DBEAFE' }]}>
+          <Text style={[styles.summaryCount, { color: colors.primary }]}>{summary.confirmed + summary.preparing}</Text>
+          <Text style={[styles.summaryLabel, { color: colors.text.secondary }]}>Active</Text>
         </View>
-        <View style={[styles.summaryCard, { backgroundColor: '#D1FAE5' }]}>
-          <Text style={styles.summaryCount}>{summary.delivered}</Text>
-          <Text style={styles.summaryLabel}>Done</Text>
+        <View style={[styles.summaryCard, { backgroundColor: isDark ? 'rgba(48, 209, 88, 0.2)' : '#D1FAE5' }]}>
+          <Text style={[styles.summaryCount, { color: colors.success }]}>{summary.delivered}</Text>
+          <Text style={[styles.summaryLabel, { color: colors.text.secondary }]}>Done</Text>
         </View>
       </View>
 
