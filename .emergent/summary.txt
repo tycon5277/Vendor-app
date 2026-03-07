@@ -1,81 +1,61 @@
 <analysis>**original_problem_statement:**
-The user's initial request was to fix critical navigation and UI bugs in their Vendor App. The project's scope then expanded significantly to a major architectural and feature enhancement project. The goal is to transform the Vendor App's backend into a centralized API service for a separate Wisher App (for customers) and a Carpet Genie App (for delivery partners), mimicking platforms like Zomato/Swiggy. The latest request is to implement a comprehensive, industry-standard rating, tipping, and issue reporting system for all three applications.
+The user's initial request was to fix critical navigation and UI bugs in their Vendor App. The project's scope then expanded significantly to a major architectural overhaul. The goal is to transform the Vendor App's backend into a centralized, highly scalable API service for a Wisher App (customer) and a Carpet Genie App (delivery partner).
 
 **PRODUCT REQUIREMENTS:**
-1.  **API Hub (P0):** The Vendor App backend must provide a complete and robust set of APIs for the Wisher App and Genie App.
-2.  **Advanced Delivery (P0):** Implement a sophisticated delivery assignment flow, real-time tracking, and a secure QR code pickup process.
-3.  **Rating, Tipping, and Issues (P0):** Implement a full-featured system for customers to rate vendors and genies, add tips, and report order issues, with corresponding UIs in all three apps.
-4.  **Order Modification Flow (P1):** Vendors must be able to view and modify orders from the Wisher App.
-5.  **Multi-Order Feature (P1):** A Wisher should be able to order from multiple vendors in a single checkout (currently deprioritized by the user).
+1.  **Industry-Standard Genie Assignment (P0):** Implement a production-grade, zone-based delivery assignment system using Server-Sent Events (SSE) and Redis. This system must handle 1.5M wishers, 100K genies, and 25K vendors. It should feature automatic, sequential, score-based assignment within hyperlocal zones.
+2.  **Zone Management System (P0):** Create backend APIs for an admin to define and manage delivery zones (as circles or polygons), and assign vendors and genies to them.
+3.  **API Hub (P0):** The Vendor App backend must provide a complete and robust set of APIs for the Wisher App and Genie App.
+4.  **Rating, Tipping, and Issues (P1):** A full-featured system for customers to rate vendors and genies, add tips, and report order issues.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The project is a full-stack application with a React Native (Expo) frontend for the Vendor App and a monolithic FastAPI backend using MongoDB.
--   **Backend**: A comprehensive delivery assignment and secure QR code pickup system is fully implemented. A new, extensive set of backend APIs and database models for a rating, tipping, and issue-reporting system has just been created and tested via .
--   **Frontend (Vendor App)**: The UI can display live Genie status and has screens to show QR codes for pickup, both in the main order workflow and the Local Hub orders section. Placeholder files for new Ratings and Issues screens have been created but are empty.
+The project is a full-stack application with a React Native (Expo) frontend for the Vendor App and a monolithic FastAPI backend using MongoDB. A major architectural upgrade has just been completed, replacing the old polling-based delivery system with a production-grade, zone-based model.
+-   **Backend**: A new, highly scalable Genie assignment system is in place, using Redis for caching, pub/sub, and geo-queries, and an SSE endpoint for pushing real-time delivery requests to Genies. The backend has been refactored into modules for zones, assignment, and SSE. Admin-level APIs for managing zones and assignments are also implemented.
+-   **Frontend (Vendor App)**: The UI for viewing ratings and issues is complete and linked from the profile page. An in-app notification system with a live unread count badge alerts vendors to new ratings and issues.
 
 **Last working item**:
--   **Last item agent was working:** Implementing the UI for the new rating and issue reporting features in the Vendor App, as requested by the user. The agent created the placeholder files  and  but has not built the UI yet.
--   **Status:** IN PROGRESS
--   **Agent Testing Done:** N (Backend APIs were tested via , but the UI is not built)
--   **Which testing method agent to use?**  to verify the UI after it's built, followed by the  for the full feature.
+-   **Last item agent was working:** A complete architectural overhaul of the Genie assignment system to meet the user's requirement for massive scale (1.5M Wishers, 100K Genies). This involved installing Redis, implementing a zone-based model, creating new backend modules (, , ), building Admin APIs for zone management, and replacing the old polling logic with an SSE stream () and an automatic, sequential assignment engine.
+-   **Status:** COMPLETED
+-   **Agent Testing Done:** Y (All 24/24 backend tests passed via )
+-   **Which testing method agent to use?** N/A
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Persistent '0' Rendering Bug in UI (P0)**
-    -   **Description:** A '0' value is incorrectly rendered on order list cards and in the order detail modal in . This appears to be a React Native Web rendering quirk with falsy values in conditional rendering.
-    -   **Attempted fixes:** The agent tried multiple approaches, including changing  to , using , and explicit  conversion, but the bug persists.
-    -   **Next debug checklist:**
-        1.  In , systematically replace all conditional rendering patterns like  with explicit ternary operators: .
-        2.  Pay close attention to the rendering logic for  in both the order card loop and the order detail modal.
-    -   **Why fix this issue?** It's a distracting visual glitch that makes the UI appear broken and unprofessional.
-    -   **Status:** IN PROGRESS
-    -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?** frontend
--   **Issue 2: Expo/ngrok Tunnel Unstable (P1)**
-    -   **Description:** The Expo Go mobile app preview is frequently unavailable due to ngrok tunnel connectivity issues, blocking mobile testing. This is an environmental issue.
+-   **Issue 1: Expo/ngrok Tunnel Unstable (P1)**
+    -   **Description:** The Expo Go mobile app preview is frequently unavailable due to ngrok tunnel connectivity issues, blocking mobile testing. This is a recurring environmental issue.
     -   **Status:** BLOCKED
     -   **Is recurring issue?** Y
 
 **In progress Task List**:
--   **Task 1: Implement Vendor App UI for Ratings & Issues (P0)**
-    -   **Where to resume:**
-        -   
-        -   
-    -   **Plan:**
-        1.  Add navigation links to these new screens (e.g., in the profile or tab bar layout).
-        2.  In , call the new  and  endpoints. Build a UI to display the vendor's overall rating, criteria breakdown, and individual reviews.
-        3.  In , call the new  endpoint. Build a UI to display a list of reported issues, their status, and details.
-    -   **What will be achieved with this?** This will complete the vendor-facing part of the new rating and issue management system.
-    -   **Status:** IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?** frontend
-    -   **Blocked on something:** None
+-   None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   **(P0) Provide UI/Logic Prompts for Wisher & Genie Apps:** After completing the Vendor UI, the user needs detailed prompts and pseudo-code for implementing the new rating, tipping, and issue reporting features in the other two apps.
+    -   **(P0) Provide Updated Wisher & Genie App Prompts:** The user needs detailed implementation guides explaining how the Wisher and Genie apps should adapt to the new zone-based, SSE-driven assignment system. This is the highest priority.
     -   **(P1) Implement Fee Calculation Algorithm:** For Carpet Genie delivery fees.
 -   **Future Tasks:**
+    -   **(P1) Admin Panel UI:** A full UI for managing the new zone system.
     -   **(P1) Wisher App Multi-Order UI.**
     -   **(P2) Implement Vendor Verification Workflow.**
-    -   **(P2) Refactor the monolithic  file.**
     -   **(P2) Migrate chat to a dedicated service.**
     -   **(P2) Implement masked phone calls (Twilio).**
 
 **Completed work in this session**
--   **Backend for Rating, Tipping, and Issue Reporting System:**
-    -   Created new MongoDB collections (, , ) and Pydantic models in .
-    -   Implemented a full suite of API endpoints for the Wisher, Vendor, and Genie apps to manage ratings, tipping, and issue reporting based on industry standards.
--   **QR Code UI in Main Vendor Workflow:**
-    -   Added the Show Pickup QR Code button and modal to the primary vendor order detail screen (), ensuring the QR code is accessible from all relevant order views.
--   **Troubleshooting & API Verification:**
-    -   Diagnosed and provided the user with the correct backend URL for their Wisher App to fix order creation.
-    -   Provided a complete, verified API reference for the Genie App, clarifying the correct workflow for accepting orders and verifying pickups.
-    -   Confirmed the backend logic for delivery request assignment (disappearing for other genies upon acceptance) works as intended.
+-   **Architectural Overhaul: Zone-Based Genie Assignment System:**
+    -   Installed and configured Redis.
+    -   Created new backend modules: , , , .
+    -   Implemented Admin APIs for zone management (CRUD, vendor/genie assignment).
+    -   Implemented an SSE endpoint () for real-time delivery requests to Genies, backed by Redis Pub/Sub.
+    -   Replaced the old polling/manual-retry logic with a fully automatic, sequential, score-based assignment engine running as a background task.
+    -   Integrated Redis for caching order statuses, real-time Genie location tracking (GEO sets), and queuing.
+-   **Fixed Persistent '0' Rendering Bug:** In , all  conditional renders were replaced with explicit ternary operators.
+-   **Implemented Vendor App Ratings & Issues UI:** Integrated the existing screens, added navigation links in the profile, and fixed an authentication token mismatch.
+-   **Implemented Vendor In-App Notification System:** Added backend models, APIs, and frontend UI to show a live notification badge and a screen for new ratings/issues.
+-   **Documentation:** Created  detailing the new architecture.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1: OTP Input Flakiness:** The OTP input component in the web environment was noted as flaky in the initial handoff and remains unaddressed.
+-   **Issue 1: OTP Input Flakiness:** The OTP input component in the web environment remains flaky.
 
 **Known issue recurrence from previous fork**
 -   **Expo/ngrok tunnel instability:** A recurring environmental issue that blocks mobile testing.
@@ -84,80 +64,83 @@ The project is a full-stack application with a React Native (Expo) frontend for 
 
 
 **Key Technical Concepts**
--   **Dynamic Rating Criteria:** The backend supports different rating questions based on vendor category (e.g., Restaurant vs. Grocery).
--   **Comprehensive Issue Reporting:** The system allows users to report issues with categories, sub-categories, photo uploads, and status tracking.
--   **Pre- and Post-Delivery Tipping:** The backend model supports adding tips both during checkout and after delivery is complete.
+-   **Zone-Based Architecture:** Hyperlocal delivery zones (circles/polygons) for controlled operations. Genies and vendors are locked to specific zones.
+-   **Server-Sent Events (SSE):** For real-time, one-way push of delivery requests to Genies, replacing inefficient polling at scale.
+-   **Redis:** Used extensively for:
+    -   **Pub/Sub:** For SSE message brokering on a per-zone basis.
+    -   **Caching:** Caching order statuses to reduce DB load from Wisher app polling.
+    -   **GEO Data Structures:** Storing and querying Genie locations for fast, zone-aware proximity searches.
+    -   **Queuing:** Managing the queue of orders for the background assignment engine.
+-   **Background Tasks (asyncio):** The assignment engine runs as a non-blocking background task to handle the entire sequential assignment loop automatically.
+-   **Score-Based Assignment:** Prioritizing Genies based on distance, rating, acceptance rate, and idle time.
 
 **key DB schema**
--   **ratings:** (New) Stores detailed vendor and genie ratings, including overall scores, criteria breakdown, and text reviews.
--   **tips:** (New) Stores tip information, including amount, when it was added (checkout/post-delivery), and payment status.
--   **issues:** (New) Stores support tickets with categories, descriptions, photos, status, and resolution details.
+-   **zones:** (New) Stores zone definitions (name, type,  in GeoJSON format, premium_fee for switching).
+-   **vendor_notifications:** (New) Stores in-app notifications for vendors.
+-   **users:** The  field is now critical for the new zone-based assignment logic.
 
 **All files of reference**
 -   **Created:**
-    -   : Placeholder for vendor ratings UI.
-    -   : Placeholder for vendor issues UI.
+    -   
+    -   
+    -   
+    -   
+    -   
+    -   
 -   **Updated:**
-    -   **/app/backend/server.py**: Heavily modified to add all new Pydantic models and API endpoints for the rating, tipping, and issue system. Also fixed a route registration bug.
-    -   **/app/frontend/app/(main)/(tabs)/orders/[id].tsx**: Added the QR code button and modal logic.
-    -   **/app/frontend/app/(main)/wisher-orders.tsx**: Multiple failed attempts were made to fix the persistent '0' rendering bug.
+    -   : Major refactor to integrate the new modules, replace old assignment logic, and add admin/SSE routes.
+    -   : Added , .
+    -   : Added navigation and a live notification badge.
+    -   : Fixed '0' bug.
 
 **Areas that need refactoring**:
--   The  file is critically oversized (now >10,700 lines) and is a major source of technical debt. It urgently needs to be broken down into smaller, domain-specific modules (e.g., , ).
+-   The  file, while improved, still acts as a large router for many domains (auth, orders, ratings). Continued refactoring into a  directory structure is recommended for long-term maintainability.
 
 **key api endpoints**
--   **New APIs for Wisher App:**
-    -   
-    -   
-    -   
-    -   
-    -   
--   **New APIs for Vendor App:**
-    -   
-    -   
-    -   
--   **New APIs for Genie App:**
-    -   
-    -   
-    -   
+-   **New Admin Zone APIs:**
+    -   : Create a zone (circle or polygon).
+    -   : List all zones.
+    -   , .
+    -   : Find zone for a given lat/lng.
+-   **New Genie SSE Endpoint:**
+    -   : Genies connect to this endpoint with a bearer token to receive real-time delivery requests via SSE.
+-   **Modified Logic:**
+    -   : When status becomes , it now triggers the new automatic, zone-based assignment engine. The old polling/manual-retry logic is completely removed.
 
 **Critical Info for New Agent**
--   You are the **Vendor App** developer. Your primary task is to build the UI for the new Ratings and Issues features using the backend APIs that were just created.
--   After completing the Vendor App UI, you MUST provide detailed prompts and pseudo-code for the Wisher and Genie apps to implement their parts of the rating, tipping, and issue-reporting flow.
--   Fixing the persistent '0' rendering bug in  is a high-priority visual issue. The recommended approach is to replace all  conditional renders with explicit ternary operators ().
--   The  file has become extremely large. Propose refactoring it into smaller route files as a future task to manage technical debt.
+-   The entire Genie assignment system has been replaced with a production-grade, zone-based architecture using SSE and Redis. The old polling system is gone.
+-   Your highest priority task is to create and provide the **updated implementation prompts** for the Wisher and Genie apps. The Genie app prompt is especially critical as it must now connect to the  SSE endpoint instead of polling for orders.
+-   The system is designed to be managed via Admin APIs (no UI yet). To test the full flow, you must first create zones and assign vendors/genies to them using these new APIs.
+
+**documents and test reports created in this job**
+-   /app/documents/new-genie-assignment-system-notes.md
+-   /app/frontend/WISHER_GENIE_IMPLEMENTATION_GUIDE.md (NOTE: This is now outdated and needs to be updated with the new SSE architecture)
+-   /app/test_reports/iteration_1.json
+-   /app/test_reports/iteration_2.json
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Asks for API implementation for ratings and issues, following industry standards with dynamic criteria. **Status: COMPLETED** (Agent proposed a detailed plan).
-2.  **User:** Adds requirement for a tipping system for the Genie. **Status: COMPLETED** (Agent updated the plan to include tipping).
-3.  **User:** Approves the complete plan for ratings, issues, and tipping. **Status: COMPLETED** (Agent proceeded with backend implementation).
-4.  **User:** Asks for UI implementation in the Vendor App and prompts for the other apps. **Status: PENDING** (This is the current task).
-5.  **User:** Asks if the order timeline logic (On Way) is correct. **Status: COMPLETED** (Agent confirmed the backend logic is correct and the issue is in the Genie App's frontend).
-6.  **User:** Asks for clarification on how Genie search prevents multiple accepts. **Status: COMPLETED** (Agent explained the backend mechanism).
-7.  **User:** Confirms understanding. **Status: COMPLETED**.
-8.  **User:** Asks to delete all orders and restart Expo. **Status: COMPLETED**.
-9.  **User:** Asks for suggestions to improve QR scanning reliability. **Status: COMPLETED** (Agent provided detailed recommendations).
-10. **User:** Asks to delete all orders again. **Status: COMPLETED**.
+-   The user gave the final go-ahead to build the full, production-grade, zone-based assignment system using SSE and Redis, as outlined in the agent's detailed architectural proposal. They specified that the admin panel UI could be built later, but the backend must be ready for scale. The agent then proceeded with the implementation.
 
 **Project Health Check:**
 -   **Broken:**
-    -   The  screen has a persistent UI rendering bug that displays an unwanted '0'.
-    -   The Expo/ngrok mobile preview tunnel is frequently unstable.
+    -   The Expo/ngrok mobile preview tunnel remains unstable, hindering mobile testing.
 -   **Mocked:**
     -   None.
 
 **3rd Party Integrations**
+-   **Redis:** Newly integrated for caching, pub/sub, geo-queries, and queuing.
+-   **sse-starlette:** Newly integrated for handling Server-Sent Events in FastAPI.
 -   **Expo / React Native:** Frontend framework.
 -   **FastAPI:** Backend framework.
 -   **MongoDB:** Database.
--   **Expo Push Notifications:** Used for real-time delivery requests.
--   **PyJWT**: Used for the secure QR code generation.
+-   **Expo Push Notifications:** Still in place but superseded by SSE for new delivery requests.
+-   **PyJWT**: Used for secure QR code generation.
 
 **Testing status**
--   **Testing agent used after significant changes:** NO
+-   **Testing agent used after significant changes:** YES. The agent ran the testing agent after the full architectural overhaul, and all 24/24 tests passed.
 -   **Troubleshoot agent used after agent stuck in loop:** NO
--   **Test files created:** None.
--   **Known regressions:** The '0' rendering bug in  has resisted multiple fix attempts.
+-   **Test files created:** None
+-   **Known regressions:** None
 
 **Credentials to test flow:**
 -   **Vendor (Grocery Shop):** phone: , OTP: 
@@ -166,5 +149,4 @@ The project is a full-stack application with a React Native (Expo) frontend for 
 -   **Wisher User / Carpet Genie:** phone: , OTP: 
 
 **What agent forgot to execute**
--   The agent implemented the backend for the new features but has not yet started the corresponding UI implementation for the Vendor app, which was the user's explicit next step.
--   The agent has not yet provided the implementation prompts for the Wisher and Genie apps.</analysis>
+-   After completing the entire architectural overhaul, the agent did not provide the crucial, updated implementation prompts for the Wisher and Genie apps that reflect the new SSE-based system. The previous prompts are now obsolete. This is the most critical pending action.</analysis>

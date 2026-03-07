@@ -1,6 +1,6 @@
 # Wisher App - API Documentation
 
-**Base URL:** `https://delivery-ecosystem-4.preview.emergentagent.com/api`
+**Base URL:** `https://genie-sse-realtime.preview.emergentagent.com/api`
 
 ---
 

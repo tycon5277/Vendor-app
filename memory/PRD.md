@@ -1,106 +1,83 @@
 # QuickWish Vendor App - Product Requirements Document
 
 ## Original Problem Statement
-Build a Vendor App that serves as a centralized API service for a "Wisher App" (customer-facing) and "Carpet Genie App" (delivery partners), mimicking platforms like Zomato/Swiggy. The system includes multi-vendor ordering, delivery assignment, secure order pickup verification, a comprehensive rating/tipping/issue reporting system, and an in-app notification system.
+Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/Swiggy, operating in Kerala with a zone-based model. Zones are 5km diameter circles/polygons in high-demand areas. Genies are locked to zones, creating a hyperlocal controlled environment.
 
-## Core Requirements
-1. **API Hub (P0):** Vendor App backend provides complete APIs for Wisher & Genie apps
-2. **Advanced Delivery (P0):** Sophisticated delivery assignment, real-time tracking, QR code pickup
-3. **Rating, Tipping, and Issues (P0):** Full-featured system for ratings, tips, and issue reporting across all three apps
-4. **In-App Notifications (P0):** Real-time notifications when customers rate or report issues
-5. **Order Modification Flow (P1):** Vendors can view and modify Wisher App orders
-6. **Multi-Order Feature (P1):** Multiple vendor checkout (deprioritized)
+## Scale Target
+- 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
+
+## Latest Updates (December 2025)
+- Created comprehensive implementation guides for Wisher and Genie apps
+- SSE delivery stream tested and working (requires Redis)
+- Redis must be running for zone-based assignment to work
 
 ## What's Implemented
 
-### Backend APIs (All Working)
-- Full order CRUD, status management, delivery assignment
-- QR code generation and verification for pickup
+### Zone-Based Assignment System (NEW - Production-Grade)
+- **Zone CRUD** — Circle (center+radius) and Polygon (GeoJSON) definitions via admin APIs
+- **Zone assignments** — Vendor/Genie → zone mapping, with overlap detection
+- **Genie scoring** — distance(40%) + rating(25%) + acceptance_rate(20%) + idle_time(15%)
+- **Auto-sequential assignment** — Background task, one Genie at a time, 45s timeout, auto-skip, 15 min total
+- **SSE for Genies** — Real-time delivery push via Server-Sent Events + Redis pub/sub (<100ms)
+- **Redis caching** — Order status cache (15s TTL), Genie location GEO sets, connection registry
+- **Zone switching** — Premium fee for Genies changing zones (admin-controlled revenue stream)
+- **Overlap logic** — 50/50 Genie split from overlapping zones
+
+### Rating, Tipping, and Issue System
+- Dynamic rating criteria by vendor category
+- Vendor & Genie ratings, tipping, issue reporting
+- In-app notifications when customers rate or report issues
+
+### Core Features
+- Order CRUD, status management, delivery assignment
+- QR code pickup verification
 - Live tracking with Genie location
-- **Rating system**: Dynamic criteria by vendor category, vendor & genie ratings
-- **Tipping system**: Pre/post-delivery tips, presets, earnings tracking
-- **Issue reporting**: Categories, sub-categories, priority, status tracking
-- Vendor ratings summary, issues dashboard
-- Genie ratings, tips, and earnings dashboard APIs
-- **Notification system**: CRUD for in-app notifications, auto-created on new ratings & issues
 
-### Vendor App Frontend (Completed)
-- Order management (list, detail, status updates, modification)
-- QR Code pickup modal
-- Genie status display (searching, assigned, on the way)
-- Live location indicator
-- **Ratings & Reviews screen** (`vendor-ratings.tsx`)
-- **Customer Issues screen** (`vendor-issues.tsx`)
-- **Notifications screen** (`vendor-notifications.tsx`) - Shows notification cards, mark-as-read, mark-all-read
-- **Profile page** - Navigation to Ratings, Issues, Notifications with live unread badge (30s polling)
-
-### Bug Fixes Applied
-- '0' rendering bug in `wisher-orders.tsx` - All `&&` → ternary operators
-- Auth token key mismatch in vendor-ratings/issues screens
-- Duplicate notification endpoints removed (old `db.notifications` → new `db.vendor_notifications`)
-- Env var fix: `EXPO_PUBLIC_API_URL` → `EXPO_PUBLIC_BACKEND_URL`
-
-### Documentation Created
-- **Wisher & Genie Implementation Guide** (`/app/frontend/WISHER_GENIE_IMPLEMENTATION_GUIDE.md`)
-
-## Known Issues
-- **OTP Input Flakiness**: OTP component in web environment is flaky (environmental)
-- **Expo/ngrok Tunnel**: Mobile preview tunnel frequently unstable (environmental)
-
-## Test Credentials
-- Vendor (Grocery Shop): 1212121212 / 123456
-- Vendor (Meat shop): 1313131313 / 123456
-- Vendor (Fruits shop): 1414141414 / 123456
-- Wisher User / Carpet Genie: 1111111111 / 123456
+## New Architecture
+```
+/app/backend/
+  server.py              — Main FastAPI app (~10.8K lines)
+  redis_manager.py       — Redis cache, GEO, pub/sub, rate limiting
+  zone_service.py        — Zone CRUD, Shapely geo calculations
+  assignment_engine.py   — Auto-sequential background assignment
+  sse_handler.py         — SSE stream for Genies
+```
 
 ## Key API Endpoints
 
-### Notification System
-- `GET /api/vendor/notifications` - List notifications (total, unread_count)
-- `GET /api/vendor/notifications/unread-count` - Unread badge count
-- `PATCH /api/vendor/notifications/{id}/read` - Mark one as read
-- `PATCH /api/vendor/notifications/read-all` - Mark all as read
+### Admin Zone Management
+- `POST/GET/PUT/DELETE /api/admin/zones` — Zone CRUD
+- `POST /api/admin/zones/assign` — Assign vendor/genie to zone
+- `GET /api/admin/zones/find-for-point` — Zone detection
+- `GET /api/admin/zones/{id}/stats` — Zone stats
 
-### Wisher App (Rating/Tipping/Issues)
-- `GET /api/localhub/rating-criteria/{vendor_category}`
-- `POST /api/localhub/orders/{order_id}/rate-vendor` (triggers vendor notification)
-- `POST /api/localhub/orders/{order_id}/rate-genie`
-- `POST /api/localhub/orders/{order_id}/add-tip`
-- `POST /api/localhub/orders/{order_id}/report-issue` (triggers vendor notification)
-- `GET /api/localhub/my-issues`
+### Genie (New)
+- `GET /api/genie/delivery-stream` — SSE real-time delivery push
+- `GET /api/genie/my-zone` — Current zone info
+- `POST /api/genie/zone-switch-request` — Zone switch (premium)
+- `POST /api/genie/delivery-requests/{id}/accept|decline`
+- `PUT /api/genie/location-update` — Redis GEO + MongoDB
 
-### Genie App
-- `GET /api/genie/my-ratings`
-- `GET /api/genie/my-tips`
-- `GET /api/genie/earnings`
+### Cached/Scalable
+- `GET /api/orders/{id}/status-cached` — Redis-cached order status
+- `GET /api/orders/{id}/assignment-status` — Assignment engine progress
 
-## Upcoming Tasks
-- **(P1) Implement Fee Calculation Algorithm** for Carpet Genie delivery fees
+## Test Credentials
+- Vendor (Grocery): 1212121212 / 123456
+- Genie: 1111111111 / 123456
+- Test zones: zone_30dec12070f4 (Kowdiar), zone_cbffc299e47c (Edappally)
 
-## Future/Backlog
-- **(P1) Wisher App "Multi-Order" UI**
-- **(P2) Vendor Verification Workflow**
-- **(P2) Refactor monolithic server.py** into smaller route modules (~10,700 lines)
-- **(P2) Migrate chat to dedicated service**
-- **(P2) Implement masked phone calls (Twilio)**
+## Updated Implementation Guides (December 2025)
+- `/app/documents/WISHER_APP_IMPLEMENTATION_GUIDE.md` — Complete Wisher App API reference with SSE order tracking
+- `/app/documents/GENIE_APP_IMPLEMENTATION_GUIDE.md` — Complete Genie App API reference with SSE delivery stream
 
-## Architecture
-```
-/app
-├── backend/
-│   └── server.py
-│   └── tests/
-│       ├── test_vendor_ratings_issues.py
-│       └── test_vendor_notifications.py
-├── frontend/
-│   ├── app/
-│   │   ├── (main)/
-│   │   │   ├── _layout.tsx
-│   │   │   ├── (tabs)/
-│   │   │   │   ├── profile.tsx (notifications badge + navigation)
-│   │   │   ├── vendor-ratings.tsx
-│   │   │   ├── vendor-issues.tsx
-│   │   │   ├── vendor-notifications.tsx
-│   │   │   ├── wisher-orders.tsx
-│   ├── WISHER_GENIE_IMPLEMENTATION_GUIDE.md
-```
+## Upcoming
+- (P1) Fee Calculation Algorithm for delivery fees
+- (P1) Admin Panel UI for zone management
+
+## Backlog
+- (P1) Wisher App "Multi-Order" UI
+- (P2) Vendor Verification Workflow
+- (P2) Refactor monolithic server.py
+- (P2) Migrate chat to dedicated service
+- (P2) Masked phone calls (Twilio)
