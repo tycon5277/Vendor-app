@@ -257,7 +257,7 @@ export default function AddProductScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Add Product</Text>
+        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Add Product ✨</Text>
         <View style={styles.headerRight} />
       </View>
 
@@ -703,7 +703,7 @@ export default function AddProductScreen() {
           ) : (
             <>
               <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.submitBtnText}>Add Product</Text>
+              <Text style={styles.submitBtnText}>Add Product ✨</Text>
             </>
           )}
         </TouchableOpacity>
