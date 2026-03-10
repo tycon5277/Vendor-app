@@ -21,18 +21,221 @@ import { useAlert } from '../../../../src/context/AlertContext';
 import { useToastStore } from '../../../../src/store/toastStore';
 import { useTheme } from '../../../../src/context/ThemeContext';
 
+// Comprehensive category structure with subcategories (inspired by Yandex Market)
 const PRODUCT_CATEGORIES = [
-  { id: 'Groceries', icon: 'basket', label: 'Groceries' },
-  { id: 'Dairy', icon: 'water', label: 'Dairy' },
-  { id: 'Beverages', icon: 'cafe', label: 'Beverages' },
-  { id: 'Snacks', icon: 'fast-food', label: 'Snacks' },
-  { id: 'Bakery', icon: 'pizza', label: 'Bakery' },
-  { id: 'Fruits', icon: 'nutrition', label: 'Fruits' },
-  { id: 'Vegetables', icon: 'leaf', label: 'Vegetables' },
-  { id: 'Meat', icon: 'restaurant', label: 'Meat' },
-  { id: 'Seafood', icon: 'fish', label: 'Seafood' },
-  { id: 'Frozen', icon: 'snow', label: 'Frozen' },
-  { id: 'Other', icon: 'grid', label: 'Other' },
+  {
+    id: 'groceries',
+    icon: 'basket',
+    label: 'Groceries',
+    subcategories: [
+      { id: 'rice_grains', label: 'Rice & Grains' },
+      { id: 'flour_baking', label: 'Flour & Baking' },
+      { id: 'pasta_noodles', label: 'Pasta & Noodles' },
+      { id: 'oils_ghee', label: 'Oils & Ghee' },
+      { id: 'spices_masala', label: 'Spices & Masala' },
+      { id: 'pulses_lentils', label: 'Pulses & Lentils' },
+      { id: 'sugar_salt', label: 'Sugar & Salt' },
+      { id: 'pickles_chutneys', label: 'Pickles & Chutneys' },
+      { id: 'ready_to_cook', label: 'Ready to Cook' },
+      { id: 'canned_jarred', label: 'Canned & Jarred' },
+    ],
+  },
+  {
+    id: 'beverages',
+    icon: 'cafe',
+    label: 'Beverages',
+    subcategories: [
+      { id: 'tea', label: 'Tea (Leaves & Bags)' },
+      { id: 'coffee', label: 'Coffee (Powder & Beans)' },
+      { id: 'soft_drinks', label: 'Soft Drinks & Soda' },
+      { id: 'juices', label: 'Juices & Nectars' },
+      { id: 'energy_drinks', label: 'Energy & Sports Drinks' },
+      { id: 'water', label: 'Mineral & Packaged Water' },
+      { id: 'health_drinks', label: 'Health Drinks & Mixes' },
+      { id: 'syrups_squash', label: 'Syrups & Squash' },
+    ],
+  },
+  {
+    id: 'dairy',
+    icon: 'ellipse',
+    label: 'Dairy & Eggs',
+    subcategories: [
+      { id: 'milk', label: 'Milk (Fresh & Flavored)' },
+      { id: 'curd_yogurt', label: 'Curd & Yogurt' },
+      { id: 'cheese', label: 'Cheese' },
+      { id: 'butter_ghee', label: 'Butter & Ghee' },
+      { id: 'paneer_tofu', label: 'Paneer & Tofu' },
+      { id: 'eggs', label: 'Eggs' },
+      { id: 'cream', label: 'Cream & Whiteners' },
+      { id: 'condensed_milk', label: 'Condensed & Evaporated' },
+    ],
+  },
+  {
+    id: 'fruits',
+    icon: 'nutrition',
+    label: 'Fruits',
+    subcategories: [
+      { id: 'fresh_seasonal', label: 'Fresh Seasonal Fruits' },
+      { id: 'exotic_imported', label: 'Exotic & Imported' },
+      { id: 'citrus', label: 'Citrus Fruits' },
+      { id: 'berries', label: 'Berries' },
+      { id: 'dry_fruits', label: 'Dry Fruits & Nuts' },
+      { id: 'dates_figs', label: 'Dates & Figs' },
+      { id: 'fruit_baskets', label: 'Fruit Baskets & Combos' },
+    ],
+  },
+  {
+    id: 'vegetables',
+    icon: 'leaf',
+    label: 'Vegetables',
+    subcategories: [
+      { id: 'fresh_daily', label: 'Fresh Daily Vegetables' },
+      { id: 'leafy_greens', label: 'Leafy Greens' },
+      { id: 'root_tubers', label: 'Root & Tubers' },
+      { id: 'exotic_veggies', label: 'Exotic Vegetables' },
+      { id: 'herbs_seasonings', label: 'Fresh Herbs' },
+      { id: 'mushrooms', label: 'Mushrooms' },
+      { id: 'sprouts', label: 'Sprouts & Microgreens' },
+      { id: 'cut_ready', label: 'Cut & Ready to Cook' },
+    ],
+  },
+  {
+    id: 'meat',
+    icon: 'restaurant',
+    label: 'Meat & Poultry',
+    subcategories: [
+      { id: 'chicken', label: 'Chicken' },
+      { id: 'mutton', label: 'Mutton & Lamb' },
+      { id: 'beef', label: 'Beef' },
+      { id: 'pork', label: 'Pork' },
+      { id: 'duck_turkey', label: 'Duck & Turkey' },
+      { id: 'organ_meat', label: 'Organ Meat (Liver, Kidney)' },
+      { id: 'marinated', label: 'Marinated & Ready to Cook' },
+      { id: 'sausages_cold_cuts', label: 'Sausages & Cold Cuts' },
+      { id: 'mince_keema', label: 'Mince & Keema' },
+    ],
+  },
+  {
+    id: 'seafood',
+    icon: 'fish',
+    label: 'Seafood',
+    subcategories: [
+      { id: 'fish_fresh', label: 'Fresh Fish' },
+      { id: 'fish_fillets', label: 'Fish Fillets & Steaks' },
+      { id: 'prawns_shrimp', label: 'Prawns & Shrimp' },
+      { id: 'crabs_lobster', label: 'Crabs & Lobster' },
+      { id: 'squid_octopus', label: 'Squid & Octopus' },
+      { id: 'shellfish', label: 'Shellfish & Mussels' },
+      { id: 'dried_seafood', label: 'Dried Seafood' },
+      { id: 'marinated_seafood', label: 'Marinated & Ready to Cook' },
+    ],
+  },
+  {
+    id: 'frozen',
+    icon: 'snow',
+    label: 'Frozen Foods',
+    subcategories: [
+      { id: 'frozen_veggies', label: 'Frozen Vegetables' },
+      { id: 'frozen_fruits', label: 'Frozen Fruits & Berries' },
+      { id: 'frozen_meat', label: 'Frozen Meat & Poultry' },
+      { id: 'frozen_seafood', label: 'Frozen Seafood' },
+      { id: 'frozen_snacks', label: 'Frozen Snacks & Appetizers' },
+      { id: 'frozen_meals', label: 'Frozen Ready Meals' },
+      { id: 'ice_cream', label: 'Ice Cream & Desserts' },
+      { id: 'frozen_parathas', label: 'Frozen Parathas & Breads' },
+      { id: 'frozen_fries', label: 'Fries & Potato Products' },
+    ],
+  },
+  {
+    id: 'bakery',
+    icon: 'pizza',
+    label: 'Bakery & Breads',
+    subcategories: [
+      { id: 'breads', label: 'Breads & Buns' },
+      { id: 'cakes_pastries', label: 'Cakes & Pastries' },
+      { id: 'cookies_biscuits', label: 'Cookies & Biscuits' },
+      { id: 'rusks_toast', label: 'Rusks & Toast' },
+      { id: 'croissants', label: 'Croissants & Danish' },
+      { id: 'puffs_patties', label: 'Puffs & Patties' },
+    ],
+  },
+  {
+    id: 'snacks',
+    icon: 'fast-food',
+    label: 'Snacks & Chips',
+    subcategories: [
+      { id: 'chips_crisps', label: 'Chips & Crisps' },
+      { id: 'namkeen', label: 'Namkeen & Savory' },
+      { id: 'nuts_seeds', label: 'Nuts & Seeds' },
+      { id: 'popcorn', label: 'Popcorn' },
+      { id: 'crackers', label: 'Crackers & Wafers' },
+      { id: 'protein_bars', label: 'Protein & Energy Bars' },
+    ],
+  },
+  {
+    id: 'sweets',
+    icon: 'heart',
+    label: 'Sweets & Chocolates',
+    subcategories: [
+      { id: 'chocolates', label: 'Chocolates' },
+      { id: 'indian_sweets', label: 'Indian Sweets (Mithai)' },
+      { id: 'candies', label: 'Candies & Toffees' },
+      { id: 'dessert_mixes', label: 'Dessert Mixes' },
+    ],
+  },
+  {
+    id: 'baby_care',
+    icon: 'happy',
+    label: 'Baby Food & Care',
+    subcategories: [
+      { id: 'baby_formula', label: 'Baby Formula' },
+      { id: 'baby_food', label: 'Baby Food & Cereals' },
+      { id: 'diapers', label: 'Diapers & Wipes' },
+      { id: 'baby_care', label: 'Baby Care Products' },
+    ],
+  },
+  {
+    id: 'household',
+    icon: 'home',
+    label: 'Household & Cleaning',
+    subcategories: [
+      { id: 'detergents', label: 'Detergents & Laundry' },
+      { id: 'dishwash', label: 'Dishwash & Kitchen Clean' },
+      { id: 'cleaners', label: 'Floor & Surface Cleaners' },
+      { id: 'fresheners', label: 'Air Fresheners' },
+      { id: 'tissue_napkins', label: 'Tissues & Napkins' },
+    ],
+  },
+  {
+    id: 'personal_care',
+    icon: 'body',
+    label: 'Personal Care',
+    subcategories: [
+      { id: 'bath_body', label: 'Bath & Body' },
+      { id: 'hair_care', label: 'Hair Care' },
+      { id: 'oral_care', label: 'Oral Care' },
+      { id: 'skin_care', label: 'Skin Care' },
+      { id: 'feminine_care', label: 'Feminine Care' },
+    ],
+  },
+  {
+    id: 'pet_supplies',
+    icon: 'paw',
+    label: 'Pet Supplies',
+    subcategories: [
+      { id: 'pet_food', label: 'Pet Food' },
+      { id: 'pet_treats', label: 'Pet Treats' },
+      { id: 'pet_care', label: 'Pet Care & Grooming' },
+    ],
+  },
+  {
+    id: 'other',
+    icon: 'grid',
+    label: 'Other',
+    subcategories: [
+      { id: 'other_general', label: 'General' },
+    ],
+  },
 ];
 
 const VARIATION_TYPES = [
@@ -64,6 +267,7 @@ export default function AddProductScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
+  const [subcategory, setSubcategory] = useState('');
   const [image, setImage] = useState<string | null>(null);
 
   // Product type
@@ -157,6 +361,10 @@ export default function AddProductScreen() {
     }
     if (!category) {
       showAlert({ type: 'warning', title: 'Required', message: 'Please select a category' });
+      return;
+    }
+    if (!subcategory) {
+      showAlert({ type: 'warning', title: 'Required', message: 'Please select a subcategory' });
       return;
     }
 
@@ -323,7 +531,7 @@ export default function AddProductScreen() {
             </View>
           </View>
 
-          {/* Category */}
+          {/* Category Selection */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>CATEGORY *</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
@@ -335,7 +543,10 @@ export default function AddProductScreen() {
                     { backgroundColor: colors.card, borderColor: colors.separator },
                     category === cat.id && { backgroundColor: colors.primary, borderColor: colors.primary },
                   ]}
-                  onPress={() => setCategory(cat.id)}
+                  onPress={() => {
+                    setCategory(cat.id);
+                    setSubcategory(''); // Reset subcategory when category changes
+                  }}
                 >
                   <Ionicons
                     name={cat.icon as any}
@@ -355,6 +566,39 @@ export default function AddProductScreen() {
               ))}
             </ScrollView>
           </View>
+
+          {/* Subcategory Selection */}
+          {category && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>SUBCATEGORY *</Text>
+              <View style={[styles.subcategoryGrid, { backgroundColor: colors.card }]}>
+                {PRODUCT_CATEGORIES.find(c => c.id === category)?.subcategories?.map((sub) => (
+                  <TouchableOpacity
+                    key={sub.id}
+                    style={[
+                      styles.subcategoryChip,
+                      { borderColor: colors.separator },
+                      subcategory === sub.id && { backgroundColor: isDark ? 'rgba(10, 132, 255, 0.2)' : 'rgba(0, 122, 255, 0.1)', borderColor: colors.primary },
+                    ]}
+                    onPress={() => setSubcategory(sub.id)}
+                  >
+                    {subcategory === sub.id && (
+                      <Ionicons name="checkmark-circle" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+                    )}
+                    <Text
+                      style={[
+                        styles.subcategoryChipText,
+                        { color: colors.text.primary },
+                        subcategory === sub.id && { color: colors.primary, fontWeight: '600' },
+                      ]}
+                    >
+                      {sub.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Product Type Selection */}
           <View style={styles.section}>
@@ -826,6 +1070,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     marginLeft: 6,
+  },
+  subcategoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  subcategoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  subcategoryChipText: {
+    fontSize: 13,
   },
   typeToggle: {
     flexDirection: 'row',
