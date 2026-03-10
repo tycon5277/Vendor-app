@@ -249,38 +249,56 @@ Include variation details in order items:
 
 ---
 
-## Backend API Endpoints (Already Implemented)
+## Backend API Endpoints (Updated with Variation Support)
 
 ### Get Vendor Products
 ```
-GET /api/wisher/vendors/{vendor_id}/products
+GET /api/localhub/vendor/{vendor_id}/products
 ```
-Returns products with variations nested.
+Returns products with `variations[]` array for variable products.
 
-### Add to Cart
+### Add to Cart (Variation Support)
 ```
-POST /api/wisher/cart/add
+POST /api/localhub/cart/add
 Body: {
-  "product_id": "...",
-  "variation_id": "...",  // Required for variable products
-  "quantity": 1
+  "user_id": "user_123",
+  "product_id": "prod_abc",
+  "quantity": 1,
+  "variation_id": "var_2",       // Required for variable products
+  "variation_label": "5 kg"      // Optional - auto-populated from variation
 }
 ```
+
+### Get Cart
+```
+GET /api/localhub/cart/{user_id}
+```
+Returns cart items including `variation_id` and `variation_label` for variable products.
+
+### Update Cart Item (Variation Support)
+```
+PUT /api/localhub/cart/{user_id}/{product_id}?variation_id=var_2
+Body: { "quantity": 3 }
+```
+Include `variation_id` query param for variable products.
+
+### Remove from Cart (Variation Support)
+```
+DELETE /api/localhub/cart/{user_id}/{product_id}?variation_id=var_2
+```
+Include `variation_id` query param for variable products.
 
 ### Create Order
 ```
-POST /api/wisher/orders
+POST /api/localhub/orders
 Body: {
-  "vendor_id": "...",
-  "items": [
-    {
-      "product_id": "...",
-      "variation_id": "...",  // Include if variable product
-      "quantity": 1
-    }
-  ]
+  "user_id": "user_123",
+  "user_info": {...},
+  "delivery_address": {...},
+  "payment_method": "cod"
 }
 ```
+Orders are created from cart. Variation details are automatically included in order items.
 
 ---
 

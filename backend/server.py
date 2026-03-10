@@ -7323,6 +7323,9 @@ class CartItemAdd(BaseModel):
     user_info: Optional[UserInfo] = None
     product_id: str
     quantity: int = 1
+    # For variable products
+    variation_id: Optional[str] = None
+    variation_label: Optional[str] = None
 
 class CartItemUpdate(BaseModel):
     quantity: int
@@ -7350,17 +7353,39 @@ class OrderStatusUpdate(BaseModel):
 
 @api_router.post("/localhub/cart/add")
 async def add_to_cart(item: CartItemAdd):
-    """Add product to user's cart - Wisher App"""
+    """Add product to user's cart - Wisher App (supports variations)"""
     # Find product in hub_products
     product = await db.hub_products.find_one({"product_id": item.product_id}, {"_id": 0})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     
-    # Check if item already in cart
-    existing = await db.wisher_carts.find_one({
+    # Handle variable products - get price from selected variation
+    unit_price = product.get("price")
+    discounted_price = product.get("discounted_price")
+    variation_label = item.variation_label
+    
+    if product.get("product_type") == "variable" and item.variation_id:
+        # Find the selected variation
+        variations = product.get("variations", [])
+        selected_variation = next((v for v in variations if v.get("variation_id") == item.variation_id), None)
+        if selected_variation:
+            unit_price = selected_variation.get("price", unit_price)
+            discounted_price = selected_variation.get("discounted_price")
+            variation_label = selected_variation.get("label", item.variation_label)
+            # Check if variation is in stock
+            if not selected_variation.get("in_stock", True):
+                raise HTTPException(status_code=400, detail="Selected variation is out of stock")
+    
+    # For variable products, cart key includes variation_id
+    cart_key = {
         "user_id": item.user_id,
         "product_id": item.product_id
-    })
+    }
+    if item.variation_id:
+        cart_key["variation_id"] = item.variation_id
+    
+    # Check if item already in cart
+    existing = await db.wisher_carts.find_one(cart_key)
     
     if existing:
         # Update quantity
@@ -7368,10 +7393,7 @@ async def add_to_cart(item: CartItemAdd):
         update_data = {"quantity": new_quantity, "updated_at": datetime.now(timezone.utc).isoformat()}
         if item.user_info:
             update_data["user_info"] = item.user_info.dict()
-        await db.wisher_carts.update_one(
-            {"user_id": item.user_id, "product_id": item.product_id},
-            {"$set": update_data}
-        )
+        await db.wisher_carts.update_one(cart_key, {"$set": update_data})
         return {"message": "Cart updated", "quantity": new_quantity}
     else:
         # Add new item
@@ -7381,10 +7403,14 @@ async def add_to_cart(item: CartItemAdd):
             "product_id": product.get("product_id"),
             "vendor_id": product.get("vendor_id"),
             "name": product.get("name"),
-            "price": product.get("price"),
-            "discounted_price": product.get("discounted_price"),
-            "image": product.get("images", [None])[0] if product.get("images") else None,
+            "price": unit_price,
+            "discounted_price": discounted_price,
+            "image": product.get("images", [None])[0] if product.get("images") else product.get("image"),
             "quantity": item.quantity,
+            # Variation fields
+            "variation_id": item.variation_id,
+            "variation_label": variation_label,
+            "product_type": product.get("product_type", "simple"),
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
@@ -7443,15 +7469,19 @@ async def get_cart(user_id: str):
 
 
 @api_router.put("/localhub/cart/{user_id}/{product_id}")
-async def update_cart_item(user_id: str, product_id: str, update: CartItemUpdate):
-    """Update cart item quantity - Wisher App"""
+async def update_cart_item(user_id: str, product_id: str, update: CartItemUpdate, variation_id: Optional[str] = None):
+    """Update cart item quantity - Wisher App (supports variations)"""
+    query = {"user_id": user_id, "product_id": product_id}
+    if variation_id:
+        query["variation_id"] = variation_id
+    
     if update.quantity <= 0:
         # Remove item if quantity is 0 or less
-        await db.wisher_carts.delete_one({"user_id": user_id, "product_id": product_id})
+        await db.wisher_carts.delete_one(query)
         return {"message": "Item removed from cart"}
     
     result = await db.wisher_carts.update_one(
-        {"user_id": user_id, "product_id": product_id},
+        query,
         {"$set": {"quantity": update.quantity, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
@@ -7462,9 +7492,13 @@ async def update_cart_item(user_id: str, product_id: str, update: CartItemUpdate
 
 
 @api_router.delete("/localhub/cart/{user_id}/{product_id}")
-async def remove_from_cart(user_id: str, product_id: str):
-    """Remove item from cart - Wisher App"""
-    result = await db.wisher_carts.delete_one({"user_id": user_id, "product_id": product_id})
+async def remove_from_cart(user_id: str, product_id: str, variation_id: Optional[str] = None):
+    """Remove item from cart - Wisher App (supports variations)"""
+    query = {"user_id": user_id, "product_id": product_id}
+    if variation_id:
+        query["variation_id"] = variation_id
+    
+    result = await db.wisher_carts.delete_one(query)
     
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Cart item not found")
