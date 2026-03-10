@@ -102,13 +102,12 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - Genie: 1111111111 / 123456
 - Test zones: zone_30dec12070f4 (Kowdiar), zone_cbffc299e47c (Edappally)
 
-## Updated Implementation Guides (December 2025)
+## Updated Implementation Guides (March 2026)
 - `/app/documents/WISHER_APP_IMPLEMENTATION_GUIDE.md` — Complete Wisher App API reference with SSE order tracking
 - `/app/documents/GENIE_APP_IMPLEMENTATION_GUIDE.md` — Complete Genie App API reference with SSE delivery stream
+- `/app/documents/WISHER_VARIATION_UI_GUIDE.md` — NEW: Complete guide for displaying products with variations in Wisher App
 
 ## Upcoming
-- (P1) **Edit Product with Variations** — Update edit screen to support variations
-- (P1) **Wisher App Variation UI** — Display products with variations and allow selection
 - (P1) Fee Calculation Algorithm for delivery fees
 - (P1) Admin Panel UI for zone management
 - (P1) **POS Integration Study** — Research vendor POS systems for real-time stock sync
@@ -121,8 +120,15 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - (P2) Masked phone calls (Twilio)
 
 ## Recent Files Created/Modified (March 2026)
+- `/app/frontend/app/(main)/product-edit/[id].tsx` — REWRITTEN: Edit Product with full variations support
 - `/app/frontend/src/components/StockVerificationModal.tsx` — Morning verification modal
 - `/app/frontend/src/components/LowStockAlert.tsx` — Low stock alert popup
 - `/app/frontend/src/utils/api.ts` — Added stockVerificationAPI methods
 - `/app/frontend/app/(main)/(tabs)/home.tsx` — Integrated stock verification
 - `/app/backend/server.py` — Added stock verification endpoints (lines 1420-1630)
+- DELETED: `/app/frontend/app/(main)/product-add.tsx` — Old deprecated file removed
+
+## Completed This Session (March 2026)
+- ✅ Edit Product with Variations — Complete rewrite with variation type selection, adding/removing variations, category/subcategory selection
+- ✅ Wisher App Variation UI Guide — Comprehensive implementation guide created at `/app/documents/WISHER_VARIATION_UI_GUIDE.md`
+- ✅ Old product-add.tsx removed — Cleaned up deprecated file and updated _layout.tsx
