@@ -6,12 +6,32 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 ## Scale Target
 - 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
 
-## Latest Updates (December 2025)
+## Latest Updates (March 2026)
+- **Stock Verification System** — Morning verification reminders, low stock alerts (35% threshold)
 - **iOS-style UI overhaul** — ThemeContext, iOS components, light/dark mode support
+- **Product Variations** — Support for products with multiple variations (size, weight, quantity)
+- **Detailed Categories** — Two-level category/subcategory system (16 main categories with subcategories)
 - Created comprehensive implementation guides for Wisher and Genie apps
 - SSE delivery stream tested and working (requires Redis)
 - Redis must be running for zone-based assignment to work
 - Terminology: "Delivery Fee" → "Handling & Transportation"
+
+## Stock Verification System (NEW - March 2026)
+- **Morning Verification** — Continuous reminders when shop opens until stock verified
+- **Low Stock Alerts** — Push + popup notifications when stock falls below 35%
+- **Stock Health Dashboard** — Visual overview of product stock status
+- **Thresholds:**
+  - 50% — Products below this trigger morning verification requirement
+  - 35% — Products below this trigger low stock alerts
+- **Backend APIs:**
+  - `GET /api/vendor/stock-verification/status` — Verification status and products needing attention
+  - `POST /api/vendor/stock-verification/submit` — Submit bulk verification
+  - `POST /api/vendor/stock-verification/quick-update` — Quick single product update
+  - `GET /api/vendor/stock-health` — Stock health overview
+  - `POST /api/vendor/stock-verification/dismiss-alert` — Dismiss low stock alert
+- **Frontend Components:**
+  - `StockVerificationModal` — Full-screen modal for morning verification
+  - `LowStockAlert` — Popup alert with update options
 
 ## iOS Design System (COMPLETE)
 - **ThemeContext** — `/app/frontend/src/context/ThemeContext.tsx` with light/dark mode, iOS system colors
@@ -87,8 +107,11 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - `/app/documents/GENIE_APP_IMPLEMENTATION_GUIDE.md` — Complete Genie App API reference with SSE delivery stream
 
 ## Upcoming
+- (P1) **Edit Product with Variations** — Update edit screen to support variations
+- (P1) **Wisher App Variation UI** — Display products with variations and allow selection
 - (P1) Fee Calculation Algorithm for delivery fees
 - (P1) Admin Panel UI for zone management
+- (P1) **POS Integration Study** — Research vendor POS systems for real-time stock sync
 
 ## Backlog
 - (P1) Wisher App "Multi-Order" UI
@@ -96,3 +119,10 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - (P2) Refactor monolithic server.py
 - (P2) Migrate chat to dedicated service
 - (P2) Masked phone calls (Twilio)
+
+## Recent Files Created/Modified (March 2026)
+- `/app/frontend/src/components/StockVerificationModal.tsx` — Morning verification modal
+- `/app/frontend/src/components/LowStockAlert.tsx` — Low stock alert popup
+- `/app/frontend/src/utils/api.ts` — Added stockVerificationAPI methods
+- `/app/frontend/app/(main)/(tabs)/home.tsx` — Integrated stock verification
+- `/app/backend/server.py` — Added stock verification endpoints (lines 1420-1630)

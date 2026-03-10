@@ -164,7 +164,7 @@ export default function StockVerificationModal({ visible, onClose, onComplete }:
       presentationStyle="fullScreen"
       onRequestClose={handleSkip}
     >
-      <View style={[styles.container, { backgroundColor: colors.background.grouped }]}>
+      <View style={[styles.container, { backgroundColor: colors.background.grouped }]} data-testid="stock-verification-modal">
         {/* Header */}
         <View style={[styles.header, { backgroundColor: colors.card }]}>
           <View style={styles.headerContent}>
@@ -173,7 +173,7 @@ export default function StockVerificationModal({ visible, onClose, onComplete }:
                 <Ionicons name="alert-circle" size={32} color={colors.warning} />
               </View>
             </Animated.View>
-            <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
+            <Text style={[styles.headerTitle, { color: colors.text.primary }]} data-testid="verification-title">
               Morning Stock Verification
             </Text>
             <Text style={[styles.headerSubtitle, { color: colors.text.secondary }]}>

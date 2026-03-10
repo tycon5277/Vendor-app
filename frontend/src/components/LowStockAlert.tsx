@@ -109,7 +109,7 @@ export default function LowStockAlert({ visible, product, onClose, onUpdate }: L
       onRequestClose={onClose}
     >
       <Animated.View style={[styles.overlay, { opacity: opacityAnim }]}>
-        <TouchableOpacity style={styles.backdrop} onPress={onClose} />
+        <TouchableOpacity style={styles.backdrop} onPress={onClose} data-testid="low-stock-backdrop" />
         <Animated.View 
           style={[
             styles.alertContainer, 
@@ -118,13 +118,14 @@ export default function LowStockAlert({ visible, product, onClose, onUpdate }: L
               transform: [{ scale: scaleAnim }]
             }
           ]}
+          data-testid="low-stock-alert-container"
         >
           {/* Warning Header */}
           <View style={[styles.warningHeader, { backgroundColor: colors.warning + '15' }]}>
             <View style={[styles.warningIconBg, { backgroundColor: colors.warning }]}>
               <Ionicons name="warning" size={24} color="#FFFFFF" />
             </View>
-            <Text style={[styles.warningTitle, { color: colors.warning }]}>
+            <Text style={[styles.warningTitle, { color: colors.warning }]} data-testid="low-stock-title">
               Low Stock Alert
             </Text>
           </View>
