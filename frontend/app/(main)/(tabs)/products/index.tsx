@@ -283,7 +283,8 @@ export default function MyShopScreen() {
         {/* Add Product Button */}
         <TouchableOpacity 
           style={styles.addProductBtn}
-          onPress={() => router.push('/(main)/product-add')}
+          onPress={() => router.push('/(main)/(tabs)/products/add')}
+          data-testid="add-new-product-btn"
         >
           <View style={styles.addProductIconContainer}>
             <Ionicons name="add" size={28} color="#FFFFFF" />
