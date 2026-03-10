@@ -12,13 +12,14 @@ import {
   Animated,
   ActivityIndicator,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { productAPI } from '../../../../src/utils/api';
 import { useAlert } from '../../../../src/context/AlertContext';
 import { useToastStore } from '../../../../src/store/toastStore';
+import { useTheme } from '../../../../src/context/ThemeContext';
 
 const PRODUCT_CATEGORIES = [
   { id: 'Groceries', icon: 'basket', label: 'Groceries' },
@@ -34,20 +35,26 @@ const PRODUCT_CATEGORIES = [
   { id: 'Other', icon: 'grid', label: 'Other' },
 ];
 
-const UNITS = [
-  { id: 'piece', label: 'Piece' },
-  { id: 'kg', label: 'Kilogram (kg)' },
-  { id: 'g', label: 'Gram (g)' },
-  { id: 'liter', label: 'Liter (L)' },
-  { id: 'ml', label: 'Milliliter (ml)' },
-  { id: 'pack', label: 'Pack' },
-  { id: 'dozen', label: 'Dozen' },
-  { id: 'box', label: 'Box' },
+const VARIATION_TYPES = [
+  { id: 'weight', label: 'Weight', icon: 'scale', units: ['kg', 'g'] },
+  { id: 'volume', label: 'Volume', icon: 'water', units: ['L', 'ml'] },
+  { id: 'size', label: 'Size', icon: 'resize', units: ['size'] },
+  { id: 'pack', label: 'Pack/Quantity', icon: 'cube', units: ['pieces', 'pack'] },
 ];
+
+interface Variation {
+  id: string;
+  label: string;
+  value: string;
+  price: string;
+  discountedPrice: string;
+  stockQuantity: string;
+  inStock: boolean;
+}
 
 export default function AddProductScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const { showAlert } = useAlert();
   const { setPendingToast } = useToastStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,28 +63,67 @@ export default function AddProductScreen() {
   // Form state
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
+  const [image, setImage] = useState<string | null>(null);
+
+  // Product type
+  const [productType, setProductType] = useState<'simple' | 'variable'>('simple');
+
+  // Simple product fields
   const [price, setPrice] = useState('');
   const [discountedPrice, setDiscountedPrice] = useState('');
-  const [category, setCategory] = useState('');
-  const [unit, setUnit] = useState('piece');
   const [stockQuantity, setStockQuantity] = useState('100');
-  const [image, setImage] = useState<string | null>(null);
   const [inStock, setInStock] = useState(true);
+
+  // Variable product fields
+  const [variationType, setVariationType] = useState('');
+  const [variationUnit, setVariationUnit] = useState('');
+  const [variations, setVariations] = useState<Variation[]>([]);
+  const [sharedStock, setSharedStock] = useState(false);
+
+  const addVariation = () => {
+    const newVariation: Variation = {
+      id: `var_${Date.now()}`,
+      label: '',
+      value: '',
+      price: '',
+      discountedPrice: '',
+      stockQuantity: '100',
+      inStock: true,
+    };
+    setVariations([...variations, newVariation]);
+  };
+
+  const updateVariation = (id: string, field: keyof Variation, value: any) => {
+    setVariations(variations.map(v => 
+      v.id === id ? { ...v, [field]: value } : v
+    ));
+  };
+
+  const removeVariation = (id: string) => {
+    setVariations(variations.filter(v => v.id !== id));
+  };
 
   // Calculate form completion
   useEffect(() => {
     let filled = 0;
-    const total = 4; // Required fields: name, price, category, unit
+    const total = productType === 'simple' ? 4 : 5;
     if (name.trim()) filled++;
-    if (price.trim()) filled++;
     if (category) filled++;
-    if (unit) filled++;
+    if (productType === 'simple') {
+      if (price.trim()) filled++;
+      filled++; // stock is always filled by default
+    } else {
+      if (variationType) filled++;
+      if (variations.length > 0) filled++;
+      if (variations.every(v => v.label && v.price)) filled++;
+    }
 
     Animated.spring(progressAnim, {
       toValue: filled / total,
       useNativeDriver: false,
     }).start();
-  }, [name, price, category, unit]);
+  }, [name, price, category, productType, variationType, variations]);
 
   const handlePickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -103,92 +149,88 @@ export default function AddProductScreen() {
     }
   };
 
-  const handleTakePhoto = async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      showAlert({
-        type: 'warning',
-        title: 'Permission Required',
-        message: 'Please allow access to your camera',
-      });
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-      base64: true,
-    });
-
-    if (!result.canceled && result.assets[0].base64) {
-      setImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
-    }
-  };
-
   const handleSubmit = async () => {
     // Validation
     if (!name.trim()) {
-      showAlert({
-        type: 'warning',
-        title: 'Required',
-        message: 'Please enter product name',
-      });
-      return;
-    }
-    if (!price.trim() || isNaN(Number(price))) {
-      showAlert({
-        type: 'warning',
-        title: 'Required',
-        message: 'Please enter a valid price',
-      });
+      showAlert({ type: 'warning', title: 'Required', message: 'Please enter product name' });
       return;
     }
     if (!category) {
-      showAlert({
-        type: 'warning',
-        title: 'Required',
-        message: 'Please select a category',
-      });
+      showAlert({ type: 'warning', title: 'Required', message: 'Please select a category' });
       return;
     }
 
-    const priceNum = parseFloat(price);
-    const discountNum = discountedPrice ? parseFloat(discountedPrice) : null;
-
-    if (discountNum && discountNum >= priceNum) {
-      showAlert({
-        type: 'error',
-        title: 'Invalid',
-        message: 'Discounted price must be less than original price',
-      });
-      return;
+    if (productType === 'simple') {
+      if (!price.trim() || isNaN(Number(price))) {
+        showAlert({ type: 'warning', title: 'Required', message: 'Please enter a valid price' });
+        return;
+      }
+      const priceNum = parseFloat(price);
+      const discountNum = discountedPrice ? parseFloat(discountedPrice) : null;
+      if (discountNum && discountNum >= priceNum) {
+        showAlert({ type: 'error', title: 'Invalid', message: 'Discounted price must be less than original price' });
+        return;
+      }
+    } else {
+      if (!variationType) {
+        showAlert({ type: 'warning', title: 'Required', message: 'Please select variation type' });
+        return;
+      }
+      if (variations.length === 0) {
+        showAlert({ type: 'warning', title: 'Required', message: 'Please add at least one variation' });
+        return;
+      }
+      for (const v of variations) {
+        if (!v.label.trim()) {
+          showAlert({ type: 'warning', title: 'Required', message: 'Please fill all variation labels' });
+          return;
+        }
+        if (!v.price.trim() || isNaN(Number(v.price))) {
+          showAlert({ type: 'warning', title: 'Required', message: `Please enter valid price for ${v.label || 'variation'}` });
+          return;
+        }
+      }
     }
 
     setIsSubmitting(true);
     try {
-      const productData = {
+      const productData: any = {
         name: name.trim(),
         description: description.trim() || null,
-        price: priceNum,
-        discounted_price: discountNum,
         category,
-        unit,
-        stock_quantity: parseInt(stockQuantity) || 100,
-        in_stock: inStock,
         image,
+        product_type: productType,
       };
+
+      if (productType === 'simple') {
+        productData.price = parseFloat(price);
+        productData.discounted_price = discountedPrice ? parseFloat(discountedPrice) : null;
+        productData.stock_quantity = parseInt(stockQuantity) || 100;
+        productData.in_stock = inStock;
+        productData.unit = 'piece';
+      } else {
+        productData.variation_type = variationType;
+        productData.variation_unit = variationUnit;
+        productData.shared_stock = sharedStock;
+        productData.stock_quantity = sharedStock ? parseInt(stockQuantity) || 100 : 0;
+        productData.variations = variations.map(v => ({
+          label: v.label,
+          value: v.value ? parseFloat(v.value) : null,
+          price: parseFloat(v.price),
+          discounted_price: v.discountedPrice ? parseFloat(v.discountedPrice) : null,
+          stock_quantity: parseInt(v.stockQuantity) || 100,
+          in_stock: v.inStock,
+        }));
+      }
 
       await productAPI.create(productData);
       
-      // Set pending toast for warehouse to display
       setPendingToast({
         type: 'success',
         title: 'Success! 🎉',
         message: 'Product added successfully!',
       });
       
-      // Go back to previous screen (properly pops the navigation stack)
       router.back();
     } catch (error: any) {
       showAlert({
@@ -201,40 +243,27 @@ export default function AddProductScreen() {
     }
   };
 
-  const resetForm = () => {
-    setName('');
-    setDescription('');
-    setPrice('');
-    setDiscountedPrice('');
-    setCategory('');
-    setUnit('piece');
-    setStockQuantity('100');
-    setImage(null);
-    setInStock(true);
-  };
-
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
   });
 
+  const selectedVariationType = VARIATION_TYPES.find(v => v.id === variationType);
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background.grouped }]} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#374151" />
+      <View style={[styles.header, { backgroundColor: colors.card }]}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Product</Text>
+        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Add Product</Text>
         <View style={styles.headerRight} />
       </View>
 
       {/* Progress Bar */}
-      <View style={styles.progressContainer}>
-        <Animated.View style={[styles.progressBar, { width: progressWidth }]} />
+      <View style={[styles.progressContainer, { backgroundColor: colors.background.secondary }]}>
+        <Animated.View style={[styles.progressBar, { width: progressWidth, backgroundColor: colors.primary }]} />
       </View>
 
       <KeyboardAvoidingView
@@ -249,233 +278,443 @@ export default function AddProductScreen() {
         >
           {/* Image Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Product Image</Text>
-            <View style={styles.imageContainer}>
+            <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>PRODUCT IMAGE</Text>
+            <TouchableOpacity
+              style={[styles.imageContainer, { backgroundColor: colors.card, borderColor: colors.separator }]}
+              onPress={handlePickImage}
+            >
               {image ? (
-                <View style={styles.imagePreview}>
-                  <Image source={{ uri: image }} style={styles.previewImage} />
-                  <TouchableOpacity
-                    style={styles.removeImageBtn}
-                    onPress={() => setImage(null)}
-                  >
-                    <Ionicons name="close-circle" size={28} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
+                <Image source={{ uri: image }} style={styles.productImage} />
               ) : (
                 <View style={styles.imagePlaceholder}>
-                  <Ionicons name="image-outline" size={48} color="#D1D5DB" />
-                  <Text style={styles.imagePlaceholderText}>Add product photo</Text>
+                  <Ionicons name="camera" size={40} color={colors.text.tertiary} />
+                  <Text style={[styles.imagePlaceholderText, { color: colors.text.tertiary }]}>Tap to add photo</Text>
                 </View>
               )}
-            </View>
-            <View style={styles.imageActions}>
-              <TouchableOpacity style={styles.imageActionBtn} onPress={handlePickImage}>
-                <Ionicons name="images" size={20} color="#6366F1" />
-                <Text style={styles.imageActionText}>Gallery</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.imageActionBtn} onPress={handleTakePhoto}>
-                <Ionicons name="camera" size={20} color="#6366F1" />
-                <Text style={styles.imageActionText}>Camera</Text>
-              </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           </View>
 
-          {/* Product Name */}
+          {/* Basic Info */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Product Name *</Text>
-            <TextInput
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g., Organic Basmati Rice (5kg)"
-              placeholderTextColor="#9CA3AF"
-              maxLength={100}
-            />
-          </View>
-
-          {/* Description */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Description</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Describe your product..."
-              placeholderTextColor="#9CA3AF"
-              multiline
-              numberOfLines={3}
-              maxLength={500}
-            />
+            <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>BASIC INFO</Text>
+            <View style={[styles.card, { backgroundColor: colors.card }]}>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Product Name *</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.background.secondary, color: colors.text.primary }]}
+                  placeholder="e.g., Basmati Rice"
+                  placeholderTextColor={colors.text.tertiary}
+                  value={name}
+                  onChangeText={setName}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Description</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea, { backgroundColor: colors.background.secondary, color: colors.text.primary }]}
+                  placeholder="Describe your product..."
+                  placeholderTextColor={colors.text.tertiary}
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            </View>
           </View>
 
           {/* Category */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Category *</Text>
-            <View style={styles.categoryGrid}>
+            <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>CATEGORY *</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
               {PRODUCT_CATEGORIES.map((cat) => (
                 <TouchableOpacity
                   key={cat.id}
                   style={[
-                    styles.categoryItem,
-                    category === cat.id && styles.categoryItemActive,
+                    styles.categoryChip,
+                    { backgroundColor: colors.card, borderColor: colors.separator },
+                    category === cat.id && { backgroundColor: colors.primary, borderColor: colors.primary },
                   ]}
                   onPress={() => setCategory(cat.id)}
                 >
                   <Ionicons
                     name={cat.icon as any}
-                    size={24}
-                    color={category === cat.id ? '#FFFFFF' : '#6B7280'}
+                    size={18}
+                    color={category === cat.id ? '#FFFFFF' : colors.text.secondary}
                   />
                   <Text
                     style={[
-                      styles.categoryLabel,
-                      category === cat.id && styles.categoryLabelActive,
+                      styles.categoryChipText,
+                      { color: colors.text.secondary },
+                      category === cat.id && { color: '#FFFFFF' },
                     ]}
                   >
                     {cat.label}
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
-          </View>
-
-          {/* Pricing */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Pricing *</Text>
-            <View style={styles.priceRow}>
-              <View style={styles.priceInputContainer}>
-                <Text style={styles.inputLabel}>Price (₹)</Text>
-                <View style={styles.priceInputWrapper}>
-                  <Text style={styles.currencySymbol}>₹</Text>
-                  <TextInput
-                    style={styles.priceInput}
-                    value={price}
-                    onChangeText={setPrice}
-                    placeholder="0.00"
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="decimal-pad"
-                  />
-                </View>
-              </View>
-              <View style={styles.priceInputContainer}>
-                <Text style={styles.inputLabel}>Discounted Price</Text>
-                <View style={styles.priceInputWrapper}>
-                  <Text style={styles.currencySymbol}>₹</Text>
-                  <TextInput
-                    style={styles.priceInput}
-                    value={discountedPrice}
-                    onChangeText={setDiscountedPrice}
-                    placeholder="Optional"
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="decimal-pad"
-                  />
-                </View>
-              </View>
-            </View>
-            {discountedPrice && price && parseFloat(discountedPrice) < parseFloat(price) && (
-              <View style={styles.discountBadge}>
-                <Ionicons name="pricetag" size={14} color="#22C55E" />
-                <Text style={styles.discountText}>
-                  {Math.round((1 - parseFloat(discountedPrice) / parseFloat(price)) * 100)}% OFF
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Unit */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Unit *</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.unitRow}>
-                {UNITS.map((u) => (
-                  <TouchableOpacity
-                    key={u.id}
-                    style={[
-                      styles.unitChip,
-                      unit === u.id && styles.unitChipActive,
-                    ]}
-                    onPress={() => setUnit(u.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.unitText,
-                        unit === u.id && styles.unitTextActive,
-                      ]}
-                    >
-                      {u.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </ScrollView>
           </View>
 
-          {/* Stock */}
+          {/* Product Type Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Stock</Text>
-            <View style={styles.stockRow}>
+            <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>PRODUCT TYPE *</Text>
+            <View style={[styles.typeToggle, { backgroundColor: colors.card }]}>
               <TouchableOpacity
                 style={[
-                  styles.stockToggle,
-                  inStock ? styles.stockToggleActive : styles.stockToggleInactive,
+                  styles.typeOption,
+                  productType === 'simple' && { backgroundColor: colors.primary },
                 ]}
-                onPress={() => setInStock(!inStock)}
+                onPress={() => setProductType('simple')}
               >
                 <Ionicons
-                  name={inStock ? 'checkmark-circle' : 'close-circle'}
+                  name="cube-outline"
                   size={20}
-                  color={inStock ? '#22C55E' : '#9CA3AF'}
+                  color={productType === 'simple' ? '#FFFFFF' : colors.text.secondary}
                 />
-                <Text style={[styles.stockToggleText, inStock && styles.stockToggleTextActive]}>
-                  {inStock ? 'In Stock' : 'Out of Stock'}
+                <Text
+                  style={[
+                    styles.typeOptionText,
+                    { color: colors.text.secondary },
+                    productType === 'simple' && { color: '#FFFFFF' },
+                  ]}
+                >
+                  Simple Product
                 </Text>
               </TouchableOpacity>
-              <View style={styles.stockQuantityContainer}>
-                <Text style={styles.stockLabel}>Quantity</Text>
-                <TextInput
-                  style={styles.stockInput}
-                  value={stockQuantity}
-                  onChangeText={setStockQuantity}
-                  keyboardType="number-pad"
-                  placeholder="100"
+              <TouchableOpacity
+                style={[
+                  styles.typeOption,
+                  productType === 'variable' && { backgroundColor: colors.primary },
+                ]}
+                onPress={() => setProductType('variable')}
+              >
+                <Ionicons
+                  name="layers-outline"
+                  size={20}
+                  color={productType === 'variable' ? '#FFFFFF' : colors.text.secondary}
                 />
-              </View>
+                <Text
+                  style={[
+                    styles.typeOptionText,
+                    { color: colors.text.secondary },
+                    productType === 'variable' && { color: '#FFFFFF' },
+                  ]}
+                >
+                  With Variations
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
-          {/* Spacer for button */}
+          {/* Simple Product Pricing */}
+          {productType === 'simple' && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>PRICING & STOCK</Text>
+              <View style={[styles.card, { backgroundColor: colors.card }]}>
+                <View style={styles.priceRow}>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Price (₹) *</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.background.secondary, color: colors.text.primary }]}
+                      placeholder="0.00"
+                      placeholderTextColor={colors.text.tertiary}
+                      value={price}
+                      onChangeText={setPrice}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                  <View style={{ width: 12 }} />
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Discounted</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.background.secondary, color: colors.text.primary }]}
+                      placeholder="Optional"
+                      placeholderTextColor={colors.text.tertiary}
+                      value={discountedPrice}
+                      onChangeText={setDiscountedPrice}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                </View>
+                <View style={styles.stockRow}>
+                  <TouchableOpacity
+                    style={[styles.stockToggle, inStock && { backgroundColor: isDark ? 'rgba(48, 209, 88, 0.2)' : '#D1FAE5' }]}
+                    onPress={() => setInStock(!inStock)}
+                  >
+                    <Ionicons
+                      name={inStock ? 'checkmark-circle' : 'close-circle'}
+                      size={20}
+                      color={inStock ? colors.success : colors.danger}
+                    />
+                    <Text style={[styles.stockToggleText, { color: inStock ? colors.success : colors.danger }]}>
+                      {inStock ? 'In Stock' : 'Out of Stock'}
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+                    <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Quantity</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.background.secondary, color: colors.text.primary }]}
+                      placeholder="100"
+                      placeholderTextColor={colors.text.tertiary}
+                      value={stockQuantity}
+                      onChangeText={setStockQuantity}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Variable Product - Variation Type */}
+          {productType === 'variable' && (
+            <>
+              <View style={styles.section}>
+                <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>VARIATION TYPE *</Text>
+                <View style={styles.variationTypeGrid}>
+                  {VARIATION_TYPES.map((type) => (
+                    <TouchableOpacity
+                      key={type.id}
+                      style={[
+                        styles.variationTypeCard,
+                        { backgroundColor: colors.card, borderColor: colors.separator },
+                        variationType === type.id && { borderColor: colors.primary, borderWidth: 2 },
+                      ]}
+                      onPress={() => {
+                        setVariationType(type.id);
+                        setVariationUnit(type.units[0]);
+                      }}
+                    >
+                      <Ionicons
+                        name={type.icon as any}
+                        size={24}
+                        color={variationType === type.id ? colors.primary : colors.text.secondary}
+                      />
+                      <Text
+                        style={[
+                          styles.variationTypeLabel,
+                          { color: colors.text.primary },
+                          variationType === type.id && { color: colors.primary },
+                        ]}
+                      >
+                        {type.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Unit Selection */}
+              {variationType && selectedVariationType && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>UNIT</Text>
+                  <View style={styles.unitRow}>
+                    {selectedVariationType.units.map((unit) => (
+                      <TouchableOpacity
+                        key={unit}
+                        style={[
+                          styles.unitChip,
+                          { backgroundColor: colors.card, borderColor: colors.separator },
+                          variationUnit === unit && { backgroundColor: colors.primary, borderColor: colors.primary },
+                        ]}
+                        onPress={() => setVariationUnit(unit)}
+                      >
+                        <Text
+                          style={[
+                            styles.unitChipText,
+                            { color: colors.text.secondary },
+                            variationUnit === unit && { color: '#FFFFFF' },
+                          ]}
+                        >
+                          {unit}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Variations List */}
+              {variationType && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>VARIATIONS</Text>
+                    <TouchableOpacity style={[styles.addVariationBtn, { backgroundColor: colors.primary }]} onPress={addVariation}>
+                      <Ionicons name="add" size={18} color="#FFFFFF" />
+                      <Text style={styles.addVariationBtnText}>Add</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {variations.length === 0 ? (
+                    <View style={[styles.emptyVariations, { backgroundColor: colors.card }]}>
+                      <Ionicons name="layers-outline" size={40} color={colors.text.tertiary} />
+                      <Text style={[styles.emptyVariationsText, { color: colors.text.tertiary }]}>
+                        No variations added yet
+                      </Text>
+                      <Text style={[styles.emptyVariationsHint, { color: colors.text.tertiary }]}>
+                        Tap "Add" to create variations like 1kg, 3kg, 5kg
+                      </Text>
+                    </View>
+                  ) : (
+                    variations.map((variation, index) => (
+                      <View key={variation.id} style={[styles.variationCard, { backgroundColor: colors.card }]}>
+                        <View style={styles.variationHeader}>
+                          <Text style={[styles.variationIndex, { color: colors.primary }]}>#{index + 1}</Text>
+                          <TouchableOpacity onPress={() => removeVariation(variation.id)}>
+                            <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                          </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.variationRow}>
+                          <View style={[styles.inputGroup, { flex: 1 }]}>
+                            <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Label *</Text>
+                            <TextInput
+                              style={[styles.input, { backgroundColor: colors.background.secondary, color: colors.text.primary }]}
+                              placeholder={variationType === 'weight' ? 'e.g., 1 kg' : 'e.g., Small'}
+                              placeholderTextColor={colors.text.tertiary}
+                              value={variation.label}
+                              onChangeText={(v) => updateVariation(variation.id, 'label', v)}
+                            />
+                          </View>
+                          <View style={{ width: 12 }} />
+                          <View style={[styles.inputGroup, { flex: 1 }]}>
+                            <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Value</Text>
+                            <TextInput
+                              style={[styles.input, { backgroundColor: colors.background.secondary, color: colors.text.primary }]}
+                              placeholder="e.g., 1"
+                              placeholderTextColor={colors.text.tertiary}
+                              value={variation.value}
+                              onChangeText={(v) => updateVariation(variation.id, 'value', v)}
+                              keyboardType="decimal-pad"
+                            />
+                          </View>
+                        </View>
+
+                        <View style={styles.variationRow}>
+                          <View style={[styles.inputGroup, { flex: 1 }]}>
+                            <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Price (₹) *</Text>
+                            <TextInput
+                              style={[styles.input, { backgroundColor: colors.background.secondary, color: colors.text.primary }]}
+                              placeholder="0.00"
+                              placeholderTextColor={colors.text.tertiary}
+                              value={variation.price}
+                              onChangeText={(v) => updateVariation(variation.id, 'price', v)}
+                              keyboardType="decimal-pad"
+                            />
+                          </View>
+                          <View style={{ width: 12 }} />
+                          <View style={[styles.inputGroup, { flex: 1 }]}>
+                            <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Discounted</Text>
+                            <TextInput
+                              style={[styles.input, { backgroundColor: colors.background.secondary, color: colors.text.primary }]}
+                              placeholder="Optional"
+                              placeholderTextColor={colors.text.tertiary}
+                              value={variation.discountedPrice}
+                              onChangeText={(v) => updateVariation(variation.id, 'discountedPrice', v)}
+                              keyboardType="decimal-pad"
+                            />
+                          </View>
+                        </View>
+
+                        {!sharedStock && (
+                          <View style={styles.variationRow}>
+                            <TouchableOpacity
+                              style={[styles.stockToggle, variation.inStock && { backgroundColor: isDark ? 'rgba(48, 209, 88, 0.2)' : '#D1FAE5' }]}
+                              onPress={() => updateVariation(variation.id, 'inStock', !variation.inStock)}
+                            >
+                              <Ionicons
+                                name={variation.inStock ? 'checkmark-circle' : 'close-circle'}
+                                size={18}
+                                color={variation.inStock ? colors.success : colors.danger}
+                              />
+                              <Text style={[styles.stockToggleText, { color: variation.inStock ? colors.success : colors.danger, fontSize: 12 }]}>
+                                {variation.inStock ? 'In Stock' : 'Out'}
+                              </Text>
+                            </TouchableOpacity>
+                            <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+                              <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Stock Qty</Text>
+                              <TextInput
+                                style={[styles.input, { backgroundColor: colors.background.secondary, color: colors.text.primary }]}
+                                placeholder="100"
+                                placeholderTextColor={colors.text.tertiary}
+                                value={variation.stockQuantity}
+                                onChangeText={(v) => updateVariation(variation.id, 'stockQuantity', v)}
+                                keyboardType="number-pad"
+                              />
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    ))
+                  )}
+
+                  {/* Shared Stock Option */}
+                  {variations.length > 0 && (
+                    <TouchableOpacity
+                      style={[styles.sharedStockToggle, { backgroundColor: colors.card }]}
+                      onPress={() => setSharedStock(!sharedStock)}
+                    >
+                      <View style={[styles.checkbox, sharedStock && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                        {sharedStock && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                      </View>
+                      <View style={styles.sharedStockContent}>
+                        <Text style={[styles.sharedStockTitle, { color: colors.text.primary }]}>Use shared stock</Text>
+                        <Text style={[styles.sharedStockHint, { color: colors.text.secondary }]}>
+                          Single stock quantity for all variations
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+
+                  {sharedStock && (
+                    <View style={[styles.card, { backgroundColor: colors.card, marginTop: 12 }]}>
+                      <View style={styles.inputGroup}>
+                        <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Total Stock Quantity</Text>
+                        <TextInput
+                          style={[styles.input, { backgroundColor: colors.background.secondary, color: colors.text.primary }]}
+                          placeholder="100"
+                          placeholderTextColor={colors.text.tertiary}
+                          value={stockQuantity}
+                          onChangeText={setStockQuantity}
+                          keyboardType="number-pad"
+                        />
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
+            </>
+          )}
+
           <View style={{ height: 120 }} />
         </ScrollView>
       </KeyboardAvoidingView>
 
       {/* Submit Button */}
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+      <View style={[styles.submitContainer, { backgroundColor: colors.card, borderTopColor: colors.separator }]}>
         <TouchableOpacity
-          style={[
-            styles.submitBtn,
-            (!name.trim() || !price.trim() || !category) && styles.submitBtnDisabled,
-          ]}
+          style={[styles.submitBtn, { backgroundColor: colors.primary }, isSubmitting && { opacity: 0.7 }]}
           onPress={handleSubmit}
-          disabled={isSubmitting || !name.trim() || !price.trim() || !category}
+          disabled={isSubmitting}
         >
           {isSubmitting ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
             <>
-              <Ionicons name="add-circle" size={22} color="#FFFFFF" />
+              <Ionicons name="add-circle" size={20} color="#FFFFFF" />
               <Text style={styles.submitBtnText}>Add Product</Text>
             </>
           )}
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
   },
   header: {
     flexDirection: 'row',
@@ -483,31 +722,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   backBtn: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: 17,
+    fontWeight: '600',
   },
   headerRight: {
-    width: 44,
+    width: 40,
   },
   progressContainer: {
-    height: 4,
-    backgroundColor: '#E5E7EB',
+    height: 3,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#6366F1',
   },
   keyboardView: {
     flex: 1,
@@ -516,267 +749,247 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
+    padding: 16,
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
-    marginBottom: 10,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginLeft: 4,
   },
-  // Image Styles
-  imageContainer: {
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
+  },
+  card: {
+    borderRadius: 12,
+    padding: 16,
+  },
+  imageContainer: {
+    height: 180,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    overflow: 'hidden',
+  },
+  productImage: {
+    width: '100%',
+    height: '100%',
   },
   imagePlaceholder: {
-    width: 140,
-    height: 140,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderStyle: 'dashed',
   },
   imagePlaceholderText: {
-    fontSize: 13,
-    color: '#9CA3AF',
     marginTop: 8,
-  },
-  imagePreview: {
-    position: 'relative',
-  },
-  previewImage: {
-    width: 140,
-    height: 140,
-    borderRadius: 20,
-  },
-  removeImageBtn: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-  },
-  imageActions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  imageActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 12,
-    gap: 8,
-  },
-  imageActionText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#6366F1',
   },
-  // Input Styles
-  input: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#111827',
-  },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
+  inputGroup: {
+    marginBottom: 12,
   },
   inputLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    fontWeight: '500',
     marginBottom: 6,
   },
-  // Category Grid
-  categoryGrid: {
+  input: {
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  categoryScroll: {
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+  },
+  categoryChipText: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+  typeToggle: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    padding: 4,
+  },
+  typeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 8,
+  },
+  typeOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  priceRow: {
+    flexDirection: 'row',
+  },
+  stockRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginTop: 4,
+  },
+  stockToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  stockToggleText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  variationTypeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
   },
-  categoryItem: {
-    width: '31%',
-    aspectRatio: 1.2,
-    backgroundColor: '#FFFFFF',
+  variationTypeCard: {
+    width: '48%',
+    padding: 16,
     borderRadius: 12,
-    justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
-  categoryItemActive: {
-    backgroundColor: '#6366F1',
-    borderColor: '#6366F1',
-  },
-  categoryLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#6B7280',
-    marginTop: 6,
-    textAlign: 'center',
-  },
-  categoryLabelActive: {
-    color: '#FFFFFF',
-  },
-  // Pricing
-  priceRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  priceInputContainer: {
-    flex: 1,
-  },
-  priceInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-  },
-  currencySymbol: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginRight: 4,
-  },
-  priceInput: {
-    flex: 1,
-    paddingVertical: 14,
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  discountBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginTop: 10,
-    gap: 4,
-  },
-  discountText: {
+  variationTypeLabel: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#22C55E',
+    fontWeight: '600',
+    marginTop: 8,
   },
-  // Units
   unitRow: {
     flexDirection: 'row',
     gap: 8,
   },
   unitChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
-  unitChipActive: {
-    backgroundColor: '#6366F1',
-    borderColor: '#6366F1',
-  },
-  unitText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  unitTextActive: {
-    color: '#FFFFFF',
-  },
-  // Stock
-  stockRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  stockToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-  },
-  stockToggleActive: {
-    backgroundColor: '#DCFCE7',
-  },
-  stockToggleInactive: {
-    backgroundColor: '#F3F4F6',
-  },
-  stockToggleText: {
+  unitChipText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
   },
-  stockToggleTextActive: {
-    color: '#22C55E',
+  addVariationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
   },
-  stockQuantityContainer: {
-    flex: 1,
+  addVariationBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
-  stockLabel: {
+  emptyVariations: {
+    padding: 32,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  emptyVariationsText: {
+    fontSize: 15,
+    fontWeight: '500',
+    marginTop: 12,
+  },
+  emptyVariationsHint: {
+    fontSize: 13,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  variationCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  variationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  variationIndex: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  variationRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  sharedStockToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 12,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sharedStockContent: {
+    marginLeft: 12,
+  },
+  sharedStockTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  sharedStockHint: {
     fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
+    marginTop: 2,
   },
-  stockInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#111827',
-  },
-  // Bottom Bar
-  bottomBar: {
+  submitContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    padding: 16,
+    paddingBottom: 32,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   submitBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#6366F1',
     paddingVertical: 16,
-    borderRadius: 14,
+    borderRadius: 12,
     gap: 8,
   },
-  submitBtnDisabled: {
-    backgroundColor: '#D1D5DB',
-  },
   submitBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
     color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

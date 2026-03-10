@@ -87,19 +87,40 @@ class UserSession(BaseModel):
     expires_at: datetime
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+# Product Variation Model
+class ProductVariation(BaseModel):
+    variation_id: str
+    label: str  # e.g., "1 kg", "3 kg", "Small", "Large"
+    value: Optional[float] = None  # numeric value for sorting (e.g., 1, 3, 5 for kg)
+    price: float
+    discounted_price: Optional[float] = None
+    stock_quantity: int = 100
+    in_stock: bool = True
+
 class Product(BaseModel):
     product_id: str
     vendor_id: str
     name: str
     description: Optional[str] = None
-    price: float
-    discounted_price: Optional[float] = None
     category: str
     image: Optional[str] = None  # base64
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    # Product type: "simple" or "variable"
+    product_type: str = "simple"  # simple = no variations, variable = has variations
+    
+    # For simple products (backward compatible)
+    price: Optional[float] = None
+    discounted_price: Optional[float] = None
     in_stock: bool = True
     stock_quantity: int = 100
     unit: str = "piece"  # piece, kg, liter, etc.
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    # For variable products
+    variation_type: Optional[str] = None  # "weight", "volume", "size", "pack"
+    variation_unit: Optional[str] = None  # "kg", "g", "L", "ml", "pieces"
+    variations: Optional[List[ProductVariation]] = None
+    shared_stock: bool = False  # if True, use stock_quantity for all variations
 
 # Auto-accept timeout in seconds (3 minutes)
 AUTO_ACCEPT_TIMEOUT_SECONDS = 180
@@ -1335,31 +1356,70 @@ async def update_vendor_status(data: StatusUpdate, current_user: User = Depends(
 
 # ===================== PRODUCT MANAGEMENT =====================
 
+class VariationCreate(BaseModel):
+    label: str  # e.g., "1 kg", "3 kg", "Small", "Large"
+    value: Optional[float] = None  # numeric value for sorting
+    price: float
+    discounted_price: Optional[float] = None
+    stock_quantity: int = 100
+    in_stock: bool = True
+
 class ProductCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    price: float
-    discounted_price: Optional[float] = None
     category: str
     image: Optional[str] = None  # base64
+    
+    # Product type: "simple" or "variable"
+    product_type: str = "simple"
+    
+    # For simple products
+    price: Optional[float] = None
+    discounted_price: Optional[float] = None
     in_stock: bool = True
     stock_quantity: int = 100
     unit: str = "piece"
+    
+    # For variable products
+    variation_type: Optional[str] = None  # "weight", "volume", "size", "pack"
+    variation_unit: Optional[str] = None  # "kg", "g", "L", "ml", "pieces"
+    variations: Optional[List[VariationCreate]] = None
+    shared_stock: bool = False
+
+class VariationUpdate(BaseModel):
+    variation_id: Optional[str] = None  # if None, creates new variation
+    label: Optional[str] = None
+    value: Optional[float] = None
+    price: Optional[float] = None
+    discounted_price: Optional[float] = None
+    stock_quantity: Optional[int] = None
+    in_stock: Optional[bool] = None
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    price: Optional[float] = None
-    discounted_price: Optional[float] = None
     category: Optional[str] = None
     image: Optional[str] = None
+    
+    # Product type
+    product_type: Optional[str] = None
+    
+    # For simple products
+    price: Optional[float] = None
+    discounted_price: Optional[float] = None
     in_stock: Optional[bool] = None
     stock_quantity: Optional[int] = None
     unit: Optional[str] = None
+    
+    # For variable products
+    variation_type: Optional[str] = None
+    variation_unit: Optional[str] = None
+    variations: Optional[List[VariationUpdate]] = None
+    shared_stock: Optional[bool] = None
 
 @api_router.post("/vendor/products")
 async def create_product(data: ProductCreate, current_user: User = Depends(require_vendor)):
-    """Create a new product"""
+    """Create a new product (simple or with variations)"""
     product_id = f"prod_{uuid.uuid4().hex[:12]}"
     
     product = {
@@ -1367,15 +1427,46 @@ async def create_product(data: ProductCreate, current_user: User = Depends(requi
         "vendor_id": current_user.user_id,
         "name": data.name,
         "description": data.description,
-        "price": data.price,
-        "discounted_price": data.discounted_price,
         "category": data.category,
         "image": data.image,
-        "in_stock": data.in_stock,
-        "stock_quantity": data.stock_quantity,
-        "unit": data.unit,
-        "created_at": datetime.now(timezone.utc)
+        "created_at": datetime.now(timezone.utc),
+        "product_type": data.product_type,
     }
+    
+    if data.product_type == "variable" and data.variations:
+        # Variable product with variations
+        variations_list = []
+        for var in data.variations:
+            variation = {
+                "variation_id": f"var_{uuid.uuid4().hex[:8]}",
+                "label": var.label,
+                "value": var.value,
+                "price": var.price,
+                "discounted_price": var.discounted_price,
+                "stock_quantity": var.stock_quantity,
+                "in_stock": var.in_stock,
+            }
+            variations_list.append(variation)
+        
+        product["variation_type"] = data.variation_type
+        product["variation_unit"] = data.variation_unit
+        product["variations"] = variations_list
+        product["shared_stock"] = data.shared_stock
+        
+        # For backward compatibility and listing, use lowest price variation
+        prices = [v.price for v in data.variations]
+        product["price"] = min(prices)
+        product["discounted_price"] = min([v.discounted_price for v in data.variations if v.discounted_price] or [None])
+        product["in_stock"] = any(v.in_stock for v in data.variations)
+        product["stock_quantity"] = sum(v.stock_quantity for v in data.variations) if not data.shared_stock else data.stock_quantity
+        product["unit"] = data.variation_unit or data.unit
+    else:
+        # Simple product
+        product["price"] = data.price
+        product["discounted_price"] = data.discounted_price
+        product["in_stock"] = data.in_stock
+        product["stock_quantity"] = data.stock_quantity
+        product["unit"] = data.unit
     
     await db.products.insert_one(product)
     product.pop("_id", None)
@@ -1386,16 +1477,21 @@ async def create_product(data: ProductCreate, current_user: User = Depends(requi
         "vendor_id": current_user.user_id,
         "name": data.name,
         "description": data.description or "",
-        "price": data.price,
-        "discounted_price": data.discounted_price,
+        "price": product["price"],
+        "discounted_price": product.get("discounted_price"),
         "images": [data.image] if data.image else [],
         "category": data.category,
-        "stock": data.stock_quantity,
+        "stock": product["stock_quantity"],
         "likes": 0,
         "rating": 0.0,
         "total_ratings": 0,
-        "is_available": data.in_stock,
-        "unit": data.unit,
+        "is_available": product["in_stock"],
+        "unit": product["unit"],
+        "product_type": data.product_type,
+        "variation_type": data.variation_type if data.product_type == "variable" else None,
+        "variation_unit": data.variation_unit if data.product_type == "variable" else None,
+        "variations": product.get("variations"),
+        "shared_stock": data.shared_stock if data.product_type == "variable" else None,
         "created_at": datetime.now(timezone.utc)
     }
     await db.hub_products.insert_one(hub_product)
