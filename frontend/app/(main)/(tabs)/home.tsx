@@ -13,11 +13,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../../src/store/authStore';
-import { vendorAPI, orderAPI, productAPI } from '../../../src/utils/api';
+import { vendorAPI, orderAPI, productAPI, stockVerificationAPI } from '../../../src/utils/api';
 import { Analytics, Order, Product } from '../../../src/types';
 import { useAlert } from '../../../src/context/AlertContext';
 import { useTheme, typography, spacing, borderRadius } from '../../../src/context/ThemeContext';
 import { Card, Badge } from '../../../src/components/ios';
+import StockVerificationModal from '../../../src/components/StockVerificationModal';
+import LowStockAlert from '../../../src/components/LowStockAlert';
+
+interface LowStockProduct {
+  product_id: string;
+  name: string;
+  category: string;
+  current_stock: number;
+  initial_stock: number;
+  stock_percentage: number;
+  image?: string;
+  unit: string;
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -29,12 +42,55 @@ export default function HomeScreen() {
   const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   
+  // Stock verification state
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showLowStockAlert, setShowLowStockAlert] = useState(false);
+  const [currentLowStockProduct, setCurrentLowStockProduct] = useState<LowStockProduct | null>(null);
+  const [lowStockQueue, setLowStockQueue] = useState<LowStockProduct[]>([]);
+  const [verificationStatus, setVerificationStatus] = useState<any>(null);
+  const [hasCheckedVerification, setHasCheckedVerification] = useState(false);
+  
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
 
   const lowStockProducts = products.filter(p => p.stock_quantity <= 10 && p.in_stock);
   const outOfStockProducts = products.filter(p => !p.in_stock);
   const hasInventoryAlerts = lowStockProducts.length > 0 || outOfStockProducts.length > 0;
+
+  // Check stock verification status on app focus
+  const checkVerificationStatus = async () => {
+    try {
+      const response = await stockVerificationAPI.getStatus();
+      const data = response.data;
+      setVerificationStatus(data);
+      
+      // Show verification modal if required and not verified today
+      if (data.is_verification_required && !hasCheckedVerification) {
+        setShowVerificationModal(true);
+        setHasCheckedVerification(true);
+      }
+      
+      // Queue low stock alerts (products below 35%)
+      if (data.low_stock_products && data.low_stock_products.length > 0) {
+        const dismissed = await getLocalDismissedAlerts();
+        const newAlerts = data.low_stock_products.filter(
+          (p: LowStockProduct) => !dismissed.includes(p.product_id)
+        );
+        if (newAlerts.length > 0 && !showVerificationModal) {
+          setLowStockQueue(newAlerts);
+          setCurrentLowStockProduct(newAlerts[0]);
+          setShowLowStockAlert(true);
+        }
+      }
+    } catch (error) {
+      console.error('Check verification status error:', error);
+    }
+  };
+  
+  // Simple local storage for dismissed alerts (session-based)
+  const dismissedAlerts: string[] = [];
+  const getLocalDismissedAlerts = async () => dismissedAlerts;
+  const addLocalDismissedAlert = (productId: string) => dismissedAlerts.push(productId);
 
   const loadData = async () => {
     try {
@@ -54,6 +110,7 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
+      checkVerificationStatus();
       const intervalId = setInterval(() => loadData(), 30000);
       return () => clearInterval(intervalId);
     }, [])
@@ -61,7 +118,10 @@ export default function HomeScreen() {
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active') loadData();
+      if (nextAppState === 'active') {
+        loadData();
+        checkVerificationStatus();
+      }
     });
     return () => subscription.remove();
   }, []);
@@ -76,8 +136,38 @@ export default function HomeScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData();
+    await checkVerificationStatus();
     setRefreshing(false);
   }, []);
+
+  // Handle low stock alert dismissal
+  const handleLowStockAlertClose = () => {
+    if (currentLowStockProduct) {
+      addLocalDismissedAlert(currentLowStockProduct.product_id);
+    }
+    // Show next alert in queue
+    const remainingAlerts = lowStockQueue.slice(1);
+    if (remainingAlerts.length > 0) {
+      setLowStockQueue(remainingAlerts);
+      setCurrentLowStockProduct(remainingAlerts[0]);
+    } else {
+      setShowLowStockAlert(false);
+      setCurrentLowStockProduct(null);
+      setLowStockQueue([]);
+    }
+  };
+
+  const handleLowStockUpdate = () => {
+    handleLowStockAlertClose();
+    loadData();
+  };
+
+  const handleVerificationComplete = () => {
+    setShowVerificationModal(false);
+    loadData();
+    // Check for low stock alerts after verification
+    checkVerificationStatus();
+  };
 
   const totalOrders = analytics?.total_orders || 0;
   const level = Math.floor(totalOrders / 10) + 1;
@@ -92,6 +182,21 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background.grouped }]} edges={['top']}>
+      {/* Stock Verification Modal */}
+      <StockVerificationModal
+        visible={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
+        onComplete={handleVerificationComplete}
+      />
+      
+      {/* Low Stock Alert */}
+      <LowStockAlert
+        visible={showLowStockAlert}
+        product={currentLowStockProduct}
+        onClose={handleLowStockAlertClose}
+        onUpdate={handleLowStockUpdate}
+      />
+      
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}

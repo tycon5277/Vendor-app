@@ -68,6 +68,22 @@ export const productAPI = {
   getCategories: () => api.get('/vendor/categories'),
 };
 
+// Stock Verification APIs
+export const stockVerificationAPI = {
+  getStatus: () => api.get('/vendor/stock-verification/status'),
+  submit: (items: Array<{product_id: string, verified_stock: number, in_stock: boolean}>, verificationType: string = 'morning') => 
+    api.post('/vendor/stock-verification/submit', { items, verification_type: verificationType }),
+  quickUpdate: (productId: string, newStock?: number, inStock?: boolean, markOutOfStock: boolean = false) =>
+    api.post('/vendor/stock-verification/quick-update', { 
+      product_id: productId, 
+      new_stock: newStock, 
+      in_stock: inStock, 
+      mark_out_of_stock: markOutOfStock 
+    }),
+  getStockHealth: () => api.get('/vendor/stock-health'),
+  dismissAlert: (productId: string) => api.post(`/vendor/stock-verification/dismiss-alert?product_id=${productId}`),
+};
+
 // Helper to transform wisher order response to UI Order format
 const transformWisherOrders = (orders: any[]) => {
   if (!orders || !Array.isArray(orders)) return [];

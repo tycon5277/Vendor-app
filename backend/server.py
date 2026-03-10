@@ -1395,6 +1395,23 @@ class VariationUpdate(BaseModel):
     stock_quantity: Optional[int] = None
     in_stock: Optional[bool] = None
 
+# ===================== STOCK VERIFICATION MODELS =====================
+
+class StockVerificationItem(BaseModel):
+    product_id: str
+    verified_stock: int
+    in_stock: bool
+
+class StockVerificationSubmit(BaseModel):
+    items: List[StockVerificationItem]
+    verification_type: str = "morning"  # "morning", "manual", "low_stock"
+
+class QuickStockUpdate(BaseModel):
+    product_id: str
+    new_stock: Optional[int] = None
+    in_stock: Optional[bool] = None
+    mark_out_of_stock: bool = False
+
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
@@ -1604,6 +1621,247 @@ async def update_product_stock(product_id: str, in_stock: bool, quantity: Option
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Product not found")
     return {"message": "Stock updated"}
+
+# ===================== STOCK VERIFICATION SYSTEM =====================
+
+LOW_STOCK_THRESHOLD = 0.35  # 35% threshold for low stock alerts
+VERIFICATION_THRESHOLD = 0.50  # 50% threshold for morning verification
+
+@api_router.get("/vendor/stock-verification/status")
+async def get_stock_verification_status(current_user: User = Depends(require_vendor)):
+    """Get current stock verification status for the vendor"""
+    vendor_id = current_user.user_id
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Check if verified today
+    verification = await db.stock_verifications.find_one({
+        "vendor_id": vendor_id,
+        "verified_at": {"$gte": today_start}
+    })
+    
+    # Get products needing attention (below 50% stock)
+    products = await db.products.find({
+        "vendor_id": vendor_id,
+        "in_stock": True
+    }).to_list(1000)
+    
+    products_needing_verification = []
+    low_stock_products = []
+    
+    for p in products:
+        initial_stock = p.get("initial_stock_quantity", p.get("stock_quantity", 100))
+        current_stock = p.get("stock_quantity", 0)
+        
+        if initial_stock > 0:
+            stock_percentage = current_stock / initial_stock
+            
+            # Products below 50% need verification
+            if stock_percentage < VERIFICATION_THRESHOLD:
+                products_needing_verification.append({
+                    "product_id": p["product_id"],
+                    "name": p["name"],
+                    "category": p.get("category", "Other"),
+                    "current_stock": current_stock,
+                    "initial_stock": initial_stock,
+                    "stock_percentage": round(stock_percentage * 100, 1),
+                    "image": p.get("image"),
+                    "unit": p.get("unit", "piece")
+                })
+            
+            # Products below 35% are low stock alerts
+            if stock_percentage < LOW_STOCK_THRESHOLD:
+                low_stock_products.append({
+                    "product_id": p["product_id"],
+                    "name": p["name"],
+                    "category": p.get("category", "Other"),
+                    "current_stock": current_stock,
+                    "initial_stock": initial_stock,
+                    "stock_percentage": round(stock_percentage * 100, 1),
+                    "image": p.get("image"),
+                    "unit": p.get("unit", "piece")
+                })
+    
+    # Get vendor's opening time
+    vendor = await db.users.find_one({"user_id": vendor_id})
+    opening_time = vendor.get("vendor_opening_time", "09:00")
+    
+    # Check if within verification window (after opening time)
+    is_verification_required = len(products_needing_verification) > 0 and verification is None
+    
+    # Calculate time since shop opened
+    minutes_since_open = 0
+    show_pause_warning = False
+    if is_verification_required:
+        try:
+            hour, minute = map(int, opening_time.split(":"))
+            shop_open_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if now > shop_open_time:
+                minutes_since_open = int((now - shop_open_time).total_seconds() / 60)
+                if minutes_since_open > 30:
+                    show_pause_warning = True
+        except:
+            pass
+    
+    return {
+        "verified_today": verification is not None,
+        "last_verified_at": verification.get("verified_at").isoformat() if verification else None,
+        "is_verification_required": is_verification_required,
+        "products_needing_verification": products_needing_verification,
+        "low_stock_products": low_stock_products,
+        "low_stock_count": len(low_stock_products),
+        "minutes_since_open": minutes_since_open,
+        "show_pause_warning": show_pause_warning,
+        "opening_time": opening_time
+    }
+
+@api_router.post("/vendor/stock-verification/submit")
+async def submit_stock_verification(data: StockVerificationSubmit, current_user: User = Depends(require_vendor)):
+    """Submit stock verification for products"""
+    vendor_id = current_user.user_id
+    now = datetime.now(timezone.utc)
+    
+    # Update each product's stock
+    updated_products = []
+    for item in data.items:
+        update_result = await db.products.update_one(
+            {"product_id": item.product_id, "vendor_id": vendor_id},
+            {
+                "$set": {
+                    "stock_quantity": item.verified_stock,
+                    "in_stock": item.in_stock,
+                    "last_verified_at": now,
+                    "initial_stock_quantity": item.verified_stock if item.verified_stock > 0 else 100
+                }
+            }
+        )
+        if update_result.matched_count > 0:
+            updated_products.append(item.product_id)
+    
+    # Record verification
+    verification_record = {
+        "verification_id": f"verify_{uuid.uuid4().hex[:12]}",
+        "vendor_id": vendor_id,
+        "verification_type": data.verification_type,
+        "verified_at": now,
+        "products_verified": len(updated_products),
+        "product_ids": updated_products
+    }
+    await db.stock_verifications.insert_one(verification_record)
+    
+    return {
+        "message": "Stock verification submitted successfully",
+        "products_updated": len(updated_products),
+        "verified_at": now.isoformat()
+    }
+
+@api_router.post("/vendor/stock-verification/quick-update")
+async def quick_stock_update(data: QuickStockUpdate, current_user: User = Depends(require_vendor)):
+    """Quick update for a single product from low stock alert"""
+    vendor_id = current_user.user_id
+    now = datetime.now(timezone.utc)
+    
+    update_fields = {"last_verified_at": now}
+    
+    if data.mark_out_of_stock:
+        update_fields["in_stock"] = False
+        update_fields["stock_quantity"] = 0
+    else:
+        if data.new_stock is not None:
+            update_fields["stock_quantity"] = data.new_stock
+            update_fields["initial_stock_quantity"] = data.new_stock
+            update_fields["in_stock"] = data.new_stock > 0
+        if data.in_stock is not None:
+            update_fields["in_stock"] = data.in_stock
+    
+    result = await db.products.update_one(
+        {"product_id": data.product_id, "vendor_id": vendor_id},
+        {"$set": update_fields}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    return {
+        "message": "Stock updated successfully",
+        "product_id": data.product_id,
+        "updated_at": now.isoformat()
+    }
+
+@api_router.get("/vendor/stock-health")
+async def get_stock_health(current_user: User = Depends(require_vendor)):
+    """Get stock health overview for all products"""
+    vendor_id = current_user.user_id
+    
+    products = await db.products.find({"vendor_id": vendor_id}).to_list(1000)
+    
+    health_summary = {
+        "total_products": len(products),
+        "healthy": 0,  # > 50%
+        "warning": 0,  # 35-50%
+        "critical": 0,  # < 35%
+        "out_of_stock": 0,
+        "products": []
+    }
+    
+    for p in products:
+        if not p.get("in_stock", True):
+            health_summary["out_of_stock"] += 1
+            status = "out_of_stock"
+        else:
+            initial_stock = p.get("initial_stock_quantity", p.get("stock_quantity", 100))
+            current_stock = p.get("stock_quantity", 0)
+            
+            if initial_stock > 0:
+                stock_percentage = current_stock / initial_stock
+            else:
+                stock_percentage = 0
+            
+            if stock_percentage >= VERIFICATION_THRESHOLD:
+                health_summary["healthy"] += 1
+                status = "healthy"
+            elif stock_percentage >= LOW_STOCK_THRESHOLD:
+                health_summary["warning"] += 1
+                status = "warning"
+            else:
+                health_summary["critical"] += 1
+                status = "critical"
+        
+        health_summary["products"].append({
+            "product_id": p["product_id"],
+            "name": p["name"],
+            "category": p.get("category", "Other"),
+            "current_stock": p.get("stock_quantity", 0),
+            "initial_stock": p.get("initial_stock_quantity", p.get("stock_quantity", 100)),
+            "stock_percentage": round((p.get("stock_quantity", 0) / max(p.get("initial_stock_quantity", p.get("stock_quantity", 100)), 1)) * 100, 1),
+            "status": status,
+            "in_stock": p.get("in_stock", True),
+            "image": p.get("image"),
+            "unit": p.get("unit", "piece"),
+            "last_verified_at": p.get("last_verified_at").isoformat() if p.get("last_verified_at") else None
+        })
+    
+    # Sort by status priority (critical first, then warning, then healthy)
+    status_order = {"critical": 0, "warning": 1, "out_of_stock": 2, "healthy": 3}
+    health_summary["products"].sort(key=lambda x: status_order.get(x["status"], 4))
+    
+    return health_summary
+
+@api_router.post("/vendor/stock-verification/dismiss-alert")
+async def dismiss_low_stock_alert(product_id: str, current_user: User = Depends(require_vendor)):
+    """Dismiss a low stock alert for a product (acknowledge without updating)"""
+    vendor_id = current_user.user_id
+    now = datetime.now(timezone.utc)
+    
+    result = await db.products.update_one(
+        {"product_id": product_id, "vendor_id": vendor_id},
+        {"$set": {"alert_dismissed_at": now}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    return {"message": "Alert dismissed", "dismissed_at": now.isoformat()}
 
 @api_router.get("/vendor/categories")
 async def get_vendor_categories(current_user: User = Depends(require_vendor)):
