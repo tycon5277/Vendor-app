@@ -407,7 +407,7 @@ export default function WarehouseScreen() {
         </View>
         <TouchableOpacity 
           style={styles.addBtn}
-          onPress={() => router.push('/(main)/product-add')}
+          onPress={() => router.push('/(main)/(tabs)/products/add')}
         >
           <Ionicons name="add" size={24} color="#FFFFFF" />
         </TouchableOpacity>
@@ -572,7 +572,7 @@ export default function WarehouseScreen() {
             {!searchQuery && (
               <TouchableOpacity 
                 style={styles.emptyAddBtn}
-                onPress={() => router.push('/(main)/product-add')}
+                onPress={() => router.push('/(main)/(tabs)/products/add')}
               >
                 <Ionicons name="add-circle" size={20} color="#FFFFFF" />
                 <Text style={styles.emptyAddBtnText}>Add Product</Text>
