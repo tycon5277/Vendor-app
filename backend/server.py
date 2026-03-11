@@ -1036,14 +1036,24 @@ async def sync_vendor_products_to_hub(vendor_id: str):
             "price": product["price"],
             "discounted_price": product.get("discounted_price"),
             "images": [product["image"]] if product.get("image") else [],
+            "image": product.get("image"),
             "category": product.get("category") or "General",
+            "subcategory": product.get("subcategory"),
             "stock": product.get("stock_quantity", 100),
+            "stock_quantity": product.get("stock_quantity", 100),
             "likes": 0,
             "rating": 0.0,
             "total_ratings": 0,
             "is_available": product.get("in_stock", True),
+            "in_stock": product.get("in_stock", True),
             "unit": product.get("unit", "piece"),
-            "created_at": product.get("created_at", datetime.now(timezone.utc))
+            "created_at": product.get("created_at", datetime.now(timezone.utc)),
+            # Product variations support
+            "product_type": product.get("product_type", "simple"),
+            "variation_type": product.get("variation_type"),
+            "variation_unit": product.get("variation_unit"),
+            "variations": product.get("variations", []),
+            "shared_stock": product.get("shared_stock", False),
         }
         
         # Upsert to hub_products collection
