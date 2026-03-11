@@ -11,6 +11,7 @@ import {
   Image,
   Animated,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -20,6 +21,7 @@ import { productAPI } from '../../../../src/utils/api';
 import { useAlert } from '../../../../src/context/AlertContext';
 import { useToastStore } from '../../../../src/store/toastStore';
 import { useTheme } from '../../../../src/context/ThemeContext';
+import { compressImage, formatFileSize, CompressedImage } from '../../../../src/utils/imageCompression';
 
 // Comprehensive category structure with subcategories (inspired by Yandex Market)
 const PRODUCT_CATEGORIES = [
@@ -261,6 +263,7 @@ export default function AddProductScreen() {
   const { showAlert } = useAlert();
   const { setPendingToast } = useToastStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
 
   // Form state
@@ -268,7 +271,10 @@ export default function AddProductScreen() {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [subcategory, setSubcategory] = useState('');
-  const [image, setImage] = useState<string | null>(null);
+  
+  // Multiple images support
+  const [images, setImages] = useState<CompressedImage[]>([]);
+  const MAX_IMAGES = 5;
 
   // Product type
   const [productType, setProductType] = useState<'simple' | 'variable'>('simple');
@@ -330,6 +336,15 @@ export default function AddProductScreen() {
   }, [name, price, category, productType, variationType, variations]);
 
   const handlePickImage = async () => {
+    if (images.length >= MAX_IMAGES) {
+      showAlert({
+        type: 'warning',
+        title: 'Maximum Images',
+        message: `You can only add up to ${MAX_IMAGES} images`,
+      });
+      return;
+    }
+
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       showAlert({
@@ -344,13 +359,38 @@ export default function AddProductScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.5,
-      base64: true,
+      quality: 1, // Get full quality, we'll compress it ourselves
     });
 
-    if (!result.canceled && result.assets[0].base64) {
-      setImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    if (!result.canceled && result.assets[0]) {
+      setIsCompressing(true);
+      try {
+        const compressed = await compressImage(result.assets[0].uri, {
+          maxWidth: 800,
+          maxHeight: 800,
+          targetSizeKB: 100,
+          quality: 0.7,
+        });
+        
+        setImages([...images, compressed]);
+        
+        // Show compression result
+        console.log(`Image compressed: ${compressed.sizeKB}KB`);
+      } catch (error) {
+        console.error('Compression error:', error);
+        showAlert({
+          type: 'error',
+          title: 'Error',
+          message: 'Failed to process image. Please try again.',
+        });
+      } finally {
+        setIsCompressing(false);
+      }
     }
+  };
+
+  const removeImage = (index: number) => {
+    setImages(images.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
@@ -406,7 +446,10 @@ export default function AddProductScreen() {
         name: name.trim(),
         description: description.trim() || null,
         category,
-        image,
+        subcategory,
+        // Send first image as main image, all as array
+        image: images.length > 0 ? images[0].base64 : null,
+        images: images.map(img => img.base64),
         product_type: productType,
       };
 
