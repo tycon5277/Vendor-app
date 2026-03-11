@@ -158,6 +158,10 @@ export const orderAPI = {
   // Item management
   updateItems: (id: string, data: { modified_items: Array<{product_id: string, new_quantity: number, reason: string}>, modification_reason: string }) =>
     api.put(`/vendor/wisher-orders/${id}/modify`, data),
+  // Preparation reminder APIs
+  getDelayedOrders: () => api.get('/vendor/orders-needing-preparation'),
+  snoozePreparation: (id: string) => api.post(`/vendor/orders/${id}/snooze-preparation`),
+  startPreparing: (id: string) => api.post(`/vendor/orders/${id}/start-preparing`),
 };
 
 // Chat APIs

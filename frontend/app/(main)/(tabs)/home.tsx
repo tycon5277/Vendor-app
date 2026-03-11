@@ -20,6 +20,7 @@ import { useTheme, typography, spacing, borderRadius } from '../../../src/contex
 import { Card, Badge } from '../../../src/components/ios';
 import StockVerificationModal from '../../../src/components/StockVerificationModal';
 import LowStockAlert from '../../../src/components/LowStockAlert';
+import PreparationReminderModal from '../../../src/components/PreparationReminderModal';
 
 interface LowStockProduct {
   product_id: string;
@@ -30,6 +31,18 @@ interface LowStockProduct {
   stock_percentage: number;
   image?: string;
   unit: string;
+}
+
+interface DelayedOrder {
+  order_id: string;
+  customer_name: string;
+  items_count: number;
+  total: number;
+  accepted_at: string;
+  waiting_minutes: number;
+  urgency: 'medium' | 'high' | 'critical';
+  snooze_count: number;
+  items_summary: string;
 }
 
 export default function HomeScreen() {
@@ -50,12 +63,41 @@ export default function HomeScreen() {
   const [verificationStatus, setVerificationStatus] = useState<any>(null);
   const [hasCheckedVerification, setHasCheckedVerification] = useState(false);
   
+  // Preparation reminder state
+  const [showPreparationReminder, setShowPreparationReminder] = useState(false);
+  const [currentDelayedOrder, setCurrentDelayedOrder] = useState<DelayedOrder | null>(null);
+  const [delayedOrdersQueue, setDelayedOrdersQueue] = useState<DelayedOrder[]>([]);
+  const [snoozedOrders, setSnoozedOrders] = useState<Set<string>>(new Set());
+  
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
 
   const lowStockProducts = products.filter(p => p.stock_quantity <= 10 && p.in_stock);
   const outOfStockProducts = products.filter(p => !p.in_stock);
   const hasInventoryAlerts = lowStockProducts.length > 0 || outOfStockProducts.length > 0;
+
+  // Check for delayed orders (preparation reminders)
+  const checkDelayedOrders = async () => {
+    try {
+      const response = await orderAPI.getDelayedOrders();
+      const data = response.data;
+      
+      if (data.delayed_orders && data.delayed_orders.length > 0) {
+        // Filter out snoozed orders
+        const pendingReminders = data.delayed_orders.filter(
+          (o: DelayedOrder) => !snoozedOrders.has(o.order_id)
+        );
+        
+        if (pendingReminders.length > 0 && !showVerificationModal && !showLowStockAlert) {
+          setDelayedOrdersQueue(pendingReminders);
+          setCurrentDelayedOrder(pendingReminders[0]);
+          setShowPreparationReminder(true);
+        }
+      }
+    } catch (error) {
+      console.error('Check delayed orders error:', error);
+    }
+  };
 
   // Check stock verification status on app focus
   const checkVerificationStatus = async () => {
@@ -111,7 +153,11 @@ export default function HomeScreen() {
     useCallback(() => {
       loadData();
       checkVerificationStatus();
-      const intervalId = setInterval(() => loadData(), 30000);
+      checkDelayedOrders();
+      const intervalId = setInterval(() => {
+        loadData();
+        checkDelayedOrders();
+      }, 30000);
       return () => clearInterval(intervalId);
     }, [])
   );
@@ -121,6 +167,7 @@ export default function HomeScreen() {
       if (nextAppState === 'active') {
         loadData();
         checkVerificationStatus();
+        checkDelayedOrders();
       }
     });
     return () => subscription.remove();
@@ -137,6 +184,7 @@ export default function HomeScreen() {
     setRefreshing(true);
     await loadData();
     await checkVerificationStatus();
+    await checkDelayedOrders();
     setRefreshing(false);
   }, []);
 
@@ -169,6 +217,59 @@ export default function HomeScreen() {
     checkVerificationStatus();
   };
 
+  // Handle preparation reminder actions
+  const handlePreparationReminderClose = () => {
+    setShowPreparationReminder(false);
+    setCurrentDelayedOrder(null);
+  };
+
+  const handleStartPreparing = () => {
+    setShowPreparationReminder(false);
+    // Show next delayed order if any
+    const remainingOrders = delayedOrdersQueue.slice(1);
+    if (remainingOrders.length > 0) {
+      setTimeout(() => {
+        setDelayedOrdersQueue(remainingOrders);
+        setCurrentDelayedOrder(remainingOrders[0]);
+        setShowPreparationReminder(true);
+      }, 500);
+    } else {
+      setCurrentDelayedOrder(null);
+      setDelayedOrdersQueue([]);
+    }
+    loadData();
+  };
+
+  const handleSnoozePreparation = () => {
+    if (currentDelayedOrder) {
+      // Add to snoozed set temporarily (will be removed after 2 mins by backend check)
+      setSnoozedOrders(prev => new Set([...prev, currentDelayedOrder.order_id]));
+      
+      // Clear snooze after 2 minutes
+      setTimeout(() => {
+        setSnoozedOrders(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(currentDelayedOrder.order_id);
+          return newSet;
+        });
+      }, 2 * 60 * 1000);
+    }
+    
+    setShowPreparationReminder(false);
+    // Show next delayed order if any
+    const remainingOrders = delayedOrdersQueue.slice(1);
+    if (remainingOrders.length > 0) {
+      setTimeout(() => {
+        setDelayedOrdersQueue(remainingOrders);
+        setCurrentDelayedOrder(remainingOrders[0]);
+        setShowPreparationReminder(true);
+      }, 500);
+    } else {
+      setCurrentDelayedOrder(null);
+      setDelayedOrdersQueue([]);
+    }
+  };
+
   const totalOrders = analytics?.total_orders || 0;
   const level = Math.floor(totalOrders / 10) + 1;
   const xpProgress = (totalOrders % 10) / 10;
@@ -195,6 +296,15 @@ export default function HomeScreen() {
         product={currentLowStockProduct}
         onClose={handleLowStockAlertClose}
         onUpdate={handleLowStockUpdate}
+      />
+      
+      {/* Preparation Reminder Modal */}
+      <PreparationReminderModal
+        visible={showPreparationReminder}
+        order={currentDelayedOrder}
+        onClose={handlePreparationReminderClose}
+        onStartPreparing={handleStartPreparing}
+        onSnooze={handleSnoozePreparation}
       />
       
       <ScrollView

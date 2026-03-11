@@ -7,14 +7,37 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
 
 ## Latest Updates (March 2026)
+- **Preparation Reminder System** — Popup reminders with urgency levels when vendors accept orders but delay preparation
 - **Stock Verification System** — Morning verification reminders, low stock alerts (35% threshold)
 - **iOS-style UI overhaul** — ThemeContext, iOS components, light/dark mode support
 - **Product Variations** — Support for products with multiple variations (size, weight, quantity)
 - **Detailed Categories** — Two-level category/subcategory system (16 main categories with subcategories)
+- **Auto-Sync to Hub** — Product changes sync instantly to Wisher app (hub_products)
 - Created comprehensive implementation guides for Wisher and Genie apps
 - SSE delivery stream tested and working (requires Redis)
 - Redis must be running for zone-based assignment to work
 - Terminology: "Delivery Fee" → "Handling & Transportation"
+
+## Preparation Reminder System (NEW - March 2026)
+- **Trigger:** Order in "confirmed" status for 10+ minutes without starting preparation
+- **Urgency Levels:**
+  - 10 mins: Yellow warning 🟡
+  - 15 mins: Orange warning 🟠
+  - 20+ mins: Red critical 🔴
+- **Actions:**
+  - "Start Preparing Now" — Updates status to "preparing"
+  - "In 2 Minutes" — Snoozes reminder, tracked for admin review
+- **Tracking:**
+  - `accepted_at` — Timestamp when order was confirmed
+  - `preparing_started_at` — Timestamp when preparation started
+  - `preparation_snooze_count` — Number of snoozes (for admin flagging)
+  - `time_to_start_preparing_mins` — Performance metric
+- **Backend APIs:**
+  - `GET /api/vendor/orders-needing-preparation` — Get delayed orders sorted by wait time
+  - `POST /api/vendor/orders/{id}/snooze-preparation` — Snooze reminder for 2 mins
+  - `POST /api/vendor/orders/{id}/start-preparing` — Quick start preparation
+- **Frontend Component:**
+  - `PreparationReminderModal` — Popup with vibration and urgency colors
 
 ## Stock Verification System (NEW - March 2026)
 - **Morning Verification** — Continuous reminders when shop opens until stock verified

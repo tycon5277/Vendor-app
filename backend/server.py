@@ -8050,22 +8050,39 @@ async def update_wisher_order_status(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found or not authorized")
     
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
     
     # Add to status history
     status_entry = {
         "status": status_update.status,
-        "timestamp": now,
+        "timestamp": now_iso,
         "note": status_update.note or f"Status changed to {status_update.status}"
     }
     
     update_data = {
         "$set": {
             "status": status_update.status,
-            "updated_at": now
+            "updated_at": now_iso
         },
         "$push": {"status_history": status_entry}
     }
+    
+    # Track timestamps for performance metrics
+    if status_update.status == "confirmed":
+        update_data["$set"]["accepted_at"] = now_iso
+        update_data["$set"]["preparation_snooze_count"] = 0  # Reset snooze count
+    
+    if status_update.status == "preparing":
+        update_data["$set"]["preparing_started_at"] = now_iso
+        # Calculate time taken to start preparing (for metrics)
+        if order.get("accepted_at"):
+            try:
+                accepted_time = datetime.fromisoformat(order["accepted_at"].replace('Z', '+00:00'))
+                time_to_prepare_mins = (now - accepted_time).total_seconds() / 60
+                update_data["$set"]["time_to_start_preparing_mins"] = round(time_to_prepare_mins, 1)
+            except:
+                pass
     
     # Auto-search for delivery partner when status changes to "preparing"
     # Only if vendor doesn't have their own delivery service
@@ -8112,6 +8129,203 @@ async def update_wisher_order_status(
             response["message"] = "Order status updated. Push notifications sent to nearby Carpet Genies..."
     
     return response
+
+
+
+# ===================== PREPARATION REMINDER SYSTEM =====================
+
+@api_router.get("/vendor/orders-needing-preparation")
+async def get_orders_needing_preparation(current_user: User = Depends(require_vendor)):
+    """
+    Get orders that are confirmed but not yet being prepared.
+    Returns orders sorted by waiting time (oldest first).
+    Used by Vendor App to show preparation reminders.
+    """
+    vendor_id = current_user.user_id
+    now = datetime.now(timezone.utc)
+    
+    # Find confirmed orders that haven't started preparing
+    orders = await db.wisher_orders.find({
+        "vendor_id": vendor_id,
+        "status": "confirmed",
+        "accepted_at": {"$exists": True}
+    }, {"_id": 0}).to_list(100)
+    
+    delayed_orders = []
+    
+    for order in orders:
+        try:
+            accepted_at_str = order.get("accepted_at", "")
+            if not accepted_at_str:
+                continue
+                
+            accepted_at = datetime.fromisoformat(accepted_at_str.replace('Z', '+00:00'))
+            waiting_mins = (now - accepted_at).total_seconds() / 60
+            
+            # Only include orders waiting more than 10 minutes
+            if waiting_mins >= 10:
+                # Determine urgency level
+                if waiting_mins >= 20:
+                    urgency = "critical"  # Red 🔴
+                elif waiting_mins >= 15:
+                    urgency = "high"  # Orange 🟠
+                else:
+                    urgency = "medium"  # Yellow 🟡
+                
+                delayed_orders.append({
+                    "order_id": order["order_id"],
+                    "customer_name": order.get("customer_name", "Customer"),
+                    "items_count": len(order.get("items", [])),
+                    "total": order.get("total", 0),
+                    "accepted_at": accepted_at_str,
+                    "waiting_minutes": round(waiting_mins, 1),
+                    "urgency": urgency,
+                    "snooze_count": order.get("preparation_snooze_count", 0),
+                    "items_summary": ", ".join([
+                        f"{item.get('name', 'Item')} x{item.get('quantity', 1)}" 
+                        for item in order.get("items", [])[:3]
+                    ]) + ("..." if len(order.get("items", [])) > 3 else "")
+                })
+        except Exception as e:
+            logger.error(f"Error processing order {order.get('order_id')}: {e}")
+            continue
+    
+    # Sort by waiting time (oldest/longest waiting first)
+    delayed_orders.sort(key=lambda x: x["waiting_minutes"], reverse=True)
+    
+    return {
+        "delayed_orders": delayed_orders,
+        "total_delayed": len(delayed_orders),
+        "has_critical": any(o["urgency"] == "critical" for o in delayed_orders)
+    }
+
+
+@api_router.post("/vendor/orders/{order_id}/snooze-preparation")
+async def snooze_preparation_reminder(order_id: str, current_user: User = Depends(require_vendor)):
+    """
+    Snooze the preparation reminder for 2 minutes.
+    Increments snooze count for tracking repeated delays.
+    """
+    vendor_id = current_user.user_id
+    
+    order = await db.wisher_orders.find_one({
+        "order_id": order_id,
+        "vendor_id": vendor_id,
+        "status": "confirmed"
+    })
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found or not in confirmed status")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    current_snooze_count = order.get("preparation_snooze_count", 0) + 1
+    
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "preparation_snooze_count": current_snooze_count,
+                "last_snooze_at": now,
+                "next_reminder_at": (datetime.now(timezone.utc) + timedelta(minutes=2)).isoformat()
+            }
+        }
+    )
+    
+    # Log for admin tracking (repeated snoozes = potential problem vendor)
+    if current_snooze_count >= 3:
+        logger.warning(f"Vendor {vendor_id} has snoozed order {order_id} {current_snooze_count} times - potential delay issue")
+    
+    return {
+        "message": "Reminder snoozed for 2 minutes",
+        "snooze_count": current_snooze_count,
+        "next_reminder_at": (datetime.now(timezone.utc) + timedelta(minutes=2)).isoformat()
+    }
+
+
+@api_router.post("/vendor/orders/{order_id}/start-preparing")
+async def start_preparing_order(order_id: str, current_user: User = Depends(require_vendor)):
+    """
+    Quick action to start preparing an order.
+    Updates status to 'preparing' and records the timestamp.
+    """
+    vendor_id = current_user.user_id
+    
+    order = await db.wisher_orders.find_one({
+        "order_id": order_id,
+        "vendor_id": vendor_id,
+        "status": "confirmed"
+    })
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found or not in confirmed status")
+    
+    # Use the existing status update logic
+    status_update = OrderStatusUpdate(status="preparing", note="Started preparing from reminder")
+    
+    # Create a mock user object for the function call
+    from types import SimpleNamespace
+    mock_user = SimpleNamespace(user_id=vendor_id, partner_type="vendor")
+    
+    # Directly update the order
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    
+    status_entry = {
+        "status": "preparing",
+        "timestamp": now_iso,
+        "note": "Started preparing from reminder"
+    }
+    
+    update_data = {
+        "$set": {
+            "status": "preparing",
+            "updated_at": now_iso,
+            "preparing_started_at": now_iso
+        },
+        "$push": {"status_history": status_entry}
+    }
+    
+    # Calculate time taken to start preparing
+    if order.get("accepted_at"):
+        try:
+            accepted_time = datetime.fromisoformat(order["accepted_at"].replace('Z', '+00:00'))
+            time_to_prepare_mins = (now - accepted_time).total_seconds() / 60
+            update_data["$set"]["time_to_start_preparing_mins"] = round(time_to_prepare_mins, 1)
+        except:
+            pass
+    
+    # Check if we need to find a Genie
+    vendor = await db.users.find_one({"user_id": vendor_id})
+    has_own_delivery = vendor.get("vendor_can_deliver", False) or vendor.get("has_own_delivery", False)
+    
+    genie_search_started = False
+    if not has_own_delivery:
+        vendor_location = vendor.get("vendor_shop_location", {})
+        if vendor_location.get("lat") and vendor_location.get("lng"):
+            order_details = {
+                "vendor_id": vendor_id,
+                "vendor_name": vendor.get("vendor_shop_name", "Unknown"),
+                "vendor_phone": vendor.get("phone", ""),
+                "vendor_address": vendor.get("vendor_shop_address", ""),
+                "customer_location": order.get("delivery_address", {}),
+                "customer_name": order.get("customer_name", ""),
+                "items_count": len(order.get("items", [])),
+                "order_total": order.get("total", 0),
+                "delivery_fee": order.get("delivery_fee", 30)
+            }
+            await broadcast_delivery_request(order_id, vendor_location, order_details)
+            update_data["$set"]["delivery_type"] = "genie_delivery"
+            genie_search_started = True
+    
+    await db.wisher_orders.update_one({"order_id": order_id}, update_data)
+    
+    return {
+        "message": "Started preparing order",
+        "order_id": order_id,
+        "status": "preparing",
+        "genie_search_started": genie_search_started
+    }
+
 
 
 @api_router.put("/vendor/wisher-orders/{order_id}/modify")
