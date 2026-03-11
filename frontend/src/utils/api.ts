@@ -237,3 +237,12 @@ export const wisherOrderAPI = {
   // Get pickup QR code for order handoff verification
   getPickupQR: (orderId: string) => api.get(`/vendor/wisher-orders/${orderId}/pickup-qr`),
 };
+
+// Handover Authentication APIs (New system where Genie provides OTP to vendor)
+export const handoverAPI = {
+  // Vendor verifies OTP provided by genie
+  verifyOtp: (otp: string) => api.post('/vendor/verify-handover-otp', { otp }),
+  
+  // Get pending handovers (genies waiting at vendor)
+  getPendingHandovers: () => api.get('/vendor/pending-handovers'),
+};

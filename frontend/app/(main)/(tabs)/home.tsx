@@ -446,6 +446,25 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
 
+          {/* Handover Order Button */}
+          <TouchableOpacity 
+            style={[styles.handoverBtn, { backgroundColor: colors.card, borderColor: colors.separator }]}
+            onPress={() => router.push('/(main)/handover')}
+            activeOpacity={0.8}
+            testID="handover-order-btn"
+          >
+            <View style={[styles.handoverIconBg, { backgroundColor: isDark ? colors.primary + '20' : '#EFF6FF' }]}>
+              <Ionicons name="swap-horizontal" size={24} color={colors.primary} />
+            </View>
+            <View style={styles.handoverContent}>
+              <Text style={[styles.handoverTitle, { color: colors.text.primary }]}>Handover Order</Text>
+              <Text style={[styles.handoverSubtitle, { color: colors.text.secondary }]}>
+                Enter code from delivery partner
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+          </TouchableOpacity>
+
           {/* Recent Orders */}
           <View style={styles.ordersSection}>
             <View style={styles.sectionHeader}>
@@ -829,6 +848,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   insightsText: {
+    fontSize: typography.footnote.fontSize,
+    marginTop: 2,
+  },
+  handoverBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.l,
+    marginTop: spacing.m,
+    padding: spacing.m,
+    borderRadius: borderRadius.l,
+    borderWidth: 1,
+  },
+  handoverIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.m,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  handoverContent: {
+    flex: 1,
+    marginLeft: spacing.m,
+  },
+  handoverTitle: {
+    fontSize: typography.body.fontSize,
+    fontWeight: '600',
+  },
+  handoverSubtitle: {
     fontSize: typography.footnote.fontSize,
     marginTop: 2,
   },

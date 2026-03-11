@@ -7,6 +7,7 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
 
 ## Latest Updates (March 2026)
+- **Handover Authentication System** — Reversed OTP flow where Genie provides code to Vendor for multi-order handling
 - **Multi-Image Upload** — Support for up to 5 product images with client-side compression (~100KB target)
 - **Preparation Reminder System** — Popup reminders with urgency levels when vendors accept orders but delay preparation
 - **Stock Verification System** — Morning verification reminders, low stock alerts (35% threshold)
@@ -18,6 +19,32 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - SSE delivery stream tested and working (requires Redis)
 - Redis must be running for zone-based assignment to work
 - Terminology: "Delivery Fee" → "Handling & Transportation"
+
+## Handover Authentication System (NEW - March 2026)
+- **Problem Solved:** Vendors with multiple orders couldn't identify which OTP/QR belongs to which Genie
+- **New Flow:**
+  1. Genie marks "Arrived at vendor" → OTP generated
+  2. Genie tells 6-digit OTP to vendor verbally
+  3. Vendor enters OTP in "Handover Order" screen → Sees order summary
+  4. Genie confirms items checklist in their app
+  5. When BOTH confirm → Order automatically moves to "out_for_delivery"
+- **Key Features:**
+  - OTP valid for 10 minutes
+  - No extra "Confirm" buttons - automatic on dual confirmation
+  - Customer details only revealed after successful handover
+  - Items checklist for Genie to verify
+- **Backend APIs:**
+  - `POST /api/genie/deliveries/{id}/arrived-at-vendor` — Genie marks arrival, gets OTP
+  - `GET /api/genie/deliveries/{id}/handover-otp` — Get OTP if forgotten
+  - `POST /api/genie/deliveries/{id}/confirm-checklist` — Genie confirms items
+  - `POST /api/vendor/verify-handover-otp` — Vendor verifies OTP
+  - `GET /api/vendor/pending-handovers` — Get pending handover orders
+- **Frontend:**
+  - New "Handover Order" button on Vendor home screen
+  - New Handover Authenticator screen with 6-digit OTP input
+  - Order summary display after successful verification
+- **Documentation:**
+  - `/app/documents/GENIE_HANDOVER_GUIDE.md` — Complete guide for Genie app implementation
 
 ## Multi-Image Upload System (NEW - March 2026)
 - **Max Images:** 5 per product

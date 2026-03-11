@@ -10232,6 +10232,360 @@ async def get_genie_active_deliveries(current_user: User = Depends(require_carpe
     return {"deliveries": orders}
 
 
+# ===================== NEW HANDOVER AUTHENTICATION SYSTEM =====================
+# Flow: Genie arrives → tells OTP to vendor → Vendor enters OTP → Genie confirms checklist → Order picked up
+
+import random
+import string
+
+def generate_handover_otp() -> str:
+    """Generate a 6-digit OTP for handover verification"""
+    return ''.join(random.choices(string.digits, k=6))
+
+
+@api_router.post("/genie/deliveries/{order_id}/arrived-at-vendor")
+async def genie_arrived_at_vendor(order_id: str, current_user: User = Depends(require_carpet_genie)):
+    """
+    Genie marks they have arrived at the vendor location.
+    This generates a 6-digit OTP that the genie will tell to the vendor.
+    """
+    now = datetime.now(timezone.utc)
+    
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("genie_id") != current_user.user_id:
+        raise HTTPException(status_code=403, detail="This order is not assigned to you")
+    
+    if order.get("status") not in ["preparing", "ready_for_pickup", "confirmed"]:
+        raise HTTPException(status_code=400, detail="Order is not ready for pickup")
+    
+    # Generate 6-digit OTP for handover
+    handover_otp = generate_handover_otp()
+    otp_expires_at = now + timedelta(minutes=10)
+    
+    # Get order items for checklist
+    items = order.get("items", [])
+    checklist_items = []
+    for item in items:
+        checklist_items.append({
+            "product_id": item.get("product_id"),
+            "name": item.get("name"),
+            "quantity": item.get("quantity"),
+            "variation_label": item.get("variation_label"),
+            "verified": False
+        })
+    
+    # Update order with handover data
+    handover_data = {
+        "handover_otp": handover_otp,
+        "handover_otp_generated_at": now.isoformat(),
+        "handover_otp_expires_at": otp_expires_at.isoformat(),
+        "genie_arrived_at": now.isoformat(),
+        "vendor_handover_confirmed": False,
+        "genie_checklist_confirmed": False,
+        "handover_checklist": checklist_items
+    }
+    
+    await db.wisher_orders.update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "genie_status": "arrived_at_vendor",
+                **handover_data
+            },
+            "$push": {
+                "status_history": {
+                    "status": "genie_arrived",
+                    "timestamp": now.isoformat(),
+                    "note": f"{current_user.name} arrived at vendor"
+                }
+            }
+        }
+    )
+    
+    # Get vendor details
+    vendor = await db.users.find_one(
+        {"user_id": order.get("vendor_id")},
+        {"_id": 0, "vendor_shop_name": 1}
+    )
+    
+    return {
+        "message": "Arrived at vendor. Tell this OTP to the vendor.",
+        "handover_otp": handover_otp,
+        "otp_expires_in_minutes": 10,
+        "vendor_name": vendor.get("vendor_shop_name") if vendor else "Vendor",
+        "checklist": checklist_items,
+        "instructions": "Tell the vendor this OTP. They will enter it in their app to confirm handover."
+    }
+
+
+@api_router.get("/genie/deliveries/{order_id}/handover-otp")
+async def get_genie_handover_otp(order_id: str, current_user: User = Depends(require_carpet_genie)):
+    """
+    Get the handover OTP for an order (in case genie forgets or needs to show again).
+    """
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("genie_id") != current_user.user_id:
+        raise HTTPException(status_code=403, detail="This order is not assigned to you")
+    
+    handover_otp = order.get("handover_otp")
+    if not handover_otp:
+        raise HTTPException(status_code=400, detail="No handover OTP generated. Mark as arrived at vendor first.")
+    
+    # Check if expired
+    expires_at_str = order.get("handover_otp_expires_at")
+    if expires_at_str:
+        expires_at = datetime.fromisoformat(expires_at_str.replace("Z", "+00:00"))
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="OTP expired. Please regenerate by marking arrived again.")
+    
+    return {
+        "handover_otp": handover_otp,
+        "expires_at": expires_at_str,
+        "vendor_confirmed": order.get("vendor_handover_confirmed", False),
+        "genie_confirmed": order.get("genie_checklist_confirmed", False)
+    }
+
+
+class GenieChecklistConfirm(BaseModel):
+    items_verified: List[str] = []  # List of product_ids that are verified
+    all_items_confirmed: bool = False  # True if genie confirms all items
+
+
+@api_router.post("/genie/deliveries/{order_id}/confirm-checklist")
+async def genie_confirm_checklist(
+    order_id: str, 
+    data: GenieChecklistConfirm,
+    current_user: User = Depends(require_carpet_genie)
+):
+    """
+    Genie confirms the checklist of items received from vendor.
+    If vendor has also confirmed OTP, this completes the handover and marks order as picked up.
+    """
+    now = datetime.now(timezone.utc)
+    
+    order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.get("genie_id") != current_user.user_id:
+        raise HTTPException(status_code=403, detail="This order is not assigned to you")
+    
+    if not order.get("handover_otp"):
+        raise HTTPException(status_code=400, detail="Please mark as arrived at vendor first")
+    
+    if not data.all_items_confirmed:
+        raise HTTPException(status_code=400, detail="Please confirm all items are received")
+    
+    # Update checklist items as verified
+    checklist = order.get("handover_checklist", [])
+    for item in checklist:
+        item["verified"] = True
+    
+    update_data = {
+        "genie_checklist_confirmed": True,
+        "genie_checklist_confirmed_at": now.isoformat(),
+        "handover_checklist": checklist
+    }
+    
+    # Check if vendor has also confirmed
+    vendor_confirmed = order.get("vendor_handover_confirmed", False)
+    
+    response_data = {
+        "message": "Checklist confirmed",
+        "genie_confirmed": True,
+        "vendor_confirmed": vendor_confirmed
+    }
+    
+    # If both confirmed, complete the handover
+    if vendor_confirmed:
+        update_data["status"] = "out_for_delivery"
+        update_data["genie_status"] = "picked_up"
+        update_data["picked_up_at"] = now.isoformat()
+        update_data["delivery_info.status"] = "picked_up"
+        update_data["delivery_info.picked_up_at"] = now.isoformat()
+        
+        await db.wisher_orders.update_one(
+            {"order_id": order_id},
+            {
+                "$set": update_data,
+                "$push": {
+                    "status_history": {
+                        "status": "out_for_delivery",
+                        "timestamp": now.isoformat(),
+                        "note": f"Handover complete. Order picked up by {current_user.name}"
+                    }
+                }
+            }
+        )
+        
+        response_data["handover_complete"] = True
+        response_data["status"] = "out_for_delivery"
+        response_data["message"] = "Handover complete! Order picked up successfully."
+        
+        # Now reveal customer details
+        response_data["delivery"] = {
+            "customer_name": order.get("customer_name"),
+            "customer_phone": order.get("customer_phone"),
+            "customer_address": order.get("delivery_address")
+        }
+    else:
+        await db.wisher_orders.update_one(
+            {"order_id": order_id},
+            {"$set": update_data}
+        )
+        response_data["handover_complete"] = False
+        response_data["message"] = "Checklist confirmed. Waiting for vendor to enter OTP."
+    
+    return response_data
+
+
+# ===================== VENDOR HANDOVER ENDPOINTS =====================
+
+class VendorHandoverOTPVerify(BaseModel):
+    otp: str  # 6-digit OTP from genie
+
+
+@api_router.post("/vendor/verify-handover-otp")
+async def vendor_verify_handover_otp(
+    data: VendorHandoverOTPVerify,
+    current_user: User = Depends(require_vendor)
+):
+    """
+    Vendor enters the 6-digit OTP provided by the genie.
+    Returns order summary for confirmation.
+    If genie has also confirmed checklist, this completes the handover.
+    """
+    now = datetime.now(timezone.utc)
+    
+    if not data.otp or len(data.otp) != 6:
+        raise HTTPException(status_code=400, detail="Please enter a valid 6-digit OTP")
+    
+    # Find order with this OTP for this vendor
+    order = await db.wisher_orders.find_one({
+        "vendor_id": current_user.user_id,
+        "handover_otp": data.otp,
+        "status": {"$in": ["confirmed", "preparing", "ready_for_pickup"]}
+    }, {"_id": 0})
+    
+    if not order:
+        raise HTTPException(status_code=400, detail="Invalid OTP or order not found")
+    
+    order_id = order.get("order_id")
+    
+    # Check if OTP expired
+    expires_at_str = order.get("handover_otp_expires_at")
+    if expires_at_str:
+        expires_at = datetime.fromisoformat(expires_at_str.replace("Z", "+00:00"))
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="OTP has expired. Ask genie to regenerate.")
+    
+    # Get genie details
+    genie = await db.users.find_one(
+        {"user_id": order.get("genie_id")},
+        {"_id": 0, "name": 1, "phone": 1, "picture": 1}
+    )
+    
+    update_data = {
+        "vendor_handover_confirmed": True,
+        "vendor_handover_confirmed_at": now.isoformat()
+    }
+    
+    # Check if genie has also confirmed
+    genie_confirmed = order.get("genie_checklist_confirmed", False)
+    
+    response_data = {
+        "valid": True,
+        "order_id": order_id,
+        "order_summary": {
+            "items": order.get("items", []),
+            "items_count": len(order.get("items", [])),
+            "total_amount": order.get("total_amount"),
+            "customer_name": order.get("customer_name"),
+            "order_placed_at": order.get("created_at")
+        },
+        "genie": {
+            "name": genie.get("name") if genie else "Delivery Partner",
+            "phone": genie.get("phone") if genie else None,
+            "photo": genie.get("picture") if genie else None
+        },
+        "vendor_confirmed": True,
+        "genie_confirmed": genie_confirmed
+    }
+    
+    # If both confirmed, complete the handover
+    if genie_confirmed:
+        update_data["status"] = "out_for_delivery"
+        update_data["genie_status"] = "picked_up"
+        update_data["picked_up_at"] = now.isoformat()
+        update_data["delivery_info.status"] = "picked_up"
+        update_data["delivery_info.picked_up_at"] = now.isoformat()
+        
+        await db.wisher_orders.update_one(
+            {"order_id": order_id},
+            {
+                "$set": update_data,
+                "$push": {
+                    "status_history": {
+                        "status": "out_for_delivery",
+                        "timestamp": now.isoformat(),
+                        "note": f"Handover complete. Vendor confirmed OTP."
+                    }
+                }
+            }
+        )
+        
+        response_data["handover_complete"] = True
+        response_data["message"] = "Handover complete! Order is now out for delivery."
+    else:
+        await db.wisher_orders.update_one(
+            {"order_id": order_id},
+            {"$set": update_data}
+        )
+        response_data["handover_complete"] = False
+        response_data["message"] = "OTP verified! Waiting for genie to confirm items checklist."
+    
+    return response_data
+
+
+@api_router.get("/vendor/pending-handovers")
+async def get_vendor_pending_handovers(current_user: User = Depends(require_vendor)):
+    """
+    Get orders where genie has arrived and is waiting for handover.
+    """
+    orders = await db.wisher_orders.find({
+        "vendor_id": current_user.user_id,
+        "genie_status": "arrived_at_vendor",
+        "status": {"$in": ["confirmed", "preparing", "ready_for_pickup"]}
+    }, {"_id": 0}).to_list(20)
+    
+    result = []
+    for order in orders:
+        genie = await db.users.find_one(
+            {"user_id": order.get("genie_id")},
+            {"_id": 0, "name": 1, "phone": 1}
+        )
+        result.append({
+            "order_id": order.get("order_id"),
+            "items_count": len(order.get("items", [])),
+            "total_amount": order.get("total_amount"),
+            "genie_name": genie.get("name") if genie else "Delivery Partner",
+            "genie_arrived_at": order.get("genie_arrived_at"),
+            "vendor_confirmed": order.get("vendor_handover_confirmed", False),
+            "genie_confirmed": order.get("genie_checklist_confirmed", False)
+        })
+    
+    return {"pending_handovers": result, "count": len(result)}
+
+
 @api_router.put("/genie/deliveries/{order_id}/pickup")
 async def genie_pickup_order(order_id: str, current_user: User = Depends(require_carpet_genie)):
     """Genie marks order as picked up from vendor"""
