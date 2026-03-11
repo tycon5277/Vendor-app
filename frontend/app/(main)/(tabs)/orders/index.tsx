@@ -529,7 +529,11 @@ export default function OrdersScreen() {
             style={styles.tab}
             onPress={() => handleTabChange('new')}
           >
-            <Text style={[styles.tabText, { color: colors.text.secondary }, activeTab === 'new' && { color: colors.primary }]}>
+            <Text style={[
+              styles.tabText, 
+              { color: colors.text.secondary }, 
+              activeTab === 'new' && { color: '#FFFFFF' }
+            ]}>
               Pending
             </Text>
             {newOrdersCount > 0 && (
@@ -543,12 +547,16 @@ export default function OrdersScreen() {
             style={styles.tab}
             onPress={() => handleTabChange('active')}
           >
-            <Text style={[styles.tabText, { color: colors.text.secondary }, activeTab === 'active' && { color: colors.primary }]}>
+            <Text style={[
+              styles.tabText, 
+              { color: colors.text.secondary }, 
+              activeTab === 'active' && { color: '#FFFFFF' }
+            ]}>
               Active
             </Text>
             {activeOrdersCount > 0 && (
-              <View style={[styles.tabBadge, { backgroundColor: colors.primary }]}>
-                <Text style={styles.tabBadgeText}>{activeOrdersCount}</Text>
+              <View style={[styles.tabBadge, { backgroundColor: activeTab === 'active' ? '#FFFFFF' : colors.primary }]}>
+                <Text style={[styles.tabBadgeText, activeTab === 'active' && { color: colors.primary }]}>{activeOrdersCount}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -557,7 +565,11 @@ export default function OrdersScreen() {
             style={styles.tab}
             onPress={() => handleTabChange('completed')}
           >
-            <Text style={[styles.tabText, { color: colors.text.secondary }, activeTab === 'completed' && { color: colors.primary }]}>
+            <Text style={[
+              styles.tabText, 
+              { color: colors.text.secondary }, 
+              activeTab === 'completed' && { color: '#FFFFFF' }
+            ]}>
               History
             </Text>
           </TouchableOpacity>
