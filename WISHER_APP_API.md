@@ -1,6 +1,6 @@
 # Wisher App - API Documentation
 
-**Base URL:** `https://carpet-genie-hub.preview.emergentagent.com/api`
+**Base URL:** `https://prep-reminder-engine.preview.emergentagent.com/api`
 
 ---
 

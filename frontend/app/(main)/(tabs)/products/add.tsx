@@ -527,22 +527,74 @@ export default function AddProductScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Image Section */}
+          {/* Image Section - Multi-Image Support */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>PRODUCT IMAGE</Text>
-            <TouchableOpacity
-              style={[styles.imageContainer, { backgroundColor: colors.card, borderColor: colors.separator }]}
-              onPress={handlePickImage}
-            >
-              {image ? (
-                <Image source={{ uri: image }} style={styles.productImage} />
-              ) : (
-                <View style={styles.imagePlaceholder}>
-                  <Ionicons name="camera" size={40} color={colors.text.tertiary} />
-                  <Text style={[styles.imagePlaceholderText, { color: colors.text.tertiary }]}>Tap to add photo</Text>
-                </View>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>
+                PRODUCT IMAGES ({images.length}/{MAX_IMAGES})
+              </Text>
+              {images.length > 0 && (
+                <Text style={[styles.imageSizeHint, { color: colors.text.tertiary }]}>
+                  {images.reduce((acc, img) => acc + img.sizeKB, 0)} KB total
+                </Text>
               )}
-            </TouchableOpacity>
+            </View>
+            
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              style={styles.imageScrollContainer}
+              contentContainerStyle={styles.imageScrollContent}
+            >
+              {/* Existing Images */}
+              {images.map((img, index) => (
+                <View key={index} style={[styles.imageWrapper, { backgroundColor: colors.card }]}>
+                  <Image source={{ uri: img.uri }} style={styles.multiImage} />
+                  <TouchableOpacity
+                    style={[styles.removeImageBtn, { backgroundColor: colors.danger }]}
+                    onPress={() => removeImage(index)}
+                  >
+                    <Ionicons name="close" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  <View style={[styles.imageSizeBadge, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
+                    <Text style={styles.imageSizeText}>{img.sizeKB} KB</Text>
+                  </View>
+                  {index === 0 && (
+                    <View style={[styles.primaryBadge, { backgroundColor: colors.primary }]}>
+                      <Text style={styles.primaryBadgeText}>Main</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+              
+              {/* Add Image Button */}
+              {images.length < MAX_IMAGES && (
+                <TouchableOpacity
+                  style={[
+                    styles.addImageBtn, 
+                    { backgroundColor: colors.card, borderColor: colors.separator },
+                    isCompressing && { opacity: 0.6 }
+                  ]}
+                  onPress={handlePickImage}
+                  disabled={isCompressing}
+                >
+                  {isCompressing ? (
+                    <ActivityIndicator color={colors.primary} size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="add-circle-outline" size={32} color={colors.text.tertiary} />
+                      <Text style={[styles.addImageText, { color: colors.text.tertiary }]}>Add Photo</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+            
+            {images.length === 0 && (
+              <Text style={[styles.imageHint, { color: colors.text.tertiary }]}>
+                Add up to {MAX_IMAGES} photos. First image will be the main display image.
+              </Text>
+            )}
           </View>
 
           {/* Basic Info */}
@@ -1058,25 +1110,82 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
   },
-  imageContainer: {
-    height: 180,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    overflow: 'hidden',
+  imageScrollContainer: {
+    marginHorizontal: -16,
   },
-  productImage: {
+  imageScrollContent: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  imageWrapper: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  multiImage: {
     width: '100%',
     height: '100%',
   },
-  imagePlaceholder: {
-    flex: 1,
+  removeImageBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  imagePlaceholderText: {
+  imageSizeBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  imageSizeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  primaryBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  primaryBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  addImageBtn: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  addImageText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  imageHint: {
+    fontSize: 12,
     marginTop: 8,
-    fontSize: 14,
+    textAlign: 'center',
+  },
+  imageSizeHint: {
+    fontSize: 11,
+    fontWeight: '500',
   },
   inputGroup: {
     marginBottom: 12,

@@ -1,0 +1,188 @@
+<analysis>**original_problem_statement:**
+The user's initial request was to fix critical navigation and UI bugs in their Vendor App. The project's scope then expanded to a major architectural overhaul to transform the Vendor App's backend into a centralized, highly scalable API service for a Wisher App (customer) and a Carpet Genie App (delivery partner).
+
+In this session, the user requested several new features:
+1.  **Stock Management System:** A system for vendors to verify their inventory daily to prevent out-of-stock orders. This includes notifications and alerts for low stock items.
+2.  **Order Preparation Reminder:** A system to notify and warn vendors if they accept an order but do not begin preparing it within a set timeframe (10 minutes).
+3.  **Image Upload Strategy:** A robust method for vendors to upload multiple, compressed product images to reduce server load and improve performance.
+
+The agent also completed and fixed previously implemented features, including Product Variations and a detailed Category system.
+
+**PRODUCT REQUIREMENTS:**
+1.  **Product Variation Management (P0):** (Completed) A system for vendors to create and manage products with multiple variations. This is now fully implemented on both the Add and Edit screens.
+2.  **Hierarchical Category System (P0):** (Completed) A two-level category and subcategory system for product classification is fully implemented.
+3.  **Stock Management & Verification (P0):** (Completed) A system to alert vendors to verify stock daily and warn them about low-stock items.
+4.  **Order Preparation Reminders (P0):** (Completed) A system to remind vendors to start preparing accepted orders, with escalating urgency.
+5.  **Image Upload Optimization (P0):** (In Progress) Client-side compression for multiple product images.
+6.  **Real-time API Hub (P0):** (Completed) The Vendor App backend now automatically syncs all product changes (create, update, delete, stock) to a  collection for the Wisher App in real-time.
+7.  **iOS Style UI (P0):** (Mostly Completed) A UI overhaul to a clean, modern iOS aesthetic.
+
+**User's preferred language**: English
+
+**what currently exists?**
+The application is a full-stack project with a React Native (Expo) frontend and a FastAPI backend using MongoDB.
+-   **Backend**: The backend now includes a complete stock management system (APIs for verification, health checks) and an order preparation reminder system (APIs to get delayed orders and snooze reminders). Product models have been updated to support  and  timestamps for orders, and an  array for products. Crucially, a real-time sync mechanism automatically updates the  collection (used by the Wisher App) whenever a vendor creates, updates, or deletes a product, ensuring data consistency. All cart and order APIs for the Wisher App now fully support product variations.
+-   **Frontend**: The Vendor App home screen has been enhanced with modals for the new stock verification and order preparation reminder systems, which poll the backend for tasks. The Add Product and Edit Product screens are complete and support variations, categories, and multiple image uploads. A new client-side image compression utility () has been integrated. A bug causing invisible text on active tabs in the Orders screen has been fixed.
+-   **Documentation**: A comprehensive implementation guide () was created and updated for the Wisher App, detailing all necessary API endpoints, data structures, and UI logic for handling product variations.
+
+**Last working item**:
+-   **Last item agent was working:** Implementing a hybrid image upload strategy. This involved creating a client-side image compression utility () and updating the Add Product screen () to handle selecting multiple images, compressing them, and preparing them for upload by updating the  function.
+-   **Status:** IN PROGRESS
+-   **Agent Testing Done:** N
+-   **Which testing method agent to use?** Frontend testing agent to verify the entire Add Product flow, specifically selecting multiple images, seeing them in the UI, and confirming they are sent in the form submission.
+-   **User Testing Done:** N
+
+**All Pending/In progress Issue list**:
+-   **Issue 1: Frontend Caching Issue (P0 - Latent Risk)**
+    -   **Description:** The initial handoff mentioned a critical CDN caching issue. A similar problem required a force-restart and user-side hard refresh during this session. This environmental issue could resurface and block UI updates.
+    -   **Next debug checklist:** If UI changes don't appear, the first step is to instruct the user to hard-refresh their browser (Cmd+Shift+R or Ctrl+Shift+R) or use an incognito window.
+    -   **Status:** USER VERIFICATION PENDING
+    -   **Is recurring issue?** Y
+-   **Issue 2: Expo/ngrok Tunnel Unstable (P1)**
+    -   **Description:** The ngrok tunnel for the Expo Go mobile app preview is frequently unstable, which can hinder mobile-specific testing.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** Y
+-   **Issue 3: OTP Input Flakiness (P2)**
+    -   **Description:** The OTP input component in the web environment remains flaky, as noted in the previous handoff and observed by the agent during testing.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** Y
+
+**In progress Task List**:
+-   **Task 1: Verify Image Upload Strategy (P0)**
+    -   **Where to resume:** The frontend code for selecting and compressing multiple images in  is complete. The next step is to test the end-to-end flow.
+    -   **What will be achieved with this?** A complete, performant image upload system for vendors, which is the final piece of the Add Product feature.
+    -   **Status:** IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?** Both. The frontend flow needs testing, and the backend needs to be checked to ensure it correctly receives and stores the array of image URLs.
+    -   **Blocked on something:** None
+
+**Upcoming and Future Tasks**
+-   **Upcoming Tasks:**
+    -   (P1) **Implement Fee Calculation Algorithm:** For Carpet Genie delivery fees.
+    -   (P1) **Admin Panel UI:** A full UI for managing the zone system and viewing vendor performance metrics (e.g., preparation delays).
+    -   (P1) **Re-enable Wisher App Multi-Order Feature:** This was noted as hidden in the Wisher App.
+-   **Future Tasks:**
+    -   (P1) **Implement Discounts Feature.**
+    -   (P1) **Pre-ordering from closed shops.**
+    -   (P2) **Implement Vendor Verification Workflow.**
+    -   (P2) **Migrate chat to a dedicated service.**
+    -   (P2) **Implement masked phone calls (Twilio).**
+    -   (P2) **Integrate a real payment gateway.**
+
+**Completed work in this session**
+-   **Stock Management System:** Implemented backend APIs and frontend modals for daily stock verification and low-stock alerts.
+-   **Order Preparation Reminder System:** Implemented backend APIs and a frontend modal to alert vendors about accepted orders that haven't been prepared after 10 minutes, with escalating urgency.
+-   **Product Variation Feature Completion:** Rewrote the Edit Product screen to support variations and fixed a critical navigation bug preventing access to the Add Product screen.
+-   **Real-Time Product Sync:** Automated the data sync from the vendor's  collection to the Wisher App's  collection for all CRUD operations, ensuring live updates.
+-   **API & Documentation:** Created and provided a comprehensive implementation guide for the Wisher App, including updated APIs for cart management that support variations.
+-   **Bug Fix:** Fixed a UI bug where text was invisible on active tabs in the Orders screen.
+-   **File Cleanup:** Deleted the old, deprecated  file.
+
+**Earlier issues found/mentioned but not fixed**
+-   **Issue 1: OTP Input Flakiness:** The OTP component for web remains difficult to use.
+
+**Known issue recurrence from previous fork**
+-   **Expo/ngrok tunnel instability:** A recurring environmental issue that can block mobile testing.
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+-   **Client-Side Image Compression:** Using  to resize and compress images on the device before uploading, saving bandwidth and reducing server load.
+-   **Asynchronous UI Task Polling:** Using  within a  hook on the home screen to periodically check for pending operational tasks (stock verification, delayed orders) and trigger UI modals.
+-   **Real-time Data Sync:** Triggering a sync function () in the backend after any product C-U-D operation to ensure the consumer-facing  collection is always live.
+-   **State-Driven UI Urgency:** Changing the colors and text of the  (Yellow -> Orange -> Red) based on how long an order has been delayed.
+
+**key DB schema**
+-   **products:**
+    -   : (New) Array of strings to store multiple image URLs.
+-   **wisher_orders:**
+    -   : (New) ISODate timestamp.
+    -   : (New) ISODate timestamp.
+    -   : (New) Integer.
+-   **wisher_carts** (and items within ):
+    -   : (Added) String, to identify the specific product variation.
+    -   : (Added) String, (e.g., 1 kg, Large) for display.
+
+**All files of reference**
+-   **Created:**
+    -   
+    -   
+    -   
+    -   
+    -   
+-   **Updated:**
+    -   : Major additions for stock management, preparation reminders, real-time sync, and variation support in carts/orders.
+    -   : Integrated new modals and polling logic.
+    -   : Added support for multiple, compressed image uploads.
+    -   : Rewritten to fully support variations.
+    -   : Fixed active tab text color bug.
+    -   
+-   **Deleted:**
+    -    (old version)
+
+**key api endpoints**
+-   **New Vendor APIs:**
+    -   
+    -   
+    -   
+    -   
+    -   
+    -   
+-   **Modified Wisher () APIs:**
+    -   : Now handles .
+    -   : Now uses  query param.
+    -   : Now uses  query param.
+-   **Modified Internal APIs:**
+    -   , , : Now trigger automatic data sync to the  collection.
+
+**Critical Info for New Agent**
+-   The immediate next step is to test the newly implemented image upload strategy on the Add Product screen. The code is written but unverified.
+-   The user has a separate Wisher App and depends on the prompts and guides you create. When making backend changes, always consider the impact on the Wisher App and provide a clear, comprehensive update prompt for the user.
+-   Be aware of potential environmental issues like frontend caching. If UI changes are not appearing, your first action should be to guide the user through a hard browser refresh.
+-   The backend is now designed for real-time updates. Any product modification in the Vendor App should reflect instantly in the Wisher App via the  collection.
+
+**documents and test reports created in this job**
+-   /app/memory/PRD.md
+-   /app/documents/WISHER_VARIATION_UI_GUIDE.md
+-   /app/test_reports/iteration_1.json
+-   /app/test_reports/iteration_2.json
+-   /app/test_reports/iteration_3.json
+
+**Last 10 User Messages and any pending HUMAN messages**
+10. User asks for a comprehensive prompt for the Wisher app with all new APIs. (Completed)
+9. User reports invisible text on a selected tab in the Orders screen. (Completed)
+8. Agent fixes the invisible text issue. (Completed)
+7. User doesn't see the change, agent suggests a hard refresh. (Completed)
+6. User confirms the change is visible and asks for an image upload strategy. (In Progress)
+5. User provides preferences for the image upload strategy: hybrid approach, ~100KB target, multiple images. (Completed)
+4. Agent implements the image upload strategy (code written). (In Progress)
+3. User asks if Wisher app needs any new APIs. (Completed)
+2. Agent provides a comprehensive updated prompt for the Wisher app. (Completed)
+1. User reports a price formatting issue (float precision) in the Wisher app from a screenshot. (Completed by providing a fix prompt)
+
+**Project Health Check:**
+-   **Broken:** None currently. The frontend caching issue remains a latent risk.
+-   **Mocked:** None.
+
+**3rd Party Integrations**
+-   Redis
+-   sse-starlette
+-   Expo / React Native
+-   FastAPI
+-   MongoDB
+-   PyJWT
+-    (newly added for image compression)
+
+**Testing status**
+-   **Testing agent used after significant changes:** YES (Used for the stock management feature and to debug navigation).
+-   **Troubleshoot agent used after agent stuck in loop:** NO
+-   **Test files created:** None
+-   **Known regressions:** None.
+
+**Credentials to test flow:**
+-   **Vendor (Grocery Shop):** phone: , OTP: 
+-   **Vendor (with Grapes variations):** phone: , OTP: 
+-   **Wisher User / Carpet Genie:** phone: , OTP: 
+
+**What agent forgot to execute**
+-   The agent successfully addressed all user requests and issues from this session. The only pending action is to test the last implemented feature (image uploads). No tasks were forgotten.</analysis>

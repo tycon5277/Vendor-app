@@ -21,7 +21,7 @@
   ],
   "verified_features": {
     "navigation_fix": "WORKING - router.push('/(main)/(tabs)/products/add') correctly navigates to enhanced screen",
-    "url_verified": "https://carpet-genie-hub.preview.emergentagent.com/products/add",
+    "url_verified": "https://prep-reminder-engine.preview.emergentagent.com/products/add",
     "enhanced_screen_features": {
       "header_with_emoji": "✓ Add Product ✨",
       "product_image_section": "✓ PRODUCT IMAGE with 'Tap to add photo'",

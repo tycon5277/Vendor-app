@@ -1378,7 +1378,9 @@ class ProductCreate(BaseModel):
     name: str
     description: Optional[str] = None
     category: str
-    image: Optional[str] = None  # base64
+    subcategory: Optional[str] = None  # Subcategory for detailed categorization
+    image: Optional[str] = None  # base64 - main/first image
+    images: Optional[List[str]] = None  # Multiple images support (base64 array)
     
     # Product type: "simple" or "variable"
     product_type: str = "simple"
@@ -1449,13 +1451,23 @@ async def create_product(data: ProductCreate, current_user: User = Depends(requi
     """Create a new product (simple or with variations)"""
     product_id = f"prod_{uuid.uuid4().hex[:12]}"
     
+    # Handle multiple images - use first as main image, store all
+    main_image = data.image
+    all_images = data.images or []
+    if main_image and main_image not in all_images:
+        all_images = [main_image] + all_images
+    elif all_images and not main_image:
+        main_image = all_images[0]
+    
     product = {
         "product_id": product_id,
         "vendor_id": current_user.user_id,
         "name": data.name,
         "description": data.description,
         "category": data.category,
-        "image": data.image,
+        "subcategory": data.subcategory,
+        "image": main_image,
+        "images": all_images,
         "created_at": datetime.now(timezone.utc),
         "product_type": data.product_type,
     }
@@ -1506,13 +1518,17 @@ async def create_product(data: ProductCreate, current_user: User = Depends(requi
         "description": data.description or "",
         "price": product["price"],
         "discounted_price": product.get("discounted_price"),
-        "images": [data.image] if data.image else [],
+        "images": all_images,
+        "image": main_image,
         "category": data.category,
+        "subcategory": data.subcategory,
         "stock": product["stock_quantity"],
+        "stock_quantity": product["stock_quantity"],
         "likes": 0,
         "rating": 0.0,
         "total_ratings": 0,
         "is_available": product["in_stock"],
+        "in_stock": product["in_stock"],
         "unit": product["unit"],
         "product_type": data.product_type,
         "variation_type": data.variation_type if data.product_type == "variable" else None,

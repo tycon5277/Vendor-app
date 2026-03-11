@@ -19,7 +19,7 @@ BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
     BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://carpet-genie-hub.preview.emergentagent.com"
+    BASE_URL = "https://prep-reminder-engine.preview.emergentagent.com"
 
 # Test credentials
 VENDOR_PHONE = "1212121212"
