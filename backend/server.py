@@ -17,6 +17,7 @@ import json
 
 # New modules for scalable architecture
 import redis_manager
+from redis_manager import publish_to_genie
 import zone_service
 import assignment_engine
 from sse_handler import genie_delivery_stream, create_sse_response
@@ -10545,6 +10546,21 @@ async def vendor_verify_handover_otp(
         
         response_data["handover_complete"] = True
         response_data["message"] = "Handover complete! Order is now out for delivery."
+        
+        # SSE: Notify genie that handover is complete
+        genie_id = order.get("genie_id")
+        if genie_id:
+            await publish_to_genie(genie_id, "handover_complete", {
+                "order_id": order_id,
+                "vendor_confirmed": True,
+                "genie_confirmed": True,
+                "status": "out_for_delivery",
+                "customer": {
+                    "name": order.get("customer_name"),
+                    "phone": order.get("customer_phone"),
+                    "address": order.get("delivery_address")
+                }
+            })
     else:
         await db.wisher_orders.update_one(
             {"order_id": order_id},
@@ -10552,6 +10568,16 @@ async def vendor_verify_handover_otp(
         )
         response_data["handover_complete"] = False
         response_data["message"] = "OTP verified! Waiting for genie to confirm items checklist."
+        
+        # SSE: Notify genie that vendor has confirmed OTP
+        genie_id = order.get("genie_id")
+        if genie_id:
+            await publish_to_genie(genie_id, "vendor_confirmed_otp", {
+                "order_id": order_id,
+                "vendor_confirmed": True,
+                "genie_confirmed": False,
+                "message": "Vendor has entered the OTP. Please confirm items to complete handover."
+            })
     
     return response_data
 
