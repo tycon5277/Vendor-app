@@ -7,6 +7,7 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
 
 ## Latest Updates (March 2026)
+- **Multi-Image Upload** — Support for up to 5 product images with client-side compression (~100KB target)
 - **Preparation Reminder System** — Popup reminders with urgency levels when vendors accept orders but delay preparation
 - **Stock Verification System** — Morning verification reminders, low stock alerts (35% threshold)
 - **iOS-style UI overhaul** — ThemeContext, iOS components, light/dark mode support
@@ -17,6 +18,28 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - SSE delivery stream tested and working (requires Redis)
 - Redis must be running for zone-based assignment to work
 - Terminology: "Delivery Fee" → "Handling & Transportation"
+
+## Multi-Image Upload System (NEW - March 2026)
+- **Max Images:** 5 per product
+- **Client-Side Compression:** Using expo-image-manipulator
+  - Target: ~100KB per image
+  - Max dimensions: 800x800
+  - Iterative quality reduction (0.7 → 0.3)
+  - Falls back to dimension reduction if still too large
+- **UI Features:**
+  - Horizontal scroll gallery
+  - Size badges showing KB per image
+  - "Main" badge on first image
+  - Remove button on each image
+  - Total size indicator
+  - Progress indicator during compression
+- **Backend Support:**
+  - ProductCreate model supports `images: List[str]` (base64 array)
+  - First image becomes main image
+  - Syncs to hub_products for Wisher app
+- **Key Files:**
+  - `/app/frontend/src/utils/imageCompression.ts` — Compression utility
+  - `/app/frontend/app/(main)/(tabs)/products/add.tsx` — Add Product screen
 
 ## Preparation Reminder System (NEW - March 2026)
 - **Trigger:** Order in "confirmed" status for 10+ minutes without starting preparation
