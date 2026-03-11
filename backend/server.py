@@ -1573,7 +1573,7 @@ async def update_product(product_id: str, data: ProductUpdate, current_user: Use
             {"$set": update_fields}
         )
         
-        # SYNC: Also update hub_products for Wisher App visibility
+        # SYNC: Also update hub_products for Wisher App visibility (including variations)
         hub_update = {}
         if "name" in update_fields:
             hub_update["name"] = update_fields["name"]
@@ -1585,14 +1585,30 @@ async def update_product(product_id: str, data: ProductUpdate, current_user: Use
             hub_update["discounted_price"] = update_fields["discounted_price"]
         if "category" in update_fields:
             hub_update["category"] = update_fields["category"]
+        if "subcategory" in update_fields:
+            hub_update["subcategory"] = update_fields["subcategory"]
         if "image" in update_fields:
             hub_update["images"] = [update_fields["image"]] if update_fields["image"] else []
+            hub_update["image"] = update_fields["image"]
         if "in_stock" in update_fields:
             hub_update["is_available"] = update_fields["in_stock"]
+            hub_update["in_stock"] = update_fields["in_stock"]
         if "stock_quantity" in update_fields:
             hub_update["stock"] = update_fields["stock_quantity"]
+            hub_update["stock_quantity"] = update_fields["stock_quantity"]
         if "unit" in update_fields:
             hub_update["unit"] = update_fields["unit"]
+        # Sync variation fields
+        if "product_type" in update_fields:
+            hub_update["product_type"] = update_fields["product_type"]
+        if "variation_type" in update_fields:
+            hub_update["variation_type"] = update_fields["variation_type"]
+        if "variation_unit" in update_fields:
+            hub_update["variation_unit"] = update_fields["variation_unit"]
+        if "variations" in update_fields:
+            hub_update["variations"] = update_fields["variations"]
+        if "shared_stock" in update_fields:
+            hub_update["shared_stock"] = update_fields["shared_stock"]
         
         if hub_update:
             await db.hub_products.update_one(
@@ -1630,6 +1646,17 @@ async def update_product_stock(product_id: str, in_stock: bool, quantity: Option
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Product not found")
+    
+    # SYNC: Also update hub_products for Wisher App visibility
+    hub_update = {"is_available": in_stock, "in_stock": in_stock}
+    if quantity is not None:
+        hub_update["stock"] = quantity
+        hub_update["stock_quantity"] = quantity
+    await db.hub_products.update_one(
+        {"product_id": product_id},
+        {"$set": hub_update}
+    )
+    
     return {"message": "Stock updated"}
 
 # ===================== STOCK VERIFICATION SYSTEM =====================
