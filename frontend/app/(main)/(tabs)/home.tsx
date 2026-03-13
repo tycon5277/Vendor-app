@@ -331,13 +331,6 @@ export default function HomeScreen() {
               >
                 <Ionicons name="globe-outline" size={20} color="#FFFFFF" />
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.headerBtn, { backgroundColor: colors.primary }]}
-                onPress={() => router.push('/(main)/profile')}
-                testID="profile-btn"
-              >
-                <Ionicons name="storefront" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
             </View>
           </View>
 
