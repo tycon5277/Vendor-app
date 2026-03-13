@@ -11815,12 +11815,17 @@ async def update_genie_location_redis(request: Request, current_user: User = Dep
 @api_router.get("/orders/{order_id}/status-cached")
 async def get_order_status_cached(order_id: str):
     """Get order status with Redis cache (for Wisher App high-frequency polling)"""
-    # Try cache first
-    cached = await redis_manager.get_cached_order_status(order_id)
-    if cached:
-        return cached
+    # Try cache first (gracefully handle Redis not available)
+    cached = None
+    try:
+        cached = await redis_manager.get_cached_order_status(order_id)
+        if cached:
+            return cached
+    except Exception as e:
+        # Redis not available, continue without cache
+        logger.warning(f"Redis cache unavailable: {e}")
 
-    # Cache miss — read from MongoDB
+    # Cache miss or Redis unavailable — read from MongoDB
     order = await db.wisher_orders.find_one({"order_id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -11837,8 +11842,12 @@ async def get_order_status_cached(order_id: str):
         "cached": False
     }
 
-    # Write to cache with 15s TTL
-    await redis_manager.cache_order_status(order_id, {**status_data, "cached": True}, ttl=15)
+    # Try to write to cache (ignore if Redis unavailable)
+    try:
+        await redis_manager.cache_order_status(order_id, {**status_data, "cached": True}, ttl=15)
+    except Exception:
+        pass
+    
     return status_data
 
 # Include the router - must be after all route definitions
