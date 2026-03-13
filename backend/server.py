@@ -4,6 +4,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import asyncio
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
@@ -7972,32 +7973,19 @@ def get_wisher_next_actions(order: dict, vendor: dict) -> list:
                 "primary": False, 
                 "disabled": True, 
                 "icon": "search",
-                "description": "Looking for nearby Carpet Genies"
-            })
-            # Show retry option
-            actions.append({
-                "action": "retry_genie", 
-                "label": "Retry Search", 
-                "primary": False, 
-                "icon": "refresh",
-                "description": "Expand radius and increase fee"
+                "description": "Looking for nearby Carpet Genies. Auto-retries every 60s"
             })
     
     elif status == "ready_for_pickup":
         if is_searching_genie:
-            # Waiting for Carpet Genie to accept - show status with retry option
+            # Waiting for Carpet Genie to accept - show status (auto-retry is automatic now)
             actions.append({
                 "action": "searching_genie", 
                 "label": f"Searching... (Attempt {retry_count + 1})", 
                 "primary": False, 
                 "disabled": True, 
-                "icon": "search"
-            })
-            actions.append({
-                "action": "retry_genie", 
-                "label": "Retry Search", 
-                "primary": False, 
-                "icon": "refresh"
+                "icon": "search",
+                "description": "Auto-retries every 60s"
             })
         elif is_carpet_genie and (delivery_info.get("genie_id") or genie_status == "accepted"):
             # Genie assigned - waiting for pickup
@@ -11862,9 +11850,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Background task for auto-retry
+_genie_retry_task = None
+
+async def auto_retry_genie_requests():
+    """Background task that automatically retries expired genie search requests every 30 seconds"""
+    while True:
+        try:
+            await asyncio.sleep(30)  # Run every 30 seconds
+            result = await process_expired_genie_requests()
+            if result.get("processed", 0) > 0:
+                logger.info(f"Auto-retry processed {result['processed']} expired genie requests")
+        except asyncio.CancelledError:
+            logger.info("Auto-retry task cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Auto-retry error: {e}")
+            await asyncio.sleep(5)  # Wait before retrying on error
+
+
 @app.on_event("startup")
 async def startup_db_indexes():
     """Create database indexes for fast queries"""
+    global _genie_retry_task
     try:
         # Initialize new scalable modules
         zone_service.set_db(db)
@@ -11906,6 +11914,10 @@ async def startup_db_indexes():
         await db.zone_switch_requests.create_index("status")
         
         logger.info("Database indexes created successfully")
+        
+        # Start background task for auto-retry
+        _genie_retry_task = asyncio.create_task(auto_retry_genie_requests())
+        logger.info("Auto-retry background task started")
     except Exception as e:
         logger.warning(f"Index creation warning (may already exist): {e}")
 
