@@ -469,138 +469,7 @@ export default function OrderDetailScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366F1']} />
         }
       >
-        {/* Customer Info Card */}
-        <View style={styles.customerCard}>
-          <View style={styles.customerRow}>
-            <View style={styles.customerAvatar}>
-              <Text style={styles.customerInitial}>
-                {(order.customer_name || 'C')[0].toUpperCase()}
-              </Text>
-            </View>
-            <View style={styles.customerInfo}>
-              <Text style={styles.customerName}>{order.customer_name || 'Customer'}</Text>
-              <Text style={styles.customerPhone}>{order.customer_phone || 'No phone'}</Text>
-            </View>
-            <TouchableOpacity style={styles.callBtn}>
-              <Ionicons name="call" size={18} color="#22C55E" />
-            </TouchableOpacity>
-          </View>
-          {order.delivery_type !== 'self_pickup' && order.delivery_address && (
-            <View style={styles.addressRow}>
-              <Ionicons name="location" size={16} color="#6B7280" />
-              <Text style={styles.addressText}>{order.delivery_address?.address || 'No address'}</Text>
-            </View>
-          )}
-          {order.delivery_type === 'self_pickup' && (
-            <View style={styles.pickupBadge}>
-              <Ionicons name="storefront" size={14} color="#6366F1" />
-              <Text style={styles.pickupText}>Customer will pick up</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Carpet Genie Delivery Status Card - Shows when delivery is carpet_genie */}
-        {deliveryInfo && deliveryInfo.type === 'carpet_genie' && (
-          <View style={styles.genieStatusCard}>
-            <View style={styles.genieStatusHeader}>
-              <View style={[styles.genieStatusIconBg, { backgroundColor: deliveryInfo.color ? deliveryInfo.color + '20' : '#DCFCE720' }]}>
-                <Ionicons 
-                  name={(deliveryInfo.icon || 'bicycle') as any} 
-                  size={22} 
-                  color={deliveryInfo.color || '#22C55E'} 
-                />
-              </View>
-              <View style={styles.genieStatusContent}>
-                <Text style={styles.genieStatusTitle}>Carpet Genie Delivery</Text>
-                <Text style={[styles.genieStatusMessage, { color: deliveryInfo.color || '#6B7280' }]}>
-                  {deliveryInfo.message || 'Pending assignment'}
-                </Text>
-              </View>
-              {deliveryInfo.status === 'searching' && (
-                <ActivityIndicator size="small" color="#F59E0B" />
-              )}
-            </View>
-            
-            {/* Show assigned Genie details */}
-            {deliveryInfo.genie && (
-              <View style={styles.assignedGenieInfo}>
-                <View style={styles.assignedGenieRow}>
-                  {deliveryInfo.genie.photo ? (
-                    <Image 
-                      source={{ uri: deliveryInfo.genie.photo }} 
-                      style={styles.assignedGeniePhoto}
-                    />
-                  ) : (
-                    <View style={styles.assignedGeniePhotoPlaceholder}>
-                      <Ionicons name="person" size={20} color="#22C55E" />
-                    </View>
-                  )}
-                  <View style={styles.assignedGenieDetails}>
-                    <Text style={styles.assignedGenieName}>{deliveryInfo.genie.name}</Text>
-                    <View style={styles.assignedGenieMetaRow}>
-                      <Ionicons name="star" size={12} color="#F59E0B" />
-                      <Text style={styles.assignedGenieRating}>
-                        {deliveryInfo.genie.rating?.toFixed(1) || '4.8'}
-                      </Text>
-                      <Text style={styles.assignedGenieVehicle}>
-                        • {deliveryInfo.genie.vehicle_type === 'bike' ? '🏍️ Bike' : 
-                           deliveryInfo.genie.vehicle_type === 'scooter' ? '🛵 Scooter' : '🚗 Car'}
-                      </Text>
-                      {deliveryInfo.genie.total_deliveries > 0 && (
-                        <Text style={styles.assignedGenieDeliveries}>
-                          • {deliveryInfo.genie.total_deliveries} deliveries
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                  <TouchableOpacity 
-                    style={styles.assignedGenieCallBtn}
-                    onPress={() => {
-                      showAlert({
-                        type: 'info',
-                        title: 'Call Genie',
-                        message: `Call ${deliveryInfo.genie.name} at ${deliveryInfo.genie.phone}`,
-                      });
-                    }}
-                  >
-                    <Ionicons name="call" size={16} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
-                {deliveryInfo.genie.phone && (
-                  <View style={styles.assignedGeniePhoneRow}>
-                    <Ionicons name="call-outline" size={12} color="#6B7280" />
-                    <Text style={styles.assignedGeniePhone}>{deliveryInfo.genie.phone}</Text>
-                  </View>
-                )}
-                
-                {/* Show QR Code button when order is ready for pickup */}
-                {(order?.status === 'ready_for_pickup' || order?.status === 'preparing') && (
-                  <TouchableOpacity
-                    style={styles.showQRButton}
-                    onPress={handleShowPickupQR}
-                    disabled={loadingQR}
-                  >
-                    {loadingQR ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Ionicons name="qr-code" size={18} color="#FFFFFF" />
-                        <Text style={styles.showQRButtonText}>Show Pickup QR Code</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Visual Order Timeline - Always visible */}
-        {checkpoints.length > 0 && (
-          <OrderTimeline steps={checkpoints} status={order.status} />
-        )}
-
-        {/* ORDER ITEMS - PRIMARY SECTION */}
+        {/* ORDER ITEMS / PACKING LIST - PRIMARY SECTION (Moved to top) */}
         <View style={styles.itemsCard}>
           <View style={styles.itemsHeader}>
             <View style={styles.itemsHeaderLeft}>
@@ -825,6 +694,137 @@ export default function OrderDetailScreen() {
                 <Text style={styles.instructionsTitle}>Special Instructions</Text>
               </View>
               <Text style={styles.instructionsText}>{order.special_instructions}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Carpet Genie Delivery Status Card - Shows when delivery is carpet_genie */}
+        {deliveryInfo && deliveryInfo.type === 'carpet_genie' && (
+          <View style={styles.genieStatusCard}>
+            <View style={styles.genieStatusHeader}>
+              <View style={[styles.genieStatusIconBg, { backgroundColor: deliveryInfo.color ? deliveryInfo.color + '20' : '#DCFCE720' }]}>
+                <Ionicons 
+                  name={(deliveryInfo.icon || 'bicycle') as any} 
+                  size={22} 
+                  color={deliveryInfo.color || '#22C55E'} 
+                />
+              </View>
+              <View style={styles.genieStatusContent}>
+                <Text style={styles.genieStatusTitle}>Carpet Genie Delivery</Text>
+                <Text style={[styles.genieStatusMessage, { color: deliveryInfo.color || '#6B7280' }]}>
+                  {deliveryInfo.message || 'Pending assignment'}
+                </Text>
+              </View>
+              {deliveryInfo.status === 'searching' && (
+                <ActivityIndicator size="small" color="#F59E0B" />
+              )}
+            </View>
+            
+            {/* Show assigned Genie details */}
+            {deliveryInfo.genie && (
+              <View style={styles.assignedGenieInfo}>
+                <View style={styles.assignedGenieRow}>
+                  {deliveryInfo.genie.photo ? (
+                    <Image 
+                      source={{ uri: deliveryInfo.genie.photo }} 
+                      style={styles.assignedGeniePhoto}
+                    />
+                  ) : (
+                    <View style={styles.assignedGeniePhotoPlaceholder}>
+                      <Ionicons name="person" size={20} color="#22C55E" />
+                    </View>
+                  )}
+                  <View style={styles.assignedGenieDetails}>
+                    <Text style={styles.assignedGenieName}>{deliveryInfo.genie.name}</Text>
+                    <View style={styles.assignedGenieMetaRow}>
+                      <Ionicons name="star" size={12} color="#F59E0B" />
+                      <Text style={styles.assignedGenieRating}>
+                        {deliveryInfo.genie.rating?.toFixed(1) || '4.8'}
+                      </Text>
+                      <Text style={styles.assignedGenieVehicle}>
+                        • {deliveryInfo.genie.vehicle_type === 'bike' ? '🏍️ Bike' : 
+                           deliveryInfo.genie.vehicle_type === 'scooter' ? '🛵 Scooter' : '🚗 Car'}
+                      </Text>
+                      {deliveryInfo.genie.total_deliveries > 0 && (
+                        <Text style={styles.assignedGenieDeliveries}>
+                          • {deliveryInfo.genie.total_deliveries} deliveries
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.assignedGenieCallBtn}
+                    onPress={() => {
+                      showAlert({
+                        type: 'info',
+                        title: 'Call Genie',
+                        message: `Call ${deliveryInfo.genie.name} at ${deliveryInfo.genie.phone}`,
+                      });
+                    }}
+                  >
+                    <Ionicons name="call" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+                {deliveryInfo.genie.phone && (
+                  <View style={styles.assignedGeniePhoneRow}>
+                    <Ionicons name="call-outline" size={12} color="#6B7280" />
+                    <Text style={styles.assignedGeniePhone}>{deliveryInfo.genie.phone}</Text>
+                  </View>
+                )}
+                
+                {/* Show QR Code button when order is ready for pickup */}
+                {(order?.status === 'ready_for_pickup' || order?.status === 'preparing') && (
+                  <TouchableOpacity
+                    style={styles.showQRButton}
+                    onPress={handleShowPickupQR}
+                    disabled={loadingQR}
+                  >
+                    {loadingQR ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="qr-code" size={18} color="#FFFFFF" />
+                        <Text style={styles.showQRButtonText}>Show Pickup QR Code</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Visual Order Timeline - Order Progress */}
+        {checkpoints.length > 0 && (
+          <OrderTimeline steps={checkpoints} status={order.status} />
+        )}
+
+        {/* Customer Info Card - Moved to bottom */}
+        <View style={styles.customerCard}>
+          <View style={styles.customerRow}>
+            <View style={styles.customerAvatar}>
+              <Text style={styles.customerInitial}>
+                {(order.customer_name || 'C')[0].toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.customerInfo}>
+              <Text style={styles.customerName}>{order.customer_name || 'Customer'}</Text>
+              <Text style={styles.customerPhone}>{order.customer_phone || 'No phone'}</Text>
+            </View>
+            <TouchableOpacity style={styles.callBtn}>
+              <Ionicons name="call" size={18} color="#22C55E" />
+            </TouchableOpacity>
+          </View>
+          {order.delivery_type !== 'self_pickup' && order.delivery_address && (
+            <View style={styles.addressRow}>
+              <Ionicons name="location" size={16} color="#6B7280" />
+              <Text style={styles.addressText}>{order.delivery_address?.address || 'No address'}</Text>
+            </View>
+          )}
+          {order.delivery_type === 'self_pickup' && (
+            <View style={styles.pickupBadge}>
+              <Ionicons name="storefront" size={14} color="#6366F1" />
+              <Text style={styles.pickupText}>Customer will pick up</Text>
             </View>
           )}
         </View>
