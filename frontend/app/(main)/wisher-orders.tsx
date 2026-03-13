@@ -451,9 +451,9 @@ export default function WisherOrdersScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Local Hub Orders</Text>
-        <View style={[styles.headerBadge, { backgroundColor: isDark ? colors.background.tertiary : 'rgba(0, 122, 255, 0.1)' }]}>
-          <Ionicons name="globe-outline" size={18} color={colors.primary} />
+        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Wisher Hub</Text>
+        <View style={[styles.headerBadge, { backgroundColor: isDark ? colors.background.tertiary : 'rgba(34, 197, 94, 0.1)' }]}>
+          <Ionicons name="cart" size={18} color={colors.success} />
         </View>
       </View>
 
@@ -753,26 +753,6 @@ export default function WisherOrdersScreen() {
                         </View>
                       ) : null}
                     </View>
-                  ) : null}
-                  
-                  {/* Show QR Code button when order is ready and genie is assigned/accepted */}
-                  {(selectedOrder.status === 'ready_for_pickup' || selectedOrder.status === 'preparing') && 
-                   (selectedOrder.genie_status === 'assigned' || selectedOrder.genie_status === 'accepted') ? (
-                    <TouchableOpacity
-                      style={[styles.actionBtn, styles.qrBtn]}
-                      onPress={() => handleShowPickupQR(selectedOrder.order_id)}
-                      disabled={loadingQR}
-                      data-testid="show-pickup-qr-btn"
-                    >
-                      {loadingQR ? (
-                        <ActivityIndicator size="small" color="#FFF" />
-                      ) : (
-                        <>
-                          <Ionicons name="qr-code" size={20} color="#FFF" />
-                          <Text style={styles.actionBtnText}>Show Pickup QR Code</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
                   ) : null}
                   
                   {selectedOrder.status === 'out_for_delivery' && selectedOrder.delivery_type === 'vendor_delivery' ? (
