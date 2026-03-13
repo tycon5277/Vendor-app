@@ -338,10 +338,10 @@ export default function HandoverScreen() {
                     </View>
                     <View style={styles.itemQtyPrice}>
                       <Text style={[styles.itemQty, { color: colors.text.secondary }]}>
-                        x{item.quantity}
+                        x{item.quantity || 0}
                       </Text>
                       <Text style={[styles.itemPrice, { color: colors.text.primary }]}>
-                        ₹{(item.price * item.quantity).toFixed(0)}
+                        ₹{((item.price || 0) * (item.quantity || 0)).toFixed(0)}
                       </Text>
                     </View>
                   </View>
