@@ -327,9 +327,9 @@ export default function HomeScreen() {
               <TouchableOpacity 
                 style={[styles.headerBtn, { backgroundColor: colors.success }]}
                 onPress={() => router.push('/(main)/wisher-orders')}
-                testID="local-hub-btn"
+                testID="wisher-hub-btn"
               >
-                <Ionicons name="globe-outline" size={20} color="#FFFFFF" />
+                <Ionicons name="cart" size={20} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           </View>
