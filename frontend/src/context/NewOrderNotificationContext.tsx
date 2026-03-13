@@ -491,12 +491,23 @@ export const NewOrderNotificationProvider: React.FC<{ children: React.ReactNode 
                 styles.container,
                 {
                   transform: [
-                    { scale: scaleAnim },
+                    { scale: Animated.multiply(scaleAnim, pulseAnim) },
                     { translateY: cardSlideAnim },
                   ],
                 }
               ]}
             >
+              {/* Pulsing Glow Border */}
+              <Animated.View 
+                style={[
+                  styles.glowBorder,
+                  {
+                    opacity: glowAnim,
+                    transform: [{ scale: pulseAnim }],
+                  }
+                ]}
+              />
+              
               {/* Compact Card */}
               <View style={styles.clayCard}>
                 {/* Header with bell and title inline */}
@@ -584,6 +595,21 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     maxWidth: 300,
+    position: 'relative',
+  },
+  glowBorder: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: 20,
+    backgroundColor: '#FF6B35',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 15,
   },
   clayCard: {
     backgroundColor: '#FFFFFF',
