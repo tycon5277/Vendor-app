@@ -469,6 +469,45 @@ export default function OrderDetailScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6366F1']} />
         }
       >
+        {/* Compact Progress Bar - Top Summary */}
+        {checkpoints.length > 0 && (
+          <View style={styles.compactProgressCard}>
+            <View style={styles.compactProgressHeader}>
+              <Text style={styles.compactProgressLabel}>Order Progress</Text>
+              <Text style={styles.compactProgressPercent}>
+                {Math.round((checkpoints.filter(c => c.completed).length / checkpoints.length) * 100)}%
+              </Text>
+            </View>
+            <View style={styles.compactProgressBarBg}>
+              <View 
+                style={[
+                  styles.compactProgressBarFill, 
+                  { width: `${(checkpoints.filter(c => c.completed).length / checkpoints.length) * 100}%` }
+                ]} 
+              />
+            </View>
+            <View style={styles.compactProgressSteps}>
+              {checkpoints.map((step, index) => (
+                <View key={step.key} style={styles.compactStepDot}>
+                  <View style={[
+                    styles.compactDot,
+                    step.completed && styles.compactDotCompleted,
+                    step.current && styles.compactDotCurrent
+                  ]}>
+                    {step.completed && <Ionicons name="checkmark" size={10} color="#FFFFFF" />}
+                  </View>
+                  {index < checkpoints.length - 1 && (
+                    <View style={[
+                      styles.compactDotLine,
+                      step.completed && styles.compactDotLineCompleted
+                    ]} />
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* ORDER ITEMS / PACKING LIST - PRIMARY SECTION (Moved to top) */}
         <View style={styles.itemsCard}>
           <View style={styles.itemsHeader}>
@@ -794,9 +833,89 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Visual Order Timeline - Order Progress */}
+        {/* Collapsible Order Timeline */}
         {checkpoints.length > 0 && (
-          <OrderTimeline steps={checkpoints} status={order.status} />
+          <View style={styles.collapsibleTimelineCard}>
+            <TouchableOpacity 
+              style={styles.collapsibleTimelineHeader}
+              onPress={() => setShowTimeline(!showTimeline)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.collapsibleTimelineLeft}>
+                <Text style={styles.collapsibleTimelineTitle}>Order Timeline</Text>
+                <Text style={styles.collapsibleTimelineSubtitle}>
+                  {checkpoints.filter(c => c.completed).length}/{checkpoints.length} completed
+                </Text>
+              </View>
+              <View style={styles.collapsibleTimelineRight}>
+                <View style={styles.miniStepsRow}>
+                  {checkpoints.map((step, index) => (
+                    <View key={step.key} style={styles.miniStepContainer}>
+                      <View style={[
+                        styles.miniStepDot,
+                        step.completed && styles.miniStepDotCompleted,
+                        step.current && styles.miniStepDotCurrent
+                      ]} />
+                      {index < checkpoints.length - 1 && (
+                        <View style={[
+                          styles.miniStepLine,
+                          step.completed && styles.miniStepLineCompleted
+                        ]} />
+                      )}
+                    </View>
+                  ))}
+                </View>
+                <Ionicons 
+                  name={showTimeline ? "chevron-up" : "chevron-down"} 
+                  size={20} 
+                  color="#6B7280" 
+                />
+              </View>
+            </TouchableOpacity>
+            
+            {/* Expanded Timeline */}
+            {showTimeline && (
+              <View style={styles.expandedTimeline}>
+                {checkpoints.map((step, index) => (
+                  <View key={step.key} style={styles.timelineStep}>
+                    <View style={styles.timelineStepLeft}>
+                      <View style={[
+                        styles.timelineStepDot,
+                        step.completed && styles.timelineStepDotCompleted,
+                        step.current && styles.timelineStepDotCurrent
+                      ]}>
+                        {step.completed ? (
+                          <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                        ) : step.current ? (
+                          <View style={styles.timelineStepDotInner} />
+                        ) : null}
+                      </View>
+                      {index < checkpoints.length - 1 && (
+                        <View style={[
+                          styles.timelineStepLine,
+                          step.completed && styles.timelineStepLineCompleted
+                        ]} />
+                      )}
+                    </View>
+                    <View style={styles.timelineStepContent}>
+                      <Text style={[
+                        styles.timelineStepLabel,
+                        step.completed && styles.timelineStepLabelCompleted,
+                        step.current && styles.timelineStepLabelCurrent
+                      ]}>
+                        {step.label}
+                      </Text>
+                      {step.timestamp && (
+                        <Text style={styles.timelineStepTime}>
+                          {format(new Date(step.timestamp), 'h:mm a')}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
         )}
 
         {/* Customer Info Card - Moved to bottom */}
@@ -1269,6 +1388,214 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  // Compact Progress Bar Styles
+  compactProgressCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 12,
+    padding: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  compactProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  compactProgressLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  compactProgressPercent: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#6366F1',
+  },
+  compactProgressBarBg: {
+    height: 6,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  compactProgressBarFill: {
+    height: '100%',
+    backgroundColor: '#6366F1',
+    borderRadius: 3,
+  },
+  compactProgressSteps: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  compactStepDot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  compactDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  compactDotCompleted: {
+    backgroundColor: '#22C55E',
+  },
+  compactDotCurrent: {
+    backgroundColor: '#6366F1',
+    borderWidth: 2,
+    borderColor: '#6366F1',
+  },
+  compactDotLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 2,
+  },
+  compactDotLineCompleted: {
+    backgroundColor: '#22C55E',
+  },
+  // Collapsible Timeline Styles
+  collapsibleTimelineCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  collapsibleTimelineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+  },
+  collapsibleTimelineLeft: {
+    flex: 1,
+  },
+  collapsibleTimelineTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  collapsibleTimelineSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  collapsibleTimelineRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  miniStepsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  miniStepContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  miniStepDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#E5E7EB',
+  },
+  miniStepDotCompleted: {
+    backgroundColor: '#22C55E',
+  },
+  miniStepDotCurrent: {
+    backgroundColor: '#6366F1',
+  },
+  miniStepLine: {
+    width: 12,
+    height: 2,
+    backgroundColor: '#E5E7EB',
+  },
+  miniStepLineCompleted: {
+    backgroundColor: '#22C55E',
+  },
+  expandedTimeline: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  timelineStep: {
+    flexDirection: 'row',
+    minHeight: 44,
+  },
+  timelineStepLeft: {
+    width: 24,
+    alignItems: 'center',
+  },
+  timelineStepDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  timelineStepDotCompleted: {
+    backgroundColor: '#22C55E',
+  },
+  timelineStepDotCurrent: {
+    backgroundColor: '#6366F1',
+  },
+  timelineStepDotInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  timelineStepLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 4,
+  },
+  timelineStepLineCompleted: {
+    backgroundColor: '#22C55E',
+  },
+  timelineStepContent: {
+    flex: 1,
+    paddingLeft: 12,
+    paddingBottom: 12,
+  },
+  timelineStepLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  timelineStepLabelCompleted: {
+    color: '#374151',
+    fontWeight: '500',
+  },
+  timelineStepLabelCurrent: {
+    color: '#6366F1',
+    fontWeight: '600',
+  },
+  timelineStepTime: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 2,
   },
   loadingContainer: {
     justifyContent: 'center',
