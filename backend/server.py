@@ -8825,32 +8825,32 @@ async def update_genie_location(
     if current_user.partner_type != "genie":
         raise HTTPException(status_code=403, detail="Only genies can access this endpoint")
     
+    location_data = {
+        "lat": location.get("lat"),
+        "lng": location.get("lng"),
+        "heading": location.get("heading"),
+        "speed": location.get("speed"),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Update users collection
     await db.users.update_one(
         {"user_id": current_user.user_id},
-        {
-            "$set": {
-                "current_location": {
-                    "lat": location.get("lat"),
-                    "lng": location.get("lng"),
-                    "updated_at": datetime.now(timezone.utc).isoformat()
-                }
-            }
-        }
+        {"$set": {"current_location": location_data}}
+    )
+    
+    # Also update genie_profiles collection (for tracking endpoint)
+    await db.genie_profiles.update_one(
+        {"genie_id": current_user.user_id},
+        {"$set": {"current_location": location_data}},
+        upsert=True
     )
     
     # If genie has an active order, update the order with genie location
     if current_user.current_order_id:
         await db.wisher_orders.update_one(
             {"order_id": current_user.current_order_id},
-            {
-                "$set": {
-                    "genie_location": {
-                        "lat": location.get("lat"),
-                        "lng": location.get("lng"),
-                        "updated_at": datetime.now(timezone.utc).isoformat()
-                    }
-                }
-            }
+            {"$set": {"genie_location": location_data}}
         )
     
     return {"message": "Location updated"}
