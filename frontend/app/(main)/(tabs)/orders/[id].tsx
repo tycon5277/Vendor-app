@@ -810,24 +810,6 @@ export default function OrderDetailScreen() {
                     <Text style={styles.assignedGeniePhone}>{deliveryInfo.genie.phone}</Text>
                   </View>
                 )}
-                
-                {/* Show QR Code button when order is ready for pickup */}
-                {(order?.status === 'ready_for_pickup' || order?.status === 'preparing') && (
-                  <TouchableOpacity
-                    style={styles.showQRButton}
-                    onPress={handleShowPickupQR}
-                    disabled={loadingQR}
-                  >
-                    {loadingQR ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Ionicons name="qr-code" size={18} color="#FFFFFF" />
-                        <Text style={styles.showQRButtonText}>Show Pickup QR Code</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
               </View>
             )}
           </View>
