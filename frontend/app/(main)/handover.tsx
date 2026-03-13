@@ -352,7 +352,7 @@ export default function HandoverScreen() {
               <View style={[styles.totalRow, { borderTopColor: colors.separator }]}>
                 <Text style={[styles.totalLabel, { color: colors.text.secondary }]}>Total</Text>
                 <Text style={[styles.totalValue, { color: colors.text.primary }]}>
-                  ₹{handoverResult.order_summary.total_amount.toFixed(0)}
+                  ₹{(handoverResult.order_summary.total_amount || 0).toFixed(0)}
                 </Text>
               </View>
             </View>
