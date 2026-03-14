@@ -8649,8 +8649,9 @@ async def assign_wisher_order_delivery(
 @api_router.get("/genie/wisher-deliveries")
 async def get_available_wisher_deliveries(current_user: User = Depends(get_current_user)):
     """Get available delivery requests for Genie - Genie App"""
-    if current_user.partner_type != "genie":
-        raise HTTPException(status_code=403, detail="Only genies can access this endpoint")
+    # Genie users have partner_type == "agent" (Carpet Genie delivery partners)
+    if current_user.partner_type != "agent":
+        raise HTTPException(status_code=403, detail="Only delivery partners can access this endpoint")
     
     # Get open delivery requests
     requests = await db.genie_delivery_requests.find(
@@ -8676,8 +8677,9 @@ async def accept_wisher_delivery(
     current_user: User = Depends(get_current_user)
 ):
     """Accept a delivery request - Genie App"""
-    if current_user.partner_type != "genie":
-        raise HTTPException(status_code=403, detail="Only genies can access this endpoint")
+    # Genie users have partner_type == "agent" (Carpet Genie delivery partners)
+    if current_user.partner_type != "agent":
+        raise HTTPException(status_code=403, detail="Only delivery partners can access this endpoint")
     
     order = await db.wisher_orders.find_one({"order_id": order_id})
     if not order:
@@ -8733,8 +8735,9 @@ async def pickup_wisher_order(
     current_user: User = Depends(get_current_user)
 ):
     """Mark order as picked up from vendor - Genie App"""
-    if current_user.partner_type != "genie":
-        raise HTTPException(status_code=403, detail="Only genies can access this endpoint")
+    # Genie users have partner_type == "agent" (Carpet Genie delivery partners)
+    if current_user.partner_type != "agent":
+        raise HTTPException(status_code=403, detail="Only delivery partners can access this endpoint")
     
     order = await db.wisher_orders.find_one(
         {"order_id": order_id, "genie_id": current_user.user_id}
@@ -8773,8 +8776,9 @@ async def deliver_wisher_order(
     current_user: User = Depends(get_current_user)
 ):
     """Mark order as delivered - Genie App (unified endpoint)"""
-    if current_user.partner_type != "genie":
-        raise HTTPException(status_code=403, detail="Only genies can access this endpoint")
+    # Genie users have partner_type == "agent" (Carpet Genie delivery partners)
+    if current_user.partner_type != "agent":
+        raise HTTPException(status_code=403, detail="Only delivery partners can access this endpoint")
     
     order = await db.wisher_orders.find_one(
         {"order_id": order_id, "genie_id": current_user.user_id}
@@ -8823,8 +8827,9 @@ async def update_genie_location(
     current_user: User = Depends(get_current_user)
 ):
     """Update genie's current location - Genie App"""
-    if current_user.partner_type != "genie":
-        raise HTTPException(status_code=403, detail="Only genies can access this endpoint")
+    # Genie users have partner_type == "agent" (Carpet Genie delivery partners)
+    if current_user.partner_type != "agent":
+        raise HTTPException(status_code=403, detail="Only delivery partners can access this endpoint")
     
     location_data = {
         "lat": location.get("lat"),

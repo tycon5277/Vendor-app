@@ -7,6 +7,7 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
 
 ## Latest Updates (March 2026)
+- **[March 14] Authorization Bug Fix** — Fixed "Only genies can access this endpoint" error on Mark as Delivered and other Genie endpoints. Root cause: inconsistent role check (`partner_type != "genie"` vs `partner_type != "agent"`). All Genie endpoints now consistently use `partner_type == "agent"`.
 - **Handover Authentication System** — Reversed OTP flow where Genie provides code to Vendor for multi-order handling
 - **Multi-Image Upload** — Support for up to 5 product images with client-side compression (~100KB target)
 - **Preparation Reminder System** — Popup reminders with urgency levels when vendors accept orders but delay preparation
