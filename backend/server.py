@@ -8767,11 +8767,12 @@ async def pickup_wisher_order(
 
 
 @api_router.post("/genie/wisher-deliveries/{order_id}/deliver")
+@api_router.post("/genie/deliveries/{order_id}/deliver")
 async def deliver_wisher_order(
     order_id: str,
     current_user: User = Depends(get_current_user)
 ):
-    """Mark order as delivered - Genie App"""
+    """Mark order as delivered - Genie App (unified endpoint)"""
     if current_user.partner_type != "genie":
         raise HTTPException(status_code=403, detail="Only genies can access this endpoint")
     
