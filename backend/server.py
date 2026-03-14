@@ -10462,11 +10462,40 @@ async def vendor_verify_handover_otp(
     order = await db.wisher_orders.find_one({
         "vendor_id": current_user.user_id,
         "handover_otp": data.otp,
-        "status": {"$in": ["confirmed", "preparing", "ready_for_pickup"]}
+        "status": {"$in": ["confirmed", "preparing", "ready_for_pickup", "out_for_delivery"]}
     }, {"_id": 0})
     
     if not order:
         raise HTTPException(status_code=400, detail="Invalid OTP or order not found")
+    
+    # If vendor already confirmed, just return success (allow re-verification)
+    if order.get("vendor_handover_confirmed"):
+        genie = await db.users.find_one(
+            {"user_id": order.get("genie_id")},
+            {"_id": 0, "name": 1, "phone": 1, "picture": 1}
+        )
+        genie_confirmed = order.get("genie_checklist_confirmed", False)
+        
+        return {
+            "valid": True,
+            "order_id": order.get("order_id"),
+            "order_summary": {
+                "items": order.get("items", []),
+                "items_count": len(order.get("items", [])),
+                "total_amount": order.get("total_amount") or order.get("total") or 0,
+                "customer_name": order.get("customer_name"),
+                "order_placed_at": order.get("created_at")
+            },
+            "genie": {
+                "name": genie.get("name") if genie else "Delivery Partner",
+                "phone": genie.get("phone") if genie else None,
+                "photo": genie.get("picture") if genie else None
+            },
+            "vendor_confirmed": True,
+            "genie_confirmed": genie_confirmed,
+            "handover_complete": genie_confirmed,
+            "message": "Already verified" if not genie_confirmed else "Handover complete!"
+        }
     
     order_id = order.get("order_id")
     
