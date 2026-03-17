@@ -3430,13 +3430,19 @@ async def get_agent_profile(
         }
     }
 
-# Update agent profile
+# Update agent profile - Full sync model for Genie App
 class AgentProfileUpdate(BaseModel):
     name: Optional[str] = None
     photo: Optional[str] = None
     vehicle_type: Optional[str] = None
     vehicle_number: Optional[str] = None
+    vehicle_make: Optional[str] = None
+    vehicle_model: Optional[str] = None
+    vehicle_color: Optional[str] = None
+    is_electric: Optional[bool] = None
     is_online: Optional[bool] = None
+    task_types: Optional[List[str]] = None  # ['delivery', 'courier', 'errands']
+    service_location: Optional[str] = None  # Zone name
 
 @api_router.put("/genie/profile")
 async def update_agent_profile(
@@ -3444,31 +3450,107 @@ async def update_agent_profile(
     request: Request,
     session_token: Optional[str] = Cookie(default=None)
 ):
-    """Update agent's profile"""
+    """Update genie's profile - syncs to users, genie_profiles, and agent_profiles"""
     user = await get_current_user(request, session_token)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    update_data = {}
-    if data.name is not None:
-        update_data["name"] = data.name
-    if data.photo is not None:
-        update_data["photo"] = data.photo
-    if data.vehicle_type is not None:
-        update_data["vehicle_type"] = data.vehicle_type
-    if data.vehicle_number is not None:
-        update_data["vehicle_number"] = data.vehicle_number
-    if data.is_online is not None:
-        update_data["is_online"] = data.is_online
+    now = datetime.now(timezone.utc)
     
-    if update_data:
-        await db.agent_profiles.update_one(
+    # Build update data for users collection
+    user_update = {"updated_at": now}
+    if data.name is not None:
+        user_update["name"] = data.name
+    
+    # Build vehicle object
+    vehicle_update = {}
+    if data.vehicle_type is not None:
+        vehicle_update["type"] = data.vehicle_type
+    if data.vehicle_number is not None:
+        vehicle_update["number"] = data.vehicle_number
+    if data.vehicle_make is not None:
+        vehicle_update["make"] = data.vehicle_make
+    if data.vehicle_model is not None:
+        vehicle_update["model"] = data.vehicle_model
+    if data.vehicle_color is not None:
+        vehicle_update["color"] = data.vehicle_color
+    if data.is_electric is not None:
+        vehicle_update["is_electric"] = data.is_electric
+    
+    if vehicle_update:
+        # Merge with existing vehicle data
+        existing_vehicle = user.genie_vehicle if hasattr(user, 'genie_vehicle') else {}
+        if existing_vehicle:
+            existing_vehicle.update(vehicle_update)
+            user_update["genie_vehicle"] = existing_vehicle
+        else:
+            user_update["genie_vehicle"] = vehicle_update
+    
+    if data.task_types is not None:
+        user_update["genie_task_types"] = data.task_types
+    
+    # Set partner_type to agent if not already set (registering as genie)
+    if not user.partner_type or user.partner_type != "agent":
+        user_update["partner_type"] = "agent"
+        user_update["partner_status"] = "available"
+    
+    # Update users collection
+    if user_update:
+        await db.users.update_one(
             {"user_id": user.user_id},
-            {"$set": update_data},
-            upsert=True
+            {"$set": user_update}
         )
     
-    return {"message": "Profile updated"}
+    # Build genie_profiles update
+    genie_profile_update = {
+        "genie_id": user.user_id,
+        "updated_at": now.isoformat()
+    }
+    if data.name is not None:
+        genie_profile_update["name"] = data.name
+    if data.vehicle_type is not None:
+        genie_profile_update["vehicle_type"] = data.vehicle_type
+    if data.is_online is not None:
+        genie_profile_update["status"] = "online" if data.is_online else "offline"
+    if data.service_location is not None:
+        genie_profile_update["service_location"] = data.service_location
+    
+    # Always set genie_type for carpet genie
+    genie_profile_update["genie_type"] = "carpet"
+    
+    # Update genie_profiles collection
+    await db.genie_profiles.update_one(
+        {"genie_id": user.user_id},
+        {"$set": genie_profile_update},
+        upsert=True
+    )
+    
+    # Also update agent_profiles for backward compatibility
+    agent_profile_update = {"user_id": user.user_id}
+    if data.name is not None:
+        agent_profile_update["name"] = data.name
+    if data.photo is not None:
+        agent_profile_update["photo"] = data.photo
+    if data.vehicle_type is not None:
+        agent_profile_update["vehicle_type"] = data.vehicle_type
+    if data.vehicle_number is not None:
+        agent_profile_update["vehicle_number"] = data.vehicle_number
+    if data.is_online is not None:
+        agent_profile_update["is_online"] = data.is_online
+    
+    await db.agent_profiles.update_one(
+        {"user_id": user.user_id},
+        {"$set": agent_profile_update},
+        upsert=True
+    )
+    
+    logger.info(f"Genie profile updated: {user.user_id} - {data.name}")
+    
+    return {
+        "message": "Profile updated successfully",
+        "genie_id": user.user_id,
+        "synced_to": ["users", "genie_profiles", "agent_profiles"]
+    }
 
 # ===================== SHARED ENDPOINTS - FOR ALL APPS =====================
 
