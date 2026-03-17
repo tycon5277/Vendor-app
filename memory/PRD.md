@@ -7,6 +7,8 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
 
 ## Latest Updates (March 2026)
+- **[March 17] Vendor Admin APIs** — Added comprehensive admin APIs for vendor management, analytics, and zone integration. Ready for Admin Panel (Mission HQ) integration.
+- **[March 17] Zone System Architecture** — Zone CRUD will live in Admin Panel. Vendor App has read-only zone APIs.
 - **[March 14] Authorization Bug Fix** — Fixed "Only genies can access this endpoint" error on Mark as Delivered and other Genie endpoints. Root cause: inconsistent role check (`partner_type != "genie"` vs `partner_type != "agent"`). All Genie endpoints now consistently use `partner_type == "agent"`.
 - **Handover Authentication System** — Reversed OTP flow where Genie provides code to Vendor for multi-order handling
 - **Multi-Image Upload** — Support for up to 5 product images with client-side compression (~100KB target)
@@ -20,6 +22,40 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - SSE delivery stream tested and working (requires Redis)
 - Redis must be running for zone-based assignment to work
 - Terminology: "Delivery Fee" → "Handling & Transportation"
+
+## Admin Panel Integration (NEW - March 2026)
+
+### Architecture Decision
+- **Zone Management**: Lives ONLY in Admin Panel (Create/Edit/Delete)
+- **Vendor App**: READ-ONLY zone access + vendor-zone assignment requests
+- **Other Apps**: READ-ONLY zone access (Wisher, Carpet Genie, Skilled Genie)
+
+### Vendor Admin APIs (For Admin Panel)
+
+**Vendor Management:**
+- `GET /api/admin/vendors` — List all vendors with filters (status, zone, category, search)
+- `GET /api/admin/vendors/{id}` — Detailed vendor info with orders, products, stats
+- `PUT /api/admin/vendors/{id}/status` — Approve/Suspend/Activate/Reject vendor
+- `GET /api/admin/vendors/{id}/orders` — Vendor's order history
+
+**Vendor Analytics:**
+- `GET /api/admin/analytics/vendors/overview` — Total, verified, pending, suspended counts
+- `GET /api/admin/analytics/vendors/revenue` — Revenue over time, top vendors by revenue
+- `GET /api/admin/analytics/vendors/performance` — Fulfillment rate, cancellation rate, ratings
+- `GET /api/admin/analytics/orders/by-zone` — Orders & revenue per zone
+- `GET /api/admin/analytics/orders/hourly` — Peak hours analysis
+
+**Product Oversight:**
+- `GET /api/admin/products` — List all products across vendors
+- `PUT /api/admin/products/{id}/flag` — Flag inappropriate product
+- `DELETE /api/admin/products/{id}` — Remove product (archived first)
+
+### Read-Only Zone APIs (For Vendor App)
+- `GET /api/zones` — List all active zones
+- `GET /api/zones/{zone_id}` — Zone details
+- `GET /api/zones/check-point?lat=X&lng=Y` — Check if location is serviceable
+- `GET /api/vendor/my-zone` — Get vendor's assigned zone
+- `POST /api/vendor/request-zone-assignment` — Request zone assignment (admin approves)
 
 ## Handover Authentication System (NEW - March 2026)
 - **Problem Solved:** Vendors with multiple orders couldn't identify which OTP/QR belongs to which Genie

@@ -11735,6 +11735,762 @@ async def mark_all_notifications_read(current_user: User = Depends(require_vendo
     )
     return {"message": "All notifications marked as read"}
 
+# ===================== VENDOR ADMIN APIs (For Admin Panel) =====================
+# These APIs provide admin-level access to vendor management and analytics
+
+# --- Vendor Management ---
+
+@api_router.get("/admin/vendors")
+async def admin_list_vendors(
+    status: Optional[str] = None,  # pending, approved, suspended, all
+    zone_id: Optional[str] = None,
+    category: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """List all vendors with filtering - Admin Panel"""
+    query = {"partner_type": "vendor"}
+    
+    if status and status != "all":
+        if status == "pending":
+            query["vendor_is_verified"] = False
+        elif status == "approved":
+            query["vendor_is_verified"] = True
+        elif status == "suspended":
+            query["vendor_suspended"] = True
+    
+    if category:
+        query["vendor_shop_type"] = category
+    
+    if search:
+        query["$or"] = [
+            {"vendor_shop_name": {"$regex": search, "$options": "i"}},
+            {"name": {"$regex": search, "$options": "i"}},
+            {"phone": {"$regex": search, "$options": "i"}}
+        ]
+    
+    skip = (page - 1) * limit
+    total = await db.users.count_documents(query)
+    vendors = await db.users.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    
+    # Enrich with zone info
+    for vendor in vendors:
+        zone = await zone_service.get_vendor_zone(vendor["user_id"])
+        vendor["zone"] = zone["name"] if zone else None
+        vendor["zone_id"] = zone["zone_id"] if zone else None
+        
+        # Get order stats
+        order_count = await db.wisher_orders.count_documents({"vendor_id": vendor["user_id"]})
+        vendor["total_orders"] = order_count
+    
+    return {
+        "vendors": vendors,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit
+    }
+
+
+@api_router.get("/admin/vendors/{vendor_id}")
+async def admin_get_vendor_detail(vendor_id: str):
+    """Get detailed vendor info - Admin Panel"""
+    vendor = await db.users.find_one({"user_id": vendor_id, "partner_type": "vendor"}, {"_id": 0})
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    # Get zone info
+    zone = await zone_service.get_vendor_zone(vendor_id)
+    vendor["zone"] = zone if zone else None
+    
+    # Get products
+    products = await db.products.find({"vendor_id": vendor_id}, {"_id": 0}).to_list(500)
+    vendor["products"] = products
+    vendor["product_count"] = len(products)
+    
+    # Get order statistics
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+    
+    # Total orders
+    total_orders = await db.wisher_orders.count_documents({"vendor_id": vendor_id})
+    today_orders = await db.wisher_orders.count_documents({
+        "vendor_id": vendor_id,
+        "created_at": {"$gte": today_start}
+    })
+    
+    # Revenue calculations
+    revenue_pipeline = [
+        {"$match": {"vendor_id": vendor_id, "status": "delivered"}},
+        {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
+    ]
+    total_revenue = await db.wisher_orders.aggregate(revenue_pipeline).to_list(1)
+    
+    today_revenue_pipeline = [
+        {"$match": {"vendor_id": vendor_id, "status": "delivered", "created_at": {"$gte": today_start}}},
+        {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
+    ]
+    today_revenue = await db.wisher_orders.aggregate(today_revenue_pipeline).to_list(1)
+    
+    # Order status breakdown
+    status_pipeline = [
+        {"$match": {"vendor_id": vendor_id}},
+        {"$group": {"_id": "$status", "count": {"$sum": 1}}}
+    ]
+    status_breakdown = await db.wisher_orders.aggregate(status_pipeline).to_list(20)
+    
+    # Cancelled orders
+    cancelled_orders = await db.wisher_orders.count_documents({
+        "vendor_id": vendor_id,
+        "status": "cancelled"
+    })
+    
+    vendor["statistics"] = {
+        "total_orders": total_orders,
+        "today_orders": today_orders,
+        "total_revenue": total_revenue[0]["total"] if total_revenue else 0,
+        "today_revenue": today_revenue[0]["total"] if today_revenue else 0,
+        "cancelled_orders": cancelled_orders,
+        "cancellation_rate": round((cancelled_orders / total_orders * 100) if total_orders > 0 else 0, 2),
+        "status_breakdown": {s["_id"]: s["count"] for s in status_breakdown}
+    }
+    
+    # Recent orders
+    recent_orders = await db.wisher_orders.find(
+        {"vendor_id": vendor_id}, {"_id": 0}
+    ).sort("created_at", -1).limit(10).to_list(10)
+    vendor["recent_orders"] = recent_orders
+    
+    return vendor
+
+
+@api_router.put("/admin/vendors/{vendor_id}/status")
+async def admin_update_vendor_status(
+    vendor_id: str,
+    action: str,  # approve, suspend, activate, reject
+    reason: Optional[str] = None
+):
+    """Update vendor status - Admin Panel"""
+    vendor = await db.users.find_one({"user_id": vendor_id, "partner_type": "vendor"})
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    now = datetime.now(timezone.utc)
+    update_data = {"updated_at": now}
+    
+    if action == "approve":
+        update_data["vendor_is_verified"] = True
+        update_data["vendor_suspended"] = False
+        update_data["vendor_approved_at"] = now
+    elif action == "suspend":
+        update_data["vendor_suspended"] = True
+        update_data["vendor_suspension_reason"] = reason
+        update_data["vendor_suspended_at"] = now
+    elif action == "activate":
+        update_data["vendor_suspended"] = False
+        update_data["vendor_suspension_reason"] = None
+    elif action == "reject":
+        update_data["vendor_is_verified"] = False
+        update_data["vendor_rejection_reason"] = reason
+        update_data["vendor_rejected_at"] = now
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action")
+    
+    await db.users.update_one({"user_id": vendor_id}, {"$set": update_data})
+    
+    # Sync to hub_vendors
+    hub_update = {}
+    if "vendor_is_verified" in update_data:
+        hub_update["is_verified"] = update_data["vendor_is_verified"]
+    if "vendor_suspended" in update_data:
+        hub_update["is_suspended"] = update_data["vendor_suspended"]
+    if hub_update:
+        await db.hub_vendors.update_one({"vendor_id": vendor_id}, {"$set": hub_update})
+    
+    # Log admin action
+    await db.admin_audit_log.insert_one({
+        "log_id": f"audit_{uuid.uuid4().hex[:12]}",
+        "action": f"vendor_{action}",
+        "entity_type": "vendor",
+        "entity_id": vendor_id,
+        "reason": reason,
+        "timestamp": now
+    })
+    
+    return {"message": f"Vendor {action}d successfully", "vendor_id": vendor_id}
+
+
+@api_router.get("/admin/vendors/{vendor_id}/orders")
+async def admin_get_vendor_orders(
+    vendor_id: str,
+    status: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """Get vendor's orders - Admin Panel"""
+    query = {"vendor_id": vendor_id}
+    
+    if status:
+        query["status"] = status
+    
+    if from_date:
+        query["created_at"] = {"$gte": datetime.fromisoformat(from_date)}
+    if to_date:
+        if "created_at" in query:
+            query["created_at"]["$lte"] = datetime.fromisoformat(to_date)
+        else:
+            query["created_at"] = {"$lte": datetime.fromisoformat(to_date)}
+    
+    skip = (page - 1) * limit
+    total = await db.wisher_orders.count_documents(query)
+    orders = await db.wisher_orders.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    
+    return {
+        "orders": orders,
+        "total": total,
+        "page": page,
+        "limit": limit
+    }
+
+
+# --- Vendor Analytics ---
+
+@api_router.get("/admin/analytics/vendors/overview")
+async def admin_vendor_analytics_overview():
+    """Vendor analytics overview - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+    
+    # Vendor counts
+    total_vendors = await db.users.count_documents({"partner_type": "vendor"})
+    verified_vendors = await db.users.count_documents({"partner_type": "vendor", "vendor_is_verified": True})
+    pending_vendors = await db.users.count_documents({"partner_type": "vendor", "vendor_is_verified": False})
+    suspended_vendors = await db.users.count_documents({"partner_type": "vendor", "vendor_suspended": True})
+    online_vendors = await db.users.count_documents({"partner_type": "vendor", "partner_status": "available"})
+    
+    # New vendors
+    new_today = await db.users.count_documents({
+        "partner_type": "vendor",
+        "created_at": {"$gte": today_start}
+    })
+    new_this_week = await db.users.count_documents({
+        "partner_type": "vendor",
+        "created_at": {"$gte": week_start}
+    })
+    new_this_month = await db.users.count_documents({
+        "partner_type": "vendor",
+        "created_at": {"$gte": month_start}
+    })
+    
+    # Category breakdown
+    category_pipeline = [
+        {"$match": {"partner_type": "vendor"}},
+        {"$group": {"_id": "$vendor_shop_type", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    categories = await db.users.aggregate(category_pipeline).to_list(50)
+    
+    return {
+        "total_vendors": total_vendors,
+        "verified_vendors": verified_vendors,
+        "pending_approval": pending_vendors,
+        "suspended_vendors": suspended_vendors,
+        "online_now": online_vendors,
+        "new_vendors": {
+            "today": new_today,
+            "this_week": new_this_week,
+            "this_month": new_this_month
+        },
+        "by_category": {c["_id"]: c["count"] for c in categories if c["_id"]},
+        "generated_at": now.isoformat()
+    }
+
+
+@api_router.get("/admin/analytics/vendors/revenue")
+async def admin_vendor_revenue_analytics(
+    period: str = "daily",  # daily, weekly, monthly
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    vendor_id: Optional[str] = None
+):
+    """Revenue analytics by vendor - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    
+    # Default date range
+    if not from_date:
+        if period == "daily":
+            from_dt = now - timedelta(days=30)
+        elif period == "weekly":
+            from_dt = now - timedelta(weeks=12)
+        else:
+            from_dt = now - timedelta(days=365)
+    else:
+        from_dt = datetime.fromisoformat(from_date)
+    
+    to_dt = datetime.fromisoformat(to_date) if to_date else now
+    
+    match_stage = {
+        "status": "delivered",
+        "created_at": {"$gte": from_dt, "$lte": to_dt}
+    }
+    if vendor_id:
+        match_stage["vendor_id"] = vendor_id
+    
+    # Group by date format based on period
+    if period == "daily":
+        date_format = "%Y-%m-%d"
+    elif period == "weekly":
+        date_format = "%Y-W%V"
+    else:
+        date_format = "%Y-%m"
+    
+    # Revenue over time
+    revenue_pipeline = [
+        {"$match": match_stage},
+        {"$group": {
+            "_id": {"$dateToString": {"format": date_format, "date": "$created_at"}},
+            "revenue": {"$sum": "$total_amount"},
+            "orders": {"$sum": 1},
+            "avg_order_value": {"$avg": "$total_amount"}
+        }},
+        {"$sort": {"_id": 1}}
+    ]
+    revenue_data = await db.wisher_orders.aggregate(revenue_pipeline).to_list(100)
+    
+    # Top vendors by revenue
+    top_vendors_pipeline = [
+        {"$match": match_stage},
+        {"$group": {
+            "_id": "$vendor_id",
+            "revenue": {"$sum": "$total_amount"},
+            "orders": {"$sum": 1}
+        }},
+        {"$sort": {"revenue": -1}},
+        {"$limit": 20}
+    ]
+    top_vendors = await db.wisher_orders.aggregate(top_vendors_pipeline).to_list(20)
+    
+    # Enrich top vendors with names
+    for v in top_vendors:
+        vendor = await db.users.find_one({"user_id": v["_id"]}, {"vendor_shop_name": 1})
+        v["vendor_name"] = vendor.get("vendor_shop_name", "Unknown") if vendor else "Unknown"
+    
+    # Total stats
+    total_revenue = sum(d["revenue"] for d in revenue_data)
+    total_orders = sum(d["orders"] for d in revenue_data)
+    
+    return {
+        "period": period,
+        "from_date": from_dt.isoformat(),
+        "to_date": to_dt.isoformat(),
+        "total_revenue": total_revenue,
+        "total_orders": total_orders,
+        "avg_order_value": round(total_revenue / total_orders, 2) if total_orders > 0 else 0,
+        "revenue_over_time": revenue_data,
+        "top_vendors": top_vendors
+    }
+
+
+@api_router.get("/admin/analytics/vendors/performance")
+async def admin_vendor_performance_analytics():
+    """Vendor performance analytics - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # Get all vendors with their stats
+    vendors = await db.users.find(
+        {"partner_type": "vendor", "vendor_is_verified": True},
+        {"_id": 0, "user_id": 1, "vendor_shop_name": 1, "partner_rating": 1, "vendor_shop_type": 1}
+    ).to_list(1000)
+    
+    performance_data = []
+    
+    for vendor in vendors:
+        vendor_id = vendor["user_id"]
+        
+        # Order stats
+        total_orders = await db.wisher_orders.count_documents({"vendor_id": vendor_id})
+        delivered_orders = await db.wisher_orders.count_documents({"vendor_id": vendor_id, "status": "delivered"})
+        cancelled_orders = await db.wisher_orders.count_documents({"vendor_id": vendor_id, "status": "cancelled"})
+        
+        # Monthly orders
+        monthly_orders = await db.wisher_orders.count_documents({
+            "vendor_id": vendor_id,
+            "created_at": {"$gte": month_start}
+        })
+        
+        # Revenue
+        revenue_result = await db.wisher_orders.aggregate([
+            {"$match": {"vendor_id": vendor_id, "status": "delivered"}},
+            {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
+        ]).to_list(1)
+        
+        # Avg preparation time (if tracked)
+        # This would need preparation_started_at and ready_at timestamps
+        
+        fulfillment_rate = round((delivered_orders / total_orders * 100) if total_orders > 0 else 0, 2)
+        cancellation_rate = round((cancelled_orders / total_orders * 100) if total_orders > 0 else 0, 2)
+        
+        performance_data.append({
+            "vendor_id": vendor_id,
+            "vendor_name": vendor.get("vendor_shop_name", "Unknown"),
+            "category": vendor.get("vendor_shop_type"),
+            "rating": vendor.get("partner_rating", 5.0),
+            "total_orders": total_orders,
+            "delivered_orders": delivered_orders,
+            "cancelled_orders": cancelled_orders,
+            "monthly_orders": monthly_orders,
+            "total_revenue": revenue_result[0]["total"] if revenue_result else 0,
+            "fulfillment_rate": fulfillment_rate,
+            "cancellation_rate": cancellation_rate
+        })
+    
+    # Sort by total orders
+    performance_data.sort(key=lambda x: x["total_orders"], reverse=True)
+    
+    # Summary stats
+    avg_fulfillment = sum(v["fulfillment_rate"] for v in performance_data) / len(performance_data) if performance_data else 0
+    avg_cancellation = sum(v["cancellation_rate"] for v in performance_data) / len(performance_data) if performance_data else 0
+    
+    return {
+        "vendors": performance_data[:50],  # Top 50
+        "total_vendors_analyzed": len(performance_data),
+        "summary": {
+            "avg_fulfillment_rate": round(avg_fulfillment, 2),
+            "avg_cancellation_rate": round(avg_cancellation, 2),
+            "top_performer": performance_data[0]["vendor_name"] if performance_data else None
+        },
+        "generated_at": now.isoformat()
+    }
+
+
+@api_router.get("/admin/analytics/orders/by-zone")
+async def admin_orders_by_zone_analytics():
+    """Order analytics by zone - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start = today_start.replace(day=1)
+    
+    # Get all zones
+    zones = await zone_service.list_zones(active_only=True)
+    
+    zone_analytics = []
+    
+    for zone in zones:
+        zone_id = zone["zone_id"]
+        
+        # Get vendors in this zone
+        vendor_ids = await zone_service.get_zone_vendors(zone_id)
+        
+        if not vendor_ids:
+            zone_analytics.append({
+                "zone_id": zone_id,
+                "zone_name": zone["name"],
+                "vendor_count": 0,
+                "total_orders": 0,
+                "today_orders": 0,
+                "monthly_orders": 0,
+                "total_revenue": 0
+            })
+            continue
+        
+        # Orders from vendors in this zone
+        total_orders = await db.wisher_orders.count_documents({"vendor_id": {"$in": vendor_ids}})
+        today_orders = await db.wisher_orders.count_documents({
+            "vendor_id": {"$in": vendor_ids},
+            "created_at": {"$gte": today_start}
+        })
+        monthly_orders = await db.wisher_orders.count_documents({
+            "vendor_id": {"$in": vendor_ids},
+            "created_at": {"$gte": month_start}
+        })
+        
+        # Revenue
+        revenue_result = await db.wisher_orders.aggregate([
+            {"$match": {"vendor_id": {"$in": vendor_ids}, "status": "delivered"}},
+            {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
+        ]).to_list(1)
+        
+        zone_analytics.append({
+            "zone_id": zone_id,
+            "zone_name": zone["name"],
+            "vendor_count": len(vendor_ids),
+            "total_orders": total_orders,
+            "today_orders": today_orders,
+            "monthly_orders": monthly_orders,
+            "total_revenue": revenue_result[0]["total"] if revenue_result else 0
+        })
+    
+    # Sort by total orders
+    zone_analytics.sort(key=lambda x: x["total_orders"], reverse=True)
+    
+    return {
+        "zones": zone_analytics,
+        "total_zones": len(zone_analytics),
+        "generated_at": now.isoformat()
+    }
+
+
+@api_router.get("/admin/analytics/orders/hourly")
+async def admin_hourly_order_analytics(
+    vendor_id: Optional[str] = None,
+    zone_id: Optional[str] = None,
+    days: int = 7
+):
+    """Hourly order distribution - Admin Panel (for peak hours analysis)"""
+    now = datetime.now(timezone.utc)
+    from_date = now - timedelta(days=days)
+    
+    match_stage = {"created_at": {"$gte": from_date}}
+    
+    if vendor_id:
+        match_stage["vendor_id"] = vendor_id
+    elif zone_id:
+        vendor_ids = await zone_service.get_zone_vendors(zone_id)
+        if vendor_ids:
+            match_stage["vendor_id"] = {"$in": vendor_ids}
+    
+    # Group by hour
+    hourly_pipeline = [
+        {"$match": match_stage},
+        {"$group": {
+            "_id": {"$hour": "$created_at"},
+            "orders": {"$sum": 1},
+            "revenue": {"$sum": "$total_amount"}
+        }},
+        {"$sort": {"_id": 1}}
+    ]
+    hourly_data = await db.wisher_orders.aggregate(hourly_pipeline).to_list(24)
+    
+    # Fill missing hours with 0
+    hours_dict = {h["_id"]: h for h in hourly_data}
+    complete_hourly = []
+    for hour in range(24):
+        if hour in hours_dict:
+            complete_hourly.append({
+                "hour": hour,
+                "hour_label": f"{hour:02d}:00",
+                "orders": hours_dict[hour]["orders"],
+                "revenue": hours_dict[hour]["revenue"]
+            })
+        else:
+            complete_hourly.append({
+                "hour": hour,
+                "hour_label": f"{hour:02d}:00",
+                "orders": 0,
+                "revenue": 0
+            })
+    
+    # Find peak hours
+    sorted_by_orders = sorted(complete_hourly, key=lambda x: x["orders"], reverse=True)
+    peak_hours = sorted_by_orders[:3]
+    
+    return {
+        "hourly_distribution": complete_hourly,
+        "peak_hours": peak_hours,
+        "analysis_period_days": days,
+        "generated_at": now.isoformat()
+    }
+
+
+# --- Product Admin APIs ---
+
+@api_router.get("/admin/products")
+async def admin_list_all_products(
+    vendor_id: Optional[str] = None,
+    category: Optional[str] = None,
+    in_stock: Optional[bool] = None,
+    flagged: Optional[bool] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """List all products across vendors - Admin Panel"""
+    query = {}
+    
+    if vendor_id:
+        query["vendor_id"] = vendor_id
+    if category:
+        query["category"] = category
+    if in_stock is not None:
+        query["in_stock"] = in_stock
+    if flagged:
+        query["admin_flagged"] = True
+    if search:
+        query["name"] = {"$regex": search, "$options": "i"}
+    
+    skip = (page - 1) * limit
+    total = await db.products.count_documents(query)
+    products = await db.products.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    
+    # Enrich with vendor names
+    for product in products:
+        vendor = await db.users.find_one({"user_id": product["vendor_id"]}, {"vendor_shop_name": 1})
+        product["vendor_name"] = vendor.get("vendor_shop_name", "Unknown") if vendor else "Unknown"
+    
+    return {
+        "products": products,
+        "total": total,
+        "page": page,
+        "limit": limit
+    }
+
+
+@api_router.put("/admin/products/{product_id}/flag")
+async def admin_flag_product(product_id: str, reason: str):
+    """Flag a product for review - Admin Panel"""
+    result = await db.products.update_one(
+        {"product_id": product_id},
+        {"$set": {
+            "admin_flagged": True,
+            "admin_flag_reason": reason,
+            "admin_flagged_at": datetime.now(timezone.utc)
+        }}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Also update hub_products
+    await db.hub_products.update_one(
+        {"product_id": product_id},
+        {"$set": {"admin_flagged": True}}
+    )
+    
+    return {"message": "Product flagged", "product_id": product_id}
+
+
+@api_router.delete("/admin/products/{product_id}")
+async def admin_delete_product(product_id: str, reason: str = "Admin removal"):
+    """Delete a product - Admin Panel"""
+    product = await db.products.find_one({"product_id": product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Archive before delete
+    await db.deleted_products.insert_one({
+        **product,
+        "deleted_by": "admin",
+        "deletion_reason": reason,
+        "deleted_at": datetime.now(timezone.utc)
+    })
+    
+    # Delete from products
+    await db.products.delete_one({"product_id": product_id})
+    
+    # Delete from hub_products
+    await db.hub_products.delete_one({"product_id": product_id})
+    
+    return {"message": "Product deleted", "product_id": product_id}
+
+
+# --- Read-Only Zone APIs (For Vendor App) ---
+
+@api_router.get("/zones")
+async def list_zones_public(active_only: bool = True):
+    """List all zones (read-only) - For all apps"""
+    zones = await zone_service.list_zones(active_only=active_only)
+    # Return simplified zone info (no admin details)
+    return {
+        "zones": [{
+            "zone_id": z["zone_id"],
+            "name": z["name"],
+            "district": z.get("district"),
+            "zone_type": z["zone_type"],
+            "center": z.get("center"),
+            "radius_km": z.get("radius_km"),
+            "boundary": z.get("boundary"),
+            "is_active": z["is_active"]
+        } for z in zones]
+    }
+
+
+@api_router.get("/zones/check-point")
+async def check_point_in_zones(lat: float, lng: float):
+    """Check if a point is in any zone - For all apps"""
+    zones = await zone_service.find_zones_for_point(lat, lng)
+    if not zones:
+        return {
+            "in_zone": False,
+            "message": "Service coming soon to your area",
+            "zones": []
+        }
+    return {
+        "in_zone": True,
+        "zones": [{
+            "zone_id": z["zone_id"],
+            "name": z["name"]
+        } for z in zones]
+    }
+
+
+@api_router.get("/zones/{zone_id}")
+async def get_zone_public(zone_id: str):
+    """Get zone details (read-only) - For all apps"""
+    zone = await zone_service.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    return {
+        "zone_id": zone["zone_id"],
+        "name": zone["name"],
+        "district": zone.get("district"),
+        "zone_type": zone["zone_type"],
+        "center": zone.get("center"),
+        "radius_km": zone.get("radius_km"),
+        "boundary": zone.get("boundary"),
+        "is_active": zone["is_active"]
+    }
+
+
+@api_router.get("/vendor/my-zone")
+async def get_vendor_zone(current_user: User = Depends(require_vendor)):
+    """Get vendor's assigned zone"""
+    zone = await zone_service.get_vendor_zone(current_user.user_id)
+    if not zone:
+        return {"zone": None, "message": "Not assigned to any zone"}
+    return {"zone": zone}
+
+
+@api_router.post("/vendor/request-zone-assignment")
+async def vendor_request_zone_assignment(zone_id: str, current_user: User = Depends(require_vendor)):
+    """Vendor requests to be assigned to a zone"""
+    zone = await zone_service.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    
+    # Check if already assigned
+    current_zone = await zone_service.get_vendor_zone(current_user.user_id)
+    if current_zone:
+        return {
+            "message": f"Already assigned to zone: {current_zone['name']}",
+            "current_zone": current_zone
+        }
+    
+    # Create zone assignment request (admin will approve)
+    request_doc = {
+        "request_id": f"zr_{uuid.uuid4().hex[:12]}",
+        "entity_id": current_user.user_id,
+        "entity_type": "vendor",
+        "zone_id": zone_id,
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.zone_assignment_requests.insert_one(request_doc)
+    
+    return {
+        "message": "Zone assignment request submitted",
+        "request_id": request_doc["request_id"],
+        "zone_name": zone["name"]
+    }
+
+
 # ===================== ZONE MANAGEMENT API =====================
 
 class CreateZoneRequest(BaseModel):
