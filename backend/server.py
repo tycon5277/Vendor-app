@@ -12391,6 +12391,717 @@ async def admin_delete_product(product_id: str, reason: str = "Admin removal"):
     return {"message": "Product deleted", "product_id": product_id}
 
 
+# ===================== DEVICE TELEMETRY & MONITORING SYSTEM =====================
+
+# --- Telemetry Heartbeat (Called by Apps) ---
+
+class TelemetryHeartbeat(BaseModel):
+    battery_level: Optional[int] = None  # 0-100
+    is_charging: Optional[bool] = None
+    device_model: Optional[str] = None  # "iPhone 14 Pro", "Samsung S23"
+    os_version: Optional[str] = None  # "iOS 17.4", "Android 14"
+    app_version: Optional[str] = None  # "2.1.0"
+    network_type: Optional[str] = None  # "wifi", "4g", "5g", "3g"
+    gps_accuracy: Optional[float] = None  # meters
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    current_activity: Optional[str] = None  # "idle", "preparing_order", "delivering", "offline"
+    push_enabled: Optional[bool] = None
+    storage_free_mb: Optional[int] = None
+    ram_usage_percent: Optional[float] = None
+
+@api_router.post("/telemetry/heartbeat")
+async def telemetry_heartbeat(
+    data: TelemetryHeartbeat,
+    request: Request,
+    session_token: Optional[str] = Cookie(default=None)
+):
+    """Receive telemetry data from apps - called periodically"""
+    user = await get_current_user(request, session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    now = datetime.now(timezone.utc)
+    
+    # Build telemetry record
+    telemetry_doc = {
+        "user_id": user.user_id,
+        "user_type": user.partner_type or "customer",
+        "timestamp": now,
+        "battery_level": data.battery_level,
+        "is_charging": data.is_charging,
+        "device_model": data.device_model,
+        "os_version": data.os_version,
+        "app_version": data.app_version,
+        "network_type": data.network_type,
+        "gps_accuracy": data.gps_accuracy,
+        "location": {"lat": data.latitude, "lng": data.longitude} if data.latitude else None,
+        "current_activity": data.current_activity,
+        "push_enabled": data.push_enabled,
+        "storage_free_mb": data.storage_free_mb,
+        "ram_usage_percent": data.ram_usage_percent
+    }
+    
+    # Update latest telemetry for user (upsert)
+    await db.user_telemetry.update_one(
+        {"user_id": user.user_id},
+        {"$set": telemetry_doc},
+        upsert=True
+    )
+    
+    # Also store in telemetry history (for analytics)
+    telemetry_doc["record_id"] = f"telem_{uuid.uuid4().hex[:12]}"
+    await db.telemetry_history.insert_one(telemetry_doc)
+    
+    # Update user's last_active timestamp
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {
+            "last_active": now,
+            "last_location": telemetry_doc["location"],
+            "current_activity": data.current_activity,
+            "device_info": {
+                "model": data.device_model,
+                "os": data.os_version,
+                "app_version": data.app_version
+            }
+        }}
+    )
+    
+    # Check for low battery alert (< 15%)
+    if data.battery_level and data.battery_level < 15 and not data.is_charging:
+        await db.admin_alerts.insert_one({
+            "alert_id": f"alert_{uuid.uuid4().hex[:12]}",
+            "alert_type": "low_battery",
+            "user_id": user.user_id,
+            "user_type": user.partner_type,
+            "message": f"Battery at {data.battery_level}%",
+            "severity": "warning",
+            "created_at": now,
+            "is_resolved": False
+        })
+    
+    return {"message": "Telemetry received", "timestamp": now.isoformat()}
+
+
+# --- Admin Device Info APIs ---
+
+@api_router.get("/admin/vendors/{vendor_id}/device-info")
+async def admin_get_vendor_device_info(vendor_id: str):
+    """Get vendor's device telemetry - Admin Panel"""
+    telemetry = await db.user_telemetry.find_one({"user_id": vendor_id}, {"_id": 0})
+    user = await db.users.find_one({"user_id": vendor_id}, {"_id": 0, "last_active": 1, "device_info": 1, "current_activity": 1})
+    
+    if not telemetry and not user:
+        raise HTTPException(status_code=404, detail="Vendor not found or no telemetry data")
+    
+    now = datetime.now(timezone.utc)
+    last_active = user.get("last_active") if user else None
+    
+    # Calculate online status
+    is_online = False
+    offline_duration = None
+    if last_active:
+        time_diff = (now - last_active).total_seconds()
+        is_online = time_diff < 300  # Online if active within 5 minutes
+        if not is_online:
+            offline_duration = int(time_diff)
+    
+    return {
+        "vendor_id": vendor_id,
+        "is_online": is_online,
+        "offline_duration_seconds": offline_duration,
+        "last_active": last_active.isoformat() if last_active else None,
+        "current_activity": user.get("current_activity") if user else None,
+        "device": {
+            "model": telemetry.get("device_model") if telemetry else None,
+            "os_version": telemetry.get("os_version") if telemetry else None,
+            "app_version": telemetry.get("app_version") if telemetry else None,
+        },
+        "battery": {
+            "level": telemetry.get("battery_level") if telemetry else None,
+            "is_charging": telemetry.get("is_charging") if telemetry else None,
+            "is_low": telemetry.get("battery_level", 100) < 20 if telemetry else False
+        },
+        "network": {
+            "type": telemetry.get("network_type") if telemetry else None,
+            "gps_accuracy_meters": telemetry.get("gps_accuracy") if telemetry else None
+        },
+        "location": telemetry.get("location") if telemetry else None,
+        "push_enabled": telemetry.get("push_enabled") if telemetry else None,
+        "last_telemetry": telemetry.get("timestamp").isoformat() if telemetry and telemetry.get("timestamp") else None
+    }
+
+
+@api_router.get("/admin/vendors/{vendor_id}/activity-log")
+async def admin_get_vendor_activity_log(vendor_id: str, limit: int = 50):
+    """Get vendor's recent activity timeline - Admin Panel"""
+    # Get telemetry history
+    telemetry_logs = await db.telemetry_history.find(
+        {"user_id": vendor_id},
+        {"_id": 0}
+    ).sort("timestamp", -1).limit(limit).to_list(limit)
+    
+    # Get order activity
+    order_logs = await db.wisher_orders.find(
+        {"vendor_id": vendor_id},
+        {"_id": 0, "order_id": 1, "status": 1, "created_at": 1, "updated_at": 1}
+    ).sort("created_at", -1).limit(20).to_list(20)
+    
+    # Get login history
+    login_logs = await db.login_history.find(
+        {"user_id": vendor_id},
+        {"_id": 0}
+    ).sort("timestamp", -1).limit(20).to_list(20)
+    
+    # Combine and sort by time
+    activity_timeline = []
+    
+    for t in telemetry_logs:
+        activity_timeline.append({
+            "type": "telemetry",
+            "timestamp": t.get("timestamp"),
+            "activity": t.get("current_activity"),
+            "battery": t.get("battery_level"),
+            "location": t.get("location")
+        })
+    
+    for o in order_logs:
+        activity_timeline.append({
+            "type": "order",
+            "timestamp": o.get("created_at"),
+            "order_id": o.get("order_id"),
+            "status": o.get("status")
+        })
+    
+    for l in login_logs:
+        activity_timeline.append({
+            "type": "login",
+            "timestamp": l.get("timestamp"),
+            "device": l.get("device_model"),
+            "ip": l.get("ip_address")
+        })
+    
+    # Sort by timestamp
+    activity_timeline.sort(key=lambda x: x.get("timestamp") or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    
+    return {
+        "vendor_id": vendor_id,
+        "activity_log": activity_timeline[:limit]
+    }
+
+
+@api_router.get("/admin/vendors/{vendor_id}/health-score")
+async def admin_get_vendor_health_score(vendor_id: str):
+    """Calculate vendor health score - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    
+    # Get vendor data
+    vendor = await db.users.find_one({"user_id": vendor_id}, {"_id": 0})
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    # Scoring factors (out of 100)
+    scores = {}
+    
+    # 1. Order fulfillment rate (25 points)
+    total_orders = await db.wisher_orders.count_documents({"vendor_id": vendor_id})
+    delivered_orders = await db.wisher_orders.count_documents({"vendor_id": vendor_id, "status": "delivered"})
+    cancelled_orders = await db.wisher_orders.count_documents({"vendor_id": vendor_id, "status": "cancelled"})
+    
+    if total_orders > 0:
+        fulfillment_rate = delivered_orders / total_orders
+        cancellation_rate = cancelled_orders / total_orders
+        scores["fulfillment"] = min(25, int(fulfillment_rate * 25))
+        scores["cancellation_penalty"] = max(0, int(cancellation_rate * 10))
+    else:
+        scores["fulfillment"] = 15
+        scores["cancellation_penalty"] = 0
+    
+    # 2. Response time (20 points)
+    scores["response_time"] = 15
+    
+    # 3. App activity (20 points)
+    telemetry = await db.user_telemetry.find_one({"user_id": vendor_id})
+    last_active = vendor.get("last_active")
+    
+    if last_active:
+        hours_since_active = (now - last_active).total_seconds() / 3600
+        if hours_since_active < 1:
+            scores["activity"] = 20
+        elif hours_since_active < 24:
+            scores["activity"] = 15
+        elif hours_since_active < 72:
+            scores["activity"] = 10
+        else:
+            scores["activity"] = 5
+    else:
+        scores["activity"] = 5
+    
+    # 4. Rating (20 points)
+    rating = vendor.get("partner_rating", 5.0)
+    scores["rating"] = int((rating / 5) * 20)
+    
+    # 5. Device health (15 points)
+    device_score = 15
+    if telemetry:
+        battery = telemetry.get("battery_level", 100)
+        if battery < 20:
+            device_score -= 5
+        push_enabled = telemetry.get("push_enabled", True)
+        if not push_enabled:
+            device_score -= 5
+    scores["device_health"] = max(0, device_score)
+    
+    # Calculate total score
+    total_score = (
+        scores["fulfillment"] +
+        scores["response_time"] +
+        scores["activity"] +
+        scores["rating"] +
+        scores["device_health"] -
+        scores["cancellation_penalty"]
+    )
+    total_score = max(0, min(100, total_score))
+    
+    # Determine status
+    if total_score >= 80:
+        status = "healthy"
+        status_color = "green"
+    elif total_score >= 60:
+        status = "needs_attention"
+        status_color = "yellow"
+    else:
+        status = "at_risk"
+        status_color = "red"
+    
+    return {
+        "vendor_id": vendor_id,
+        "vendor_name": vendor.get("vendor_shop_name"),
+        "health_score": total_score,
+        "status": status,
+        "status_color": status_color,
+        "breakdown": {
+            "fulfillment_score": scores["fulfillment"],
+            "response_time_score": scores["response_time"],
+            "activity_score": scores["activity"],
+            "rating_score": scores["rating"],
+            "device_health_score": scores["device_health"],
+            "cancellation_penalty": scores["cancellation_penalty"]
+        },
+        "details": {
+            "total_orders": total_orders,
+            "delivered_orders": delivered_orders,
+            "cancelled_orders": cancelled_orders,
+            "current_rating": rating,
+            "last_active": last_active.isoformat() if last_active else None
+        },
+        "calculated_at": now.isoformat()
+    }
+
+
+@api_router.get("/admin/vendors/{vendor_id}/documents")
+async def admin_get_vendor_documents(vendor_id: str):
+    """Get vendor's document verification status - Admin Panel"""
+    vendor = await db.users.find_one({"user_id": vendor_id}, {"_id": 0})
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    documents = await db.vendor_documents.find(
+        {"vendor_id": vendor_id},
+        {"_id": 0}
+    ).to_list(20)
+    
+    now = datetime.now(timezone.utc)
+    
+    required_docs = [
+        {"type": "business_license", "name": "Business License", "required": True},
+        {"type": "fssai_license", "name": "FSSAI License", "required": True},
+        {"type": "gst_certificate", "name": "GST Certificate", "required": False},
+        {"type": "id_proof", "name": "ID Proof (Aadhaar/PAN)", "required": True},
+        {"type": "address_proof", "name": "Address Proof", "required": True},
+        {"type": "shop_photo", "name": "Shop Photo", "required": True},
+        {"type": "bank_details", "name": "Bank Account Details", "required": True}
+    ]
+    
+    uploaded_map = {d["doc_type"]: d for d in documents}
+    
+    doc_status = []
+    for req in required_docs:
+        doc_type = req["type"]
+        uploaded = uploaded_map.get(doc_type)
+        
+        if uploaded:
+            expiry_date = uploaded.get("expiry_date")
+            is_expired = expiry_date and expiry_date < now if isinstance(expiry_date, datetime) else False
+            days_to_expiry = (expiry_date - now).days if expiry_date and isinstance(expiry_date, datetime) else None
+            
+            doc_status.append({
+                "type": doc_type,
+                "name": req["name"],
+                "required": req["required"],
+                "status": "expired" if is_expired else uploaded.get("status", "pending"),
+                "uploaded_at": uploaded.get("uploaded_at"),
+                "verified_at": uploaded.get("verified_at"),
+                "expiry_date": expiry_date.isoformat() if isinstance(expiry_date, datetime) else expiry_date,
+                "days_to_expiry": days_to_expiry,
+                "is_expiring_soon": days_to_expiry and days_to_expiry < 30 if days_to_expiry else False,
+                "document_url": uploaded.get("document_url"),
+                "rejection_reason": uploaded.get("rejection_reason")
+            })
+        else:
+            doc_status.append({
+                "type": doc_type,
+                "name": req["name"],
+                "required": req["required"],
+                "status": "not_uploaded",
+                "uploaded_at": None,
+                "verified_at": None,
+                "expiry_date": None,
+                "days_to_expiry": None,
+                "is_expiring_soon": False,
+                "document_url": None,
+                "rejection_reason": None
+            })
+    
+    total_required = len([d for d in doc_status if d["required"]])
+    verified_count = len([d for d in doc_status if d["status"] == "verified"])
+    pending_count = len([d for d in doc_status if d["status"] == "pending"])
+    missing_count = len([d for d in doc_status if d["status"] == "not_uploaded" and d["required"]])
+    expiring_soon = len([d for d in doc_status if d["is_expiring_soon"]])
+    
+    return {
+        "vendor_id": vendor_id,
+        "documents": doc_status,
+        "summary": {
+            "total_required": total_required,
+            "verified": verified_count,
+            "pending": pending_count,
+            "missing": missing_count,
+            "expiring_soon": expiring_soon,
+            "is_compliant": missing_count == 0 and pending_count == 0
+        }
+    }
+
+
+@api_router.put("/admin/vendors/{vendor_id}/documents/{doc_type}/verify")
+async def admin_verify_vendor_document(
+    vendor_id: str,
+    doc_type: str,
+    action: str,
+    rejection_reason: Optional[str] = None
+):
+    """Verify or reject a vendor document - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    
+    update_data = {"updated_at": now}
+    
+    if action == "approve":
+        update_data["status"] = "verified"
+        update_data["verified_at"] = now
+    elif action == "reject":
+        update_data["status"] = "rejected"
+        update_data["rejection_reason"] = rejection_reason
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action")
+    
+    result = await db.vendor_documents.update_one(
+        {"vendor_id": vendor_id, "doc_type": doc_type},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    return {"message": f"Document {action}d", "doc_type": doc_type}
+
+
+@api_router.get("/admin/vendors/{vendor_id}/financials")
+async def admin_get_vendor_financials(vendor_id: str):
+    """Get vendor's financial overview - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+    
+    vendor = await db.users.find_one({"user_id": vendor_id}, {"_id": 0, "vendor_shop_name": 1, "wallet_balance": 1})
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    async def get_revenue(match_filter):
+        pipeline = [
+            {"$match": {**match_filter, "vendor_id": vendor_id, "status": "delivered"}},
+            {"$group": {"_id": None, "total": {"$sum": "$total_amount"}, "count": {"$sum": 1}}}
+        ]
+        result = await db.wisher_orders.aggregate(pipeline).to_list(1)
+        return result[0] if result else {"total": 0, "count": 0}
+    
+    all_time = await get_revenue({})
+    today = await get_revenue({"created_at": {"$gte": today_start}})
+    this_week = await get_revenue({"created_at": {"$gte": week_start}})
+    this_month = await get_revenue({"created_at": {"$gte": month_start}})
+    
+    commission_rate = 0.10
+    
+    payouts = await db.vendor_payouts.find(
+        {"vendor_id": vendor_id},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(10).to_list(10)
+    
+    total_paid_out = sum(p.get("amount", 0) for p in payouts if p.get("status") == "completed")
+    pending_payout = sum(p.get("amount", 0) for p in payouts if p.get("status") == "pending")
+    pending_earnings = all_time["total"] * (1 - commission_rate) - total_paid_out
+    
+    return {
+        "vendor_id": vendor_id,
+        "vendor_name": vendor.get("vendor_shop_name"),
+        "wallet_balance": vendor.get("wallet_balance", 0),
+        "earnings": {
+            "today": {"gross": today["total"], "commission": round(today["total"] * commission_rate, 2), "net": round(today["total"] * (1 - commission_rate), 2), "orders": today["count"]},
+            "this_week": {"gross": this_week["total"], "commission": round(this_week["total"] * commission_rate, 2), "net": round(this_week["total"] * (1 - commission_rate), 2), "orders": this_week["count"]},
+            "this_month": {"gross": this_month["total"], "commission": round(this_month["total"] * commission_rate, 2), "net": round(this_month["total"] * (1 - commission_rate), 2), "orders": this_month["count"]},
+            "all_time": {"gross": all_time["total"], "commission": round(all_time["total"] * commission_rate, 2), "net": round(all_time["total"] * (1 - commission_rate), 2), "orders": all_time["count"]}
+        },
+        "payouts": {"total_paid": total_paid_out, "pending_payout": pending_payout, "pending_earnings": max(0, round(pending_earnings, 2)), "recent_payouts": payouts[:5]},
+        "commission_rate": f"{commission_rate * 100}%",
+        "generated_at": now.isoformat()
+    }
+
+
+@api_router.get("/admin/vendors/{vendor_id}/support-tickets")
+async def admin_get_vendor_support_tickets(vendor_id: str):
+    """Get vendor's support tickets - Admin Panel"""
+    tickets = await db.support_tickets.find({"user_id": vendor_id}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    
+    open_tickets = len([t for t in tickets if t.get("status") == "open"])
+    resolved_tickets = len([t for t in tickets if t.get("status") == "resolved"])
+    
+    resolved_with_time = [t for t in tickets if t.get("status") == "resolved" and t.get("resolved_at") and t.get("created_at")]
+    avg_resolution_hours = 0
+    if resolved_with_time:
+        total_hours = sum((t["resolved_at"] - t["created_at"]).total_seconds() / 3600 for t in resolved_with_time if isinstance(t.get("resolved_at"), datetime) and isinstance(t.get("created_at"), datetime))
+        avg_resolution_hours = round(total_hours / len(resolved_with_time), 1)
+    
+    issue_counts = {}
+    for t in tickets:
+        category = t.get("category", "other")
+        issue_counts[category] = issue_counts.get(category, 0) + 1
+    
+    return {"vendor_id": vendor_id, "tickets": tickets, "summary": {"total": len(tickets), "open": open_tickets, "resolved": resolved_tickets, "avg_resolution_hours": avg_resolution_hours}, "common_issues": issue_counts}
+
+
+# --- Real-time Monitoring APIs ---
+
+@api_router.get("/admin/monitoring/online-vendors")
+async def admin_get_online_vendors():
+    """Get real-time list of online vendors - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    five_min_ago = now - timedelta(minutes=5)
+    
+    online_vendors = await db.users.find({"partner_type": "vendor", "last_active": {"$gte": five_min_ago}}, {"_id": 0, "user_id": 1, "vendor_shop_name": 1, "last_active": 1, "current_activity": 1, "last_location": 1}).to_list(1000)
+    
+    for v in online_vendors:
+        telemetry = await db.user_telemetry.find_one({"user_id": v["user_id"]}, {"_id": 0, "battery_level": 1, "network_type": 1})
+        v["battery_level"] = telemetry.get("battery_level") if telemetry else None
+        v["network_type"] = telemetry.get("network_type") if telemetry else None
+    
+    return {"online_count": len(online_vendors), "vendors": online_vendors, "timestamp": now.isoformat()}
+
+
+@api_router.get("/admin/monitoring/online-genies")
+async def admin_get_online_genies():
+    """Get real-time list of online genies - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    five_min_ago = now - timedelta(minutes=5)
+    
+    online_genies = await db.users.find({"partner_type": "agent", "last_active": {"$gte": five_min_ago}}, {"_id": 0, "user_id": 1, "name": 1, "last_active": 1, "current_activity": 1, "last_location": 1}).to_list(1000)
+    
+    for g in online_genies:
+        telemetry = await db.user_telemetry.find_one({"user_id": g["user_id"]}, {"_id": 0, "battery_level": 1, "network_type": 1})
+        g["battery_level"] = telemetry.get("battery_level") if telemetry else None
+        g["network_type"] = telemetry.get("network_type") if telemetry else None
+        active_delivery = await db.wisher_orders.find_one({"genie_id": g["user_id"], "status": {"$in": ["picked_up", "out_for_delivery"]}}, {"_id": 0, "order_id": 1})
+        g["active_delivery"] = active_delivery.get("order_id") if active_delivery else None
+    
+    return {"online_count": len(online_genies), "genies": online_genies, "timestamp": now.isoformat()}
+
+
+@api_router.get("/admin/monitoring/low-battery")
+async def admin_get_low_battery_users():
+    """Get users with low battery - Admin Panel"""
+    low_battery = await db.user_telemetry.find({"battery_level": {"$lt": 20}, "is_charging": {"$ne": True}}, {"_id": 0}).to_list(500)
+    
+    for item in low_battery:
+        user = await db.users.find_one({"user_id": item["user_id"]}, {"_id": 0, "name": 1, "vendor_shop_name": 1, "partner_type": 1, "phone": 1})
+        if user:
+            item["name"] = user.get("vendor_shop_name") or user.get("name")
+            item["user_type"] = user.get("partner_type")
+            item["phone"] = user.get("phone")
+    
+    return {"count": len(low_battery), "users": low_battery, "threshold": "20%"}
+
+
+@api_router.get("/admin/monitoring/outdated-apps")
+async def admin_get_outdated_apps(min_version: str = "2.0.0"):
+    """Get users with outdated app versions - Admin Panel"""
+    all_telemetry = await db.user_telemetry.find({"app_version": {"$exists": True}}, {"_id": 0}).to_list(5000)
+    
+    def version_tuple(v):
+        try:
+            return tuple(map(int, v.split(".")))
+        except:
+            return (0, 0, 0)
+    
+    min_ver = version_tuple(min_version)
+    outdated = []
+    
+    for t in all_telemetry:
+        app_ver = t.get("app_version", "0.0.0")
+        if version_tuple(app_ver) < min_ver:
+            user = await db.users.find_one({"user_id": t["user_id"]}, {"_id": 0, "name": 1, "vendor_shop_name": 1, "partner_type": 1, "phone": 1})
+            if user:
+                outdated.append({"user_id": t["user_id"], "name": user.get("vendor_shop_name") or user.get("name"), "user_type": user.get("partner_type"), "phone": user.get("phone"), "current_version": app_ver, "required_version": min_version, "last_active": t.get("timestamp")})
+    
+    return {"count": len(outdated), "users": outdated, "minimum_version": min_version}
+
+
+@api_router.get("/admin/alerts/expiring-documents")
+async def admin_get_expiring_documents(days: int = 30):
+    """Get documents expiring within specified days - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    expiry_threshold = now + timedelta(days=days)
+    
+    expiring_docs = await db.vendor_documents.find({"expiry_date": {"$lte": expiry_threshold, "$gte": now}, "status": "verified"}, {"_id": 0}).to_list(500)
+    
+    for doc in expiring_docs:
+        vendor = await db.users.find_one({"user_id": doc["vendor_id"]}, {"_id": 0, "vendor_shop_name": 1, "phone": 1})
+        if vendor:
+            doc["vendor_name"] = vendor.get("vendor_shop_name")
+            doc["vendor_phone"] = vendor.get("phone")
+        doc["days_until_expiry"] = (doc["expiry_date"] - now).days if isinstance(doc.get("expiry_date"), datetime) else None
+    
+    expiring_docs.sort(key=lambda x: x.get("expiry_date") or datetime.max.replace(tzinfo=timezone.utc))
+    
+    return {"count": len(expiring_docs), "documents": expiring_docs, "threshold_days": days}
+
+
+# --- Fraud Detection APIs ---
+
+@api_router.get("/admin/fraud/suspicious-activity")
+async def admin_get_suspicious_activity():
+    """Get flagged suspicious activities - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    week_ago = now - timedelta(days=7)
+    suspicious = []
+    
+    # Multiple device logins
+    login_history = await db.login_history.aggregate([
+        {"$match": {"timestamp": {"$gte": week_ago}}},
+        {"$group": {"_id": "$user_id", "devices": {"$addToSet": "$device_model"}, "login_count": {"$sum": 1}}},
+        {"$match": {"$expr": {"$gt": [{"$size": "$devices"}, 2]}}}
+    ]).to_list(100)
+    
+    for item in login_history:
+        user = await db.users.find_one({"user_id": item["_id"]}, {"_id": 0, "name": 1, "vendor_shop_name": 1, "partner_type": 1})
+        suspicious.append({"type": "multiple_devices", "severity": "medium", "user_id": item["_id"], "user_name": user.get("vendor_shop_name") or user.get("name") if user else None, "user_type": user.get("partner_type") if user else None, "details": f"{len(item['devices'])} different devices used", "devices": item["devices"]})
+    
+    # High cancellation rate
+    cancellation_stats = await db.wisher_orders.aggregate([
+        {"$match": {"created_at": {"$gte": week_ago}}},
+        {"$group": {"_id": "$vendor_id", "total": {"$sum": 1}, "cancelled": {"$sum": {"$cond": [{"$eq": ["$status", "cancelled"]}, 1, 0]}}}},
+        {"$match": {"total": {"$gte": 5}}},
+        {"$project": {"cancel_rate": {"$divide": ["$cancelled", "$total"]}, "total": 1, "cancelled": 1}},
+        {"$match": {"cancel_rate": {"$gt": 0.3}}}
+    ]).to_list(100)
+    
+    for item in cancellation_stats:
+        vendor = await db.users.find_one({"user_id": item["_id"]}, {"_id": 0, "vendor_shop_name": 1})
+        suspicious.append({"type": "high_cancellation", "severity": "high", "user_id": item["_id"], "user_name": vendor.get("vendor_shop_name") if vendor else None, "user_type": "vendor", "details": f"{int(item['cancel_rate']*100)}% cancellation rate ({item['cancelled']}/{item['total']} orders)"})
+    
+    # Location anomalies
+    location_anomalies = await db.user_telemetry.find({"gps_accuracy": {"$gt": 100}}, {"_id": 0, "user_id": 1, "gps_accuracy": 1}).to_list(100)
+    
+    for item in location_anomalies:
+        user = await db.users.find_one({"user_id": item["user_id"]}, {"_id": 0, "name": 1, "vendor_shop_name": 1, "partner_type": 1})
+        suspicious.append({"type": "location_spoofing", "severity": "high", "user_id": item["user_id"], "user_name": user.get("vendor_shop_name") or user.get("name") if user else None, "user_type": user.get("partner_type") if user else None, "details": f"GPS accuracy: {item['gps_accuracy']}m (possible fake GPS)"})
+    
+    return {"suspicious_activities": suspicious, "total": len(suspicious), "analysis_period": "last 7 days"}
+
+
+# --- Engagement Metrics APIs ---
+
+@api_router.get("/admin/analytics/engagement")
+async def admin_get_engagement_analytics():
+    """Get user engagement metrics - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_ago = now - timedelta(days=7)
+    month_ago = now - timedelta(days=30)
+    
+    dau_vendors = await db.users.count_documents({"partner_type": "vendor", "last_active": {"$gte": today_start}})
+    dau_genies = await db.users.count_documents({"partner_type": "agent", "last_active": {"$gte": today_start}})
+    wau_vendors = await db.users.count_documents({"partner_type": "vendor", "last_active": {"$gte": week_ago}})
+    wau_genies = await db.users.count_documents({"partner_type": "agent", "last_active": {"$gte": week_ago}})
+    mau_vendors = await db.users.count_documents({"partner_type": "vendor", "last_active": {"$gte": month_ago}})
+    mau_genies = await db.users.count_documents({"partner_type": "agent", "last_active": {"$gte": month_ago}})
+    total_vendors = await db.users.count_documents({"partner_type": "vendor"})
+    total_genies = await db.users.count_documents({"partner_type": "agent"})
+    
+    login_stats = await db.login_history.aggregate([
+        {"$match": {"timestamp": {"$gte": week_ago}}},
+        {"$group": {"_id": "$user_id", "login_count": {"$sum": 1}}},
+        {"$group": {"_id": None, "avg_logins": {"$avg": "$login_count"}, "total_users": {"$sum": 1}}}
+    ]).to_list(1)
+    
+    avg_weekly_logins = login_stats[0]["avg_logins"] if login_stats else 0
+    
+    return {
+        "daily_active_users": {"vendors": dau_vendors, "genies": dau_genies, "total": dau_vendors + dau_genies},
+        "weekly_active_users": {"vendors": wau_vendors, "genies": wau_genies, "total": wau_vendors + wau_genies},
+        "monthly_active_users": {"vendors": mau_vendors, "genies": mau_genies, "total": mau_vendors + mau_genies},
+        "total_registered": {"vendors": total_vendors, "genies": total_genies},
+        "engagement_rates": {
+            "vendor_dau_rate": round((dau_vendors / total_vendors * 100) if total_vendors > 0 else 0, 1),
+            "genie_dau_rate": round((dau_genies / total_genies * 100) if total_genies > 0 else 0, 1),
+            "vendor_wau_rate": round((wau_vendors / total_vendors * 100) if total_vendors > 0 else 0, 1),
+            "genie_wau_rate": round((wau_genies / total_genies * 100) if total_genies > 0 else 0, 1)
+        },
+        "avg_weekly_logins_per_user": round(avg_weekly_logins, 1),
+        "generated_at": now.isoformat()
+    }
+
+
+@api_router.get("/admin/analytics/peak-hours")
+async def admin_get_peak_hours_analytics():
+    """Get peak activity hours - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    week_ago = now - timedelta(days=7)
+    
+    order_hours = await db.wisher_orders.aggregate([
+        {"$match": {"created_at": {"$gte": week_ago}}},
+        {"$group": {"_id": {"$hour": "$created_at"}, "orders": {"$sum": 1}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(24)
+    
+    activity_hours = await db.telemetry_history.aggregate([
+        {"$match": {"timestamp": {"$gte": week_ago}}},
+        {"$group": {"_id": {"$hour": "$timestamp"}, "activity_count": {"$sum": 1}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(24)
+    
+    order_by_hour = {h["_id"]: h["orders"] for h in order_hours}
+    activity_by_hour = {h["_id"]: h["activity_count"] for h in activity_hours}
+    
+    hourly_data = []
+    for hour in range(24):
+        hourly_data.append({"hour": hour, "hour_label": f"{hour:02d}:00", "orders": order_by_hour.get(hour, 0), "app_activity": activity_by_hour.get(hour, 0)})
+    
+    peak_order_hours = sorted(hourly_data, key=lambda x: x["orders"], reverse=True)[:3]
+    peak_activity_hours = sorted(hourly_data, key=lambda x: x["app_activity"], reverse=True)[:3]
+    
+    return {"hourly_breakdown": hourly_data, "peak_order_hours": [h["hour_label"] for h in peak_order_hours], "peak_activity_hours": [h["hour_label"] for h in peak_activity_hours], "analysis_period": "last 7 days"}
+
+
 # --- Read-Only Zone APIs (For Vendor App) ---
 
 @api_router.get("/zones")

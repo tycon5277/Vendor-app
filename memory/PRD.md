@@ -57,6 +57,36 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - `GET /api/vendor/my-zone` — Get vendor's assigned zone
 - `POST /api/vendor/request-zone-assignment` — Request zone assignment (admin approves)
 
+### Device Telemetry & Monitoring System (NEW - March 2026)
+
+**Telemetry Collection (Apps call this):**
+- `POST /api/telemetry/heartbeat` — Battery, device model, OS, app version, GPS, network type
+
+**Admin Device & Activity APIs:**
+- `GET /api/admin/vendors/{id}/device-info` — Battery, device, OS, app version, online status
+- `GET /api/admin/vendors/{id}/activity-log` — Timeline of logins, orders, telemetry
+- `GET /api/admin/vendors/{id}/health-score` — Calculated score (0-100) with breakdown
+- `GET /api/admin/vendors/{id}/documents` — Document verification status & expiry alerts
+- `PUT /api/admin/vendors/{id}/documents/{type}/verify` — Approve/reject documents
+- `GET /api/admin/vendors/{id}/financials` — Revenue, commission, payouts, wallet
+- `GET /api/admin/vendors/{id}/support-tickets` — Open/resolved tickets, resolution time
+
+**Real-time Monitoring APIs:**
+- `GET /api/admin/monitoring/online-vendors` — Live list with battery & network info
+- `GET /api/admin/monitoring/online-genies` — Live list with active delivery info
+- `GET /api/admin/monitoring/low-battery` — Users with <20% battery
+- `GET /api/admin/monitoring/outdated-apps` — Users on old app versions
+
+**Alerts & Compliance APIs:**
+- `GET /api/admin/alerts/expiring-documents` — Documents expiring in N days
+
+**Fraud Detection APIs:**
+- `GET /api/admin/fraud/suspicious-activity` — Multiple devices, high cancellation, GPS spoofing
+
+**Engagement & Peak Hours Analytics:**
+- `GET /api/admin/analytics/engagement` — DAU, WAU, MAU, engagement rates
+- `GET /api/admin/analytics/peak-hours` — Order & activity patterns by hour
+
 ## Handover Authentication System (NEW - March 2026)
 - **Problem Solved:** Vendors with multiple orders couldn't identify which OTP/QR belongs to which Genie
 - **New Flow:**
