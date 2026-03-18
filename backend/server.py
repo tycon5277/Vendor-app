@@ -13202,6 +13202,153 @@ async def vendor_request_zone_assignment(zone_id: str, current_user: User = Depe
     }
 
 
+# --- Admin Zone Assignment APIs ---
+
+@api_router.get("/admin/zone-requests")
+async def admin_list_zone_requests(
+    status: str = "pending",  # pending, approved, rejected, all
+    entity_type: Optional[str] = None,  # vendor, genie
+    zone_id: Optional[str] = None
+):
+    """List zone assignment requests - Admin Panel"""
+    query = {}
+    if status != "all":
+        query["status"] = status
+    if entity_type:
+        query["entity_type"] = entity_type
+    if zone_id:
+        query["zone_id"] = zone_id
+    
+    requests = await db.zone_assignment_requests.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    
+    # Enrich with user and zone info
+    for req in requests:
+        user = await db.users.find_one({"user_id": req["entity_id"]}, {"_id": 0, "name": 1, "vendor_shop_name": 1, "phone": 1})
+        if user:
+            req["user_name"] = user.get("vendor_shop_name") or user.get("name")
+            req["user_phone"] = user.get("phone")
+        zone = await zone_service.get_zone(req["zone_id"])
+        if zone:
+            req["zone_name"] = zone["name"]
+    
+    return {
+        "requests": requests,
+        "total": len(requests)
+    }
+
+
+@api_router.put("/admin/zone-requests/{request_id}")
+async def admin_handle_zone_request(
+    request_id: str,
+    action: str,  # approve, reject
+    rejection_reason: Optional[str] = None
+):
+    """Approve or reject zone assignment request - Admin Panel"""
+    req = await db.zone_assignment_requests.find_one({"request_id": request_id}, {"_id": 0})
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    if req["status"] != "pending":
+        raise HTTPException(status_code=400, detail=f"Request already {req['status']}")
+    
+    now = datetime.now(timezone.utc)
+    
+    if action == "approve":
+        # Assign the entity to the zone
+        await zone_service.assign_to_zone(
+            entity_id=req["entity_id"],
+            entity_type=req["entity_type"],
+            zone_id=req["zone_id"],
+            assigned_by="admin"
+        )
+        await db.zone_assignment_requests.update_one(
+            {"request_id": request_id},
+            {"$set": {"status": "approved", "approved_at": now}}
+        )
+        return {"message": "Zone assignment approved", "request_id": request_id}
+    
+    elif action == "reject":
+        await db.zone_assignment_requests.update_one(
+            {"request_id": request_id},
+            {"$set": {"status": "rejected", "rejected_at": now, "rejection_reason": rejection_reason}}
+        )
+        return {"message": "Zone assignment rejected", "request_id": request_id}
+    
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action. Use 'approve' or 'reject'")
+
+
+@api_router.post("/admin/zones/{zone_id}/assign-vendor")
+async def admin_assign_vendor_to_zone(zone_id: str, vendor_id: str):
+    """Directly assign a vendor to a zone - Admin Panel"""
+    zone = await zone_service.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    
+    vendor = await db.users.find_one({"user_id": vendor_id, "partner_type": "vendor"})
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    # Check current assignment
+    current_zone = await zone_service.get_vendor_zone(vendor_id)
+    
+    # Assign to new zone
+    assignment = await zone_service.assign_to_zone(
+        entity_id=vendor_id,
+        entity_type="vendor",
+        zone_id=zone_id,
+        assigned_by="admin"
+    )
+    
+    return {
+        "message": "Vendor assigned to zone",
+        "vendor_id": vendor_id,
+        "vendor_name": vendor.get("vendor_shop_name"),
+        "zone_id": zone_id,
+        "zone_name": zone["name"],
+        "previous_zone": current_zone["name"] if current_zone else None,
+        "assignment_id": assignment["assignment_id"]
+    }
+
+
+@api_router.delete("/admin/zones/{zone_id}/unassign-vendor")
+async def admin_unassign_vendor_from_zone(zone_id: str, vendor_id: str):
+    """Remove a vendor from a zone - Admin Panel"""
+    result = await db.zone_assignments.update_one(
+        {"entity_id": vendor_id, "entity_type": "vendor", "zone_id": zone_id, "is_active": True},
+        {"$set": {"is_active": False, "deactivated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    return {"message": "Vendor removed from zone", "vendor_id": vendor_id, "zone_id": zone_id}
+
+
+@api_router.get("/admin/zones/{zone_id}/vendors")
+async def admin_get_zone_vendors(zone_id: str):
+    """Get all vendors in a zone - Admin Panel"""
+    vendor_ids = await zone_service.get_zone_vendors(zone_id)
+    
+    vendors = []
+    for vid in vendor_ids:
+        vendor = await db.users.find_one(
+            {"user_id": vid},
+            {"_id": 0, "user_id": 1, "vendor_shop_name": 1, "phone": 1, "vendor_shop_type": 1, "partner_rating": 1}
+        )
+        if vendor:
+            vendors.append(vendor)
+    
+    zone = await zone_service.get_zone(zone_id)
+    
+    return {
+        "zone_id": zone_id,
+        "zone_name": zone["name"] if zone else None,
+        "vendor_count": len(vendors),
+        "vendors": vendors
+    }
+
+
 # ===================== ZONE MANAGEMENT API =====================
 
 class CreateZoneRequest(BaseModel):
