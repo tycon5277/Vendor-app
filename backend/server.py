@@ -37,6 +37,15 @@ db = client[os.environ.get('DB_NAME', 'test_database')]
 # Create the main app
 app = FastAPI(title="QuickWish Vendor API")
 
+# Add CORS middleware - MUST be added early, before routes
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
@@ -13464,15 +13473,6 @@ async def get_order_status_cached(order_id: str):
 
 # Include the router - must be after all route definitions
 app.include_router(api_router)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Background task for auto-retry
 _genie_retry_task = None
