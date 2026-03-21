@@ -13471,6 +13471,265 @@ async def get_order_status_cached(order_id: str):
     
     return status_data
 
+
+# ===================== WEBHOOK RECEIVER (From Admin Panel) =====================
+
+import hmac
+import hashlib
+
+WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "wh_sec_vendor_zone_2026")
+
+class WebhookEvent(BaseModel):
+    event: str  # zone.vendor.assigned, zone.vendor.unassigned, zone.updated, zone.deleted
+    timestamp: str
+    data: dict
+
+def verify_webhook_signature(payload: bytes, signature: str, secret: str) -> bool:
+    """Verify HMAC-SHA256 signature from Admin Panel"""
+    if not signature:
+        return False
+    
+    # Handle both "sha256=xxx" and plain "xxx" formats
+    if signature.startswith("sha256="):
+        signature = signature[7:]
+    
+    expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+
+@api_router.post("/webhooks/admin")
+async def receive_admin_webhook(request: Request):
+    """
+    Receive webhook events from Admin Panel
+    
+    Events:
+    - zone.vendor.assigned: Vendor assigned to a zone
+    - zone.vendor.unassigned: Vendor removed from a zone
+    - zone.updated: Zone details updated
+    - zone.deleted: Zone was deleted
+    
+    Headers:
+    - X-Webhook-Secret: Shared secret for authentication
+    - X-Webhook-Signature: HMAC-SHA256 signature of the payload
+    """
+    # Get raw body for signature verification
+    body = await request.body()
+    
+    # Verify secret
+    webhook_secret = request.headers.get("X-Webhook-Secret", "")
+    if webhook_secret != WEBHOOK_SECRET:
+        # Also check signature if secret doesn't match directly
+        signature = request.headers.get("X-Webhook-Signature", "")
+        if not verify_webhook_signature(body, signature, WEBHOOK_SECRET):
+            logger.warning(f"Webhook authentication failed")
+            raise HTTPException(status_code=401, detail="Invalid webhook authentication")
+    
+    # Parse the event
+    try:
+        event_data = json.loads(body)
+        event = event_data.get("event")
+        data = event_data.get("data", {})
+        timestamp = event_data.get("timestamp")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    
+    logger.info(f"Webhook received: {event} at {timestamp}")
+    
+    now = datetime.now(timezone.utc)
+    
+    # Process based on event type
+    if event == "zone.vendor.assigned":
+        vendor_id = data.get("vendor_id")
+        zone_id = data.get("zone_id")
+        zone_name = data.get("zone_name")
+        zone_code = data.get("zone_code")
+        
+        if not vendor_id or not zone_id:
+            raise HTTPException(status_code=400, detail="Missing vendor_id or zone_id")
+        
+        # Update vendor's zone assignment
+        await db.users.update_one(
+            {"user_id": vendor_id},
+            {"$set": {
+                "assigned_zone_id": zone_id,
+                "assigned_zone_name": zone_name,
+                "assigned_zone_code": zone_code,
+                "zone_assigned_at": now,
+                "updated_at": now
+            }}
+        )
+        
+        # Also update zone_assignments collection
+        await db.zone_assignments.update_one(
+            {"entity_id": vendor_id, "entity_type": "vendor"},
+            {"$set": {
+                "zone_id": zone_id,
+                "zone_name": zone_name,
+                "assigned_by": "admin_webhook",
+                "assigned_at": now.isoformat(),
+                "is_active": True
+            }},
+            upsert=True
+        )
+        
+        # Create notification for vendor
+        await db.vendor_notifications.insert_one({
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "vendor_id": vendor_id,
+            "type": "zone_assigned",
+            "title": "Zone Assigned",
+            "message": f"You have been assigned to zone: {zone_name}",
+            "data": {"zone_id": zone_id, "zone_name": zone_name},
+            "is_read": False,
+            "created_at": now
+        })
+        
+        logger.info(f"Vendor {vendor_id} assigned to zone {zone_id} ({zone_name})")
+        return {"status": "received", "event": event, "vendor_id": vendor_id, "zone_id": zone_id}
+    
+    elif event == "zone.vendor.unassigned":
+        vendor_id = data.get("vendor_id")
+        zone_id = data.get("zone_id")
+        
+        if not vendor_id:
+            raise HTTPException(status_code=400, detail="Missing vendor_id")
+        
+        # Remove vendor's zone assignment
+        await db.users.update_one(
+            {"user_id": vendor_id},
+            {"$set": {
+                "assigned_zone_id": None,
+                "assigned_zone_name": None,
+                "assigned_zone_code": None,
+                "zone_unassigned_at": now,
+                "updated_at": now
+            }}
+        )
+        
+        # Deactivate zone assignment
+        await db.zone_assignments.update_one(
+            {"entity_id": vendor_id, "entity_type": "vendor", "is_active": True},
+            {"$set": {"is_active": False, "deactivated_at": now.isoformat()}}
+        )
+        
+        # Notify vendor
+        await db.vendor_notifications.insert_one({
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "vendor_id": vendor_id,
+            "type": "zone_unassigned",
+            "title": "Zone Removed",
+            "message": "You have been removed from your assigned zone. Contact admin for reassignment.",
+            "data": {"zone_id": zone_id},
+            "is_read": False,
+            "created_at": now
+        })
+        
+        logger.info(f"Vendor {vendor_id} unassigned from zone {zone_id}")
+        return {"status": "received", "event": event, "vendor_id": vendor_id}
+    
+    elif event == "zone.updated":
+        zone_id = data.get("zone_id")
+        zone_name = data.get("name")
+        boundary = data.get("boundary")
+        status = data.get("status")
+        
+        if not zone_id:
+            raise HTTPException(status_code=400, detail="Missing zone_id")
+        
+        # Update zone in local zones collection (if we cache zones)
+        update_fields = {"updated_at": now}
+        if zone_name:
+            update_fields["name"] = zone_name
+        if boundary:
+            update_fields["boundary"] = boundary
+        if status:
+            update_fields["is_active"] = status == "active"
+        
+        await db.zones.update_one(
+            {"zone_id": zone_id},
+            {"$set": update_fields}
+        )
+        
+        # Update zone name for all assigned vendors
+        if zone_name:
+            await db.users.update_many(
+                {"assigned_zone_id": zone_id},
+                {"$set": {"assigned_zone_name": zone_name}}
+            )
+        
+        logger.info(f"Zone {zone_id} updated")
+        return {"status": "received", "event": event, "zone_id": zone_id}
+    
+    elif event == "zone.deleted":
+        zone_id = data.get("zone_id")
+        
+        if not zone_id:
+            raise HTTPException(status_code=400, detail="Missing zone_id")
+        
+        # Find all vendors assigned to this zone
+        affected_vendors = await db.users.find(
+            {"assigned_zone_id": zone_id},
+            {"user_id": 1}
+        ).to_list(1000)
+        
+        # Clear zone assignment for affected vendors
+        await db.users.update_many(
+            {"assigned_zone_id": zone_id},
+            {"$set": {
+                "assigned_zone_id": None,
+                "assigned_zone_name": None,
+                "assigned_zone_code": None,
+                "zone_deleted_at": now,
+                "updated_at": now
+            }}
+        )
+        
+        # Deactivate all zone assignments
+        await db.zone_assignments.update_many(
+            {"zone_id": zone_id, "is_active": True},
+            {"$set": {"is_active": False, "deactivated_at": now.isoformat(), "reason": "zone_deleted"}}
+        )
+        
+        # Notify affected vendors
+        for vendor in affected_vendors:
+            await db.vendor_notifications.insert_one({
+                "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+                "vendor_id": vendor["user_id"],
+                "type": "zone_deleted",
+                "title": "Zone Removed",
+                "message": "Your assigned zone has been deleted. Contact admin for reassignment.",
+                "data": {"zone_id": zone_id},
+                "is_read": False,
+                "created_at": now
+            })
+        
+        # Delete zone from local cache
+        await db.zones.delete_one({"zone_id": zone_id})
+        
+        logger.info(f"Zone {zone_id} deleted, {len(affected_vendors)} vendors affected")
+        return {"status": "received", "event": event, "zone_id": zone_id, "affected_vendors": len(affected_vendors)}
+    
+    else:
+        logger.warning(f"Unknown webhook event: {event}")
+        return {"status": "ignored", "event": event, "reason": "unknown_event"}
+
+
+@api_router.get("/webhooks/admin/test")
+async def test_webhook_endpoint():
+    """Test endpoint to verify webhook receiver is working"""
+    return {
+        "status": "ok",
+        "endpoint": "/api/webhooks/admin",
+        "supported_events": [
+            "zone.vendor.assigned",
+            "zone.vendor.unassigned",
+            "zone.updated",
+            "zone.deleted"
+        ],
+        "authentication": "X-Webhook-Secret header or X-Webhook-Signature (HMAC-SHA256)"
+    }
+
+
 # Include the router - must be after all route definitions
 app.include_router(api_router)
 
