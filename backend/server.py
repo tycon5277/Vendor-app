@@ -11972,6 +11972,197 @@ async def admin_get_vendor_orders(
     }
 
 
+@api_router.get("/admin/vendors/{vendor_id}/products")
+async def admin_get_vendor_products(
+    vendor_id: str,
+    category: Optional[str] = None,
+    in_stock: Optional[bool] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """Get all products for a specific vendor - Admin Panel"""
+    query = {"vendor_id": vendor_id}
+    
+    if category:
+        query["category"] = category
+    if in_stock is not None:
+        query["in_stock"] = in_stock
+    if search:
+        query["name"] = {"$regex": search, "$options": "i"}
+    
+    skip = (page - 1) * limit
+    total = await db.products.count_documents(query)
+    products = await db.products.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    
+    # Calculate stock summary
+    all_products = await db.products.find({"vendor_id": vendor_id}, {"_id": 0, "in_stock": 1, "stock_quantity": 1}).to_list(1000)
+    total_products = len(all_products)
+    in_stock_count = len([p for p in all_products if p.get("in_stock", True)])
+    out_of_stock_count = total_products - in_stock_count
+    low_stock_count = len([p for p in all_products if p.get("stock_quantity", 100) < 10 and p.get("in_stock", True)])
+    
+    return {
+        "vendor_id": vendor_id,
+        "products": products,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "stock_summary": {
+            "total_products": total_products,
+            "in_stock": in_stock_count,
+            "out_of_stock": out_of_stock_count,
+            "low_stock": low_stock_count
+        }
+    }
+
+
+@api_router.get("/admin/vendors/{vendor_id}/stock-levels")
+async def admin_get_vendor_stock_levels(vendor_id: str):
+    """Get stock levels for a vendor - Admin Panel"""
+    products = await db.products.find(
+        {"vendor_id": vendor_id},
+        {"_id": 0, "product_id": 1, "name": 1, "category": 1, "stock_quantity": 1, "in_stock": 1, "price": 1, "variations": 1}
+    ).to_list(1000)
+    
+    # Categorize by stock status
+    in_stock = []
+    low_stock = []  # < 10 items
+    out_of_stock = []
+    
+    for p in products:
+        qty = p.get("stock_quantity", 100)
+        is_in_stock = p.get("in_stock", True)
+        
+        product_info = {
+            "product_id": p.get("product_id"),
+            "name": p.get("name"),
+            "category": p.get("category"),
+            "stock_quantity": qty,
+            "in_stock": is_in_stock,
+            "price": p.get("price")
+        }
+        
+        # Check variations if any
+        variations = p.get("variations", [])
+        if variations:
+            var_stock = []
+            for v in variations:
+                var_stock.append({
+                    "name": v.get("name"),
+                    "stock": v.get("stock_quantity", 100),
+                    "in_stock": v.get("in_stock", True)
+                })
+            product_info["variations"] = var_stock
+        
+        if not is_in_stock or qty == 0:
+            out_of_stock.append(product_info)
+        elif qty < 10:
+            low_stock.append(product_info)
+        else:
+            in_stock.append(product_info)
+    
+    return {
+        "vendor_id": vendor_id,
+        "summary": {
+            "total_products": len(products),
+            "in_stock_count": len(in_stock),
+            "low_stock_count": len(low_stock),
+            "out_of_stock_count": len(out_of_stock)
+        },
+        "in_stock": in_stock,
+        "low_stock": low_stock,
+        "out_of_stock": out_of_stock
+    }
+
+
+@api_router.get("/admin/vendors/{vendor_id}/order-stats")
+async def admin_get_vendor_order_stats(vendor_id: str):
+    """Get detailed order statistics for a vendor - Admin Panel"""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+    
+    # Total counts
+    total_orders = await db.wisher_orders.count_documents({"vendor_id": vendor_id})
+    
+    # By status
+    status_pipeline = [
+        {"$match": {"vendor_id": vendor_id}},
+        {"$group": {"_id": "$status", "count": {"$sum": 1}}}
+    ]
+    status_breakdown = await db.wisher_orders.aggregate(status_pipeline).to_list(20)
+    status_dict = {s["_id"]: s["count"] for s in status_breakdown}
+    
+    # Time-based counts
+    today_orders = await db.wisher_orders.count_documents({"vendor_id": vendor_id, "created_at": {"$gte": today_start}})
+    week_orders = await db.wisher_orders.count_documents({"vendor_id": vendor_id, "created_at": {"$gte": week_start}})
+    month_orders = await db.wisher_orders.count_documents({"vendor_id": vendor_id, "created_at": {"$gte": month_start}})
+    
+    # Revenue calculations
+    async def get_revenue(date_filter=None):
+        match = {"vendor_id": vendor_id, "status": "delivered"}
+        if date_filter:
+            match["created_at"] = date_filter
+        pipeline = [
+            {"$match": match},
+            {"$group": {"_id": None, "total": {"$sum": "$total_amount"}, "count": {"$sum": 1}, "avg": {"$avg": "$total_amount"}}}
+        ]
+        result = await db.wisher_orders.aggregate(pipeline).to_list(1)
+        return result[0] if result else {"total": 0, "count": 0, "avg": 0}
+    
+    all_time_revenue = await get_revenue()
+    today_revenue = await get_revenue({"$gte": today_start})
+    week_revenue = await get_revenue({"$gte": week_start})
+    month_revenue = await get_revenue({"$gte": month_start})
+    
+    # Cancellation stats
+    cancelled = status_dict.get("cancelled", 0)
+    cancellation_rate = round((cancelled / total_orders * 100) if total_orders > 0 else 0, 2)
+    
+    # Fulfillment rate
+    delivered = status_dict.get("delivered", 0)
+    fulfillment_rate = round((delivered / total_orders * 100) if total_orders > 0 else 0, 2)
+    
+    # Average order value
+    avg_order_value = round(all_time_revenue["avg"], 2) if all_time_revenue["avg"] else 0
+    
+    # Peak hours (last 30 days)
+    thirty_days_ago = now - timedelta(days=30)
+    hourly_pipeline = [
+        {"$match": {"vendor_id": vendor_id, "created_at": {"$gte": thirty_days_ago}}},
+        {"$group": {"_id": {"$hour": "$created_at"}, "orders": {"$sum": 1}}},
+        {"$sort": {"orders": -1}},
+        {"$limit": 3}
+    ]
+    peak_hours = await db.wisher_orders.aggregate(hourly_pipeline).to_list(3)
+    
+    return {
+        "vendor_id": vendor_id,
+        "orders": {
+            "total": total_orders,
+            "today": today_orders,
+            "this_week": week_orders,
+            "this_month": month_orders
+        },
+        "by_status": status_dict,
+        "revenue": {
+            "all_time": {"total": all_time_revenue["total"], "orders": all_time_revenue["count"]},
+            "today": {"total": today_revenue["total"], "orders": today_revenue["count"]},
+            "this_week": {"total": week_revenue["total"], "orders": week_revenue["count"]},
+            "this_month": {"total": month_revenue["total"], "orders": month_revenue["count"]}
+        },
+        "performance": {
+            "fulfillment_rate": fulfillment_rate,
+            "cancellation_rate": cancellation_rate,
+            "avg_order_value": avg_order_value
+        },
+        "peak_hours": [{"hour": f"{h['_id']:02d}:00", "orders": h["orders"]} for h in peak_hours],
+        "generated_at": now.isoformat()
+    }
+
+
 # --- Vendor Analytics ---
 
 @api_router.get("/admin/analytics/vendors/overview")
