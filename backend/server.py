@@ -87,6 +87,11 @@ class User(BaseModel):
     vendor_shop_image: Optional[str] = None
     vendor_description: Optional[str] = None
     
+    # Zone assignment fields
+    assigned_zone_id: Optional[str] = None
+    assigned_zone_name: Optional[str] = None
+    assigned_zone_code: Optional[str] = None
+    
     # Push notification token
     push_token: Optional[str] = None
     

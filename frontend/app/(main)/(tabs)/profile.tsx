@@ -204,8 +204,32 @@ export default function ProfileScreen() {
               leftIcon="call"
               leftIconColor={colors.primary}
               showChevron
+            />
+          </ListSection>
+
+          {/* Zone Assignment */}
+          <ListSection title="SERVICE ZONE">
+            <ListItem
+              title="Assigned Zone"
+              subtitle={user?.assigned_zone_name || 'Not assigned'}
+              leftIcon="map"
+              leftIconColor={user?.assigned_zone_id ? colors.success : colors.text.tertiary}
+            />
+            <ListItem
+              title="Zone Code"
+              subtitle={user?.assigned_zone_code || 'N/A'}
+              leftIcon="qr-code"
+              leftIconColor={user?.assigned_zone_id ? colors.primary : colors.text.tertiary}
               bottomBorder={false}
             />
+            {!user?.assigned_zone_id && (
+              <View style={[styles.zoneWarning, { backgroundColor: isDark ? 'rgba(255,149,0,0.15)' : '#FEF3C7' }]}>
+                <Ionicons name="alert-circle" size={18} color={colors.warning} />
+                <Text style={[styles.zoneWarningText, { color: colors.warning }]}>
+                  Contact admin for zone assignment
+                </Text>
+              </View>
+            )}
           </ListSection>
 
           {/* Ratings & Issues */}
@@ -455,5 +479,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: typography.footnote.fontSize,
     marginTop: spacing.xxl,
+  },
+  zoneWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.m,
+    marginHorizontal: spacing.m,
+    marginBottom: spacing.m,
+    borderRadius: borderRadius.m,
+    gap: spacing.s,
+  },
+  zoneWarningText: {
+    fontSize: typography.footnote.fontSize,
+    fontWeight: '500',
   },
 });
