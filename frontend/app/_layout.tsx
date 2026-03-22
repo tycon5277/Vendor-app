@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import { useAuthStore } from '../src/store/authStore';
 import { LoadingScreen } from '../src/components/LoadingScreen';
+import { SuspensionOverlay } from '../src/components/SuspensionOverlay';
 import { AlertProvider } from '../src/context/AlertContext';
 import { NewOrderNotificationProvider } from '../src/context/NewOrderNotificationContext';
 import { UserStatusProvider } from '../src/context/UserStatusContext';
@@ -70,6 +71,7 @@ export default function RootLayout() {
           <UserStatusProvider>
             <StatusBar style="auto" />
             <InitialLayout />
+            <SuspensionOverlay />
           </UserStatusProvider>
         </NewOrderNotificationProvider>
       </AlertProvider>
