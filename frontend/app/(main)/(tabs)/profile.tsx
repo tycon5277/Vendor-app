@@ -118,7 +118,12 @@ export default function ProfileScreen() {
                 <Text style={[styles.shopType, { color: colors.text.secondary }]}>{user?.vendor_shop_type}</Text>
                 
                 <View style={styles.profileMeta}>
-                  {user?.vendor_is_verified ? (
+                  {user?.vendor_suspended ? (
+                    <View style={[styles.suspendedBadge, { backgroundColor: isDark ? 'rgba(255, 59, 48, 0.2)' : '#FEE2E2' }]}>
+                      <Ionicons name="ban" size={14} color={colors.danger} />
+                      <Text style={[styles.suspendedText, { color: colors.danger }]}>Suspended</Text>
+                    </View>
+                  ) : user?.vendor_is_verified ? (
                     <View style={[styles.verifiedBadge, { backgroundColor: isDark ? 'rgba(52, 199, 89, 0.2)' : '#D1FAE5' }]}>
                       <Ionicons name="checkmark-circle" size={14} color={colors.success} />
                       <Text style={[styles.verifiedText, { color: colors.success }]}>Verified</Text>
@@ -135,7 +140,7 @@ export default function ProfileScreen() {
                       {user?.partner_rating?.toFixed(1) || '5.0'}
                     </Text>
                   </View>
-                  <Badge text={isShopOpen ? 'Online' : 'Offline'} variant={isShopOpen ? 'success' : 'neutral'} />
+                  <Badge text={user?.vendor_suspended ? 'Suspended' : (isShopOpen ? 'Online' : 'Offline')} variant={user?.vendor_suspended ? 'danger' : (isShopOpen ? 'success' : 'neutral')} />
                 </View>
               </View>
             </View>
@@ -145,6 +150,20 @@ export default function ProfileScreen() {
               <Text style={[styles.editProfileText, { color: colors.primary }]}>Edit Profile</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Suspension Warning Banner */}
+          {user?.vendor_suspended && (
+            <View style={[styles.suspensionBanner, { backgroundColor: colors.danger }]}>
+              <Ionicons name="warning" size={24} color="#FFFFFF" />
+              <View style={styles.suspensionBannerContent}>
+                <Text style={styles.suspensionBannerTitle}>Account Suspended</Text>
+                <Text style={styles.suspensionBannerText}>
+                  {user?.vendor_suspension_reason || 'Your account has been suspended. You cannot receive orders or go online.'}
+                </Text>
+                <Text style={styles.suspensionBannerContact}>Contact support for assistance</Text>
+              </View>
+            </View>
+          )}
 
           {/* Stats Card */}
           <View style={[styles.statsCard, { backgroundColor: colors.primary }]}>
@@ -527,5 +546,47 @@ const styles = StyleSheet.create({
   pendingText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  suspendedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.s,
+    paddingVertical: 4,
+    borderRadius: borderRadius.full,
+    gap: 4,
+  },
+  suspendedText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  suspensionBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginHorizontal: spacing.l,
+    marginTop: spacing.l,
+    padding: spacing.l,
+    borderRadius: borderRadius.l,
+    gap: spacing.m,
+  },
+  suspensionBannerContent: {
+    flex: 1,
+  },
+  suspensionBannerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  suspensionBannerText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    lineHeight: 20,
+  },
+  suspensionBannerContact: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: spacing.s,
+    textDecorationLine: 'underline',
   },
 });

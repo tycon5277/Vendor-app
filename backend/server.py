@@ -83,6 +83,8 @@ class User(BaseModel):
     vendor_can_deliver: bool = False
     vendor_categories: List[str] = []
     vendor_is_verified: bool = False
+    vendor_suspended: bool = False
+    vendor_suspension_reason: Optional[str] = None
     vendor_opening_hours: Optional[str] = None
     vendor_shop_image: Optional[str] = None
     vendor_description: Optional[str] = None
@@ -975,6 +977,21 @@ async def require_vendor(request: Request, session_token: Optional[str] = Cookie
         raise HTTPException(status_code=403, detail="Vendor access required")
     return user
 
+
+async def require_active_vendor(request: Request, session_token: Optional[str] = Cookie(default=None)) -> User:
+    """Require vendor partner who is not suspended - use for order operations"""
+    user = await require_vendor(request, session_token)
+    
+    # Check if vendor is suspended in database (fresher data)
+    vendor_db = await db.users.find_one({"user_id": user.user_id}, {"vendor_suspended": 1, "vendor_suspension_reason": 1})
+    if vendor_db and vendor_db.get("vendor_suspended"):
+        reason = vendor_db.get("vendor_suspension_reason", "Policy violation")
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Your account is suspended: {reason}. Contact support for assistance."
+        )
+    return user
+
 # ===================== VENDOR SYNC TO HUB_VENDORS =====================
 # This syncs vendor data to hub_vendors collection for Wisher App to display
 
@@ -1009,7 +1026,8 @@ async def sync_vendor_to_hub(user_id: str):
         "has_own_delivery": vendor.get("vendor_can_deliver", False),
         "delivery_radius_km": 5.0,
         "is_verified": vendor.get("vendor_is_verified", False),
-        "is_open": vendor.get("partner_status") == "available",
+        "is_suspended": vendor.get("vendor_suspended", False),
+        "is_open": vendor.get("partner_status") == "available" and not vendor.get("vendor_suspended", False),
         # Additional fields for richer data
         "gst_number": vendor.get("vendor_gst_number"),
         "license_number": vendor.get("vendor_license_number"),
@@ -1343,7 +1361,7 @@ class StatusUpdate(BaseModel):
     status: str  # available (open), offline (closed)
 
 @api_router.put("/vendor/status")
-async def update_vendor_status(data: StatusUpdate, current_user: User = Depends(require_vendor)):
+async def update_vendor_status(data: StatusUpdate, current_user: User = Depends(require_active_vendor)):
     """Update shop open/close status - syncs across all apps"""
     if data.status not in ["available", "offline"]:
         raise HTTPException(status_code=400, detail="Invalid status. Use 'available' or 'offline'")
@@ -2091,7 +2109,7 @@ async def get_order_details(order_id: str, current_user: User = Depends(require_
     return order
 
 @api_router.post("/vendor/orders/{order_id}/accept")
-async def accept_order(order_id: str, current_user: User = Depends(require_vendor)):
+async def accept_order(order_id: str, current_user: User = Depends(require_active_vendor)):
     """Accept a pending/placed order"""
     order = await db.shop_orders.find_one(
         {"order_id": order_id, "vendor_id": current_user.user_id}
@@ -2151,7 +2169,7 @@ class OrderStatusUpdate(BaseModel):
     status: str  # preparing, ready, out_for_delivery, delivered
 
 @api_router.put("/vendor/orders/{order_id}/status")
-async def update_order_status(order_id: str, data: OrderStatusUpdate, current_user: User = Depends(require_vendor)):
+async def update_order_status(order_id: str, data: OrderStatusUpdate, current_user: User = Depends(require_active_vendor)):
     """Update order status"""
     valid_statuses = ["preparing", "ready", "out_for_delivery", "delivered", "cancelled"]
     if data.status not in valid_statuses:
