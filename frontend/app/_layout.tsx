@@ -6,6 +6,7 @@ import { useAuthStore } from '../src/store/authStore';
 import { LoadingScreen } from '../src/components/LoadingScreen';
 import { AlertProvider } from '../src/context/AlertContext';
 import { NewOrderNotificationProvider } from '../src/context/NewOrderNotificationContext';
+import { UserStatusProvider } from '../src/context/UserStatusContext';
 import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
 
 function InitialLayout() {
@@ -66,8 +67,10 @@ export default function RootLayout() {
     <ThemeProvider>
       <AlertProvider>
         <NewOrderNotificationProvider>
-          <StatusBar style="auto" />
-          <InitialLayout />
+          <UserStatusProvider>
+            <StatusBar style="auto" />
+            <InitialLayout />
+          </UserStatusProvider>
         </NewOrderNotificationProvider>
       </AlertProvider>
     </ThemeProvider>

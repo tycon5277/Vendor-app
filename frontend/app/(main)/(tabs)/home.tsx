@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../../src/store/authStore';
+import { useUserStatus } from '../../../src/context/UserStatusContext';
 import { vendorAPI, orderAPI, productAPI, stockVerificationAPI } from '../../../src/utils/api';
 import { Analytics, Order, Product } from '../../../src/types';
 import { useAlert } from '../../../src/context/AlertContext';
@@ -48,7 +49,8 @@ interface DelayedOrder {
 export default function HomeScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { user } = useAuthStore();
+  const { user, refreshUser } = useAuthStore();
+  const { refreshUserStatus } = useUserStatus();
   const { showAlert } = useAlert();
   const [refreshing, setRefreshing] = useState(false);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -182,11 +184,13 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    // Refresh user status first (critical for suspension detection)
+    await refreshUser();
     await loadData();
     await checkVerificationStatus();
     await checkDelayedOrders();
     setRefreshing(false);
-  }, []);
+  }, [refreshUser]);
 
   // Handle low stock alert dismissal
   const handleLowStockAlertClose = () => {

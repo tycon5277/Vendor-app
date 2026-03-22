@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,14 @@ import {
   Alert,
   Image,
   Animated,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { useAuthStore } from '../../../src/store/authStore';
+import { useUserStatus } from '../../../src/context/UserStatusContext';
 import { vendorAPI } from '../../../src/utils/api';
 import { Analytics } from '../../../src/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,11 +27,13 @@ const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 export default function ProfileScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { user, logout } = useAuthStore();
+  const { user, logout, refreshUser } = useAuthStore();
+  const { refreshUserStatus, isRefreshing: isStatusRefreshing } = useUserStatus();
   const [showQR, setShowQR] = useState(false);
   const [qrData, setQRData] = useState<any>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const loadData = async () => {
@@ -69,6 +73,23 @@ export default function ProfileScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  // Pull-to-refresh handler - refreshes user status + analytics
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      // Refresh user status (critical for suspension detection)
+      await refreshUser();
+      // Also refresh analytics and other data
+      await loadData();
+      await fetchUnreadCount();
+      console.log('[Profile] Pull-to-refresh completed');
+    } catch (error) {
+      console.error('[Profile] Refresh error:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshUser]);
+
   const handleLogout = () => {
     if (typeof window !== 'undefined' && window.confirm) {
       if (window.confirm('Are you sure you want to logout?')) {
@@ -87,7 +108,18 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background.grouped }]} edges={['top']}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing || isStatusRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
         <Animated.View style={{ opacity: fadeAnim }}>
           {/* Header */}
           <View style={styles.header}>
