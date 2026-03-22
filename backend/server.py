@@ -12572,6 +12572,262 @@ async def admin_flag_product(product_id: str, reason: str):
     return {"message": "Product flagged", "product_id": product_id}
 
 
+@api_router.put("/admin/products/{product_id}/unflag")
+async def admin_unflag_product(product_id: str):
+    """Remove flag from a product - Admin Panel"""
+    result = await db.products.update_one(
+        {"product_id": product_id},
+        {"$set": {
+            "admin_flagged": False,
+            "admin_flag_reason": None,
+            "admin_unflagged_at": datetime.now(timezone.utc)
+        }}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    await db.hub_products.update_one(
+        {"product_id": product_id},
+        {"$set": {"admin_flagged": False}}
+    )
+    
+    return {"message": "Product unflagged", "product_id": product_id}
+
+
+class AdminProductCreate(BaseModel):
+    vendor_id: str
+    name: str
+    description: Optional[str] = None
+    price: float
+    category: str
+    subcategory: Optional[str] = None
+    unit: str = "piece"
+    stock_quantity: int = 100
+    in_stock: bool = True
+    images: List[str] = []
+    variations: Optional[List[dict]] = None
+
+@api_router.post("/admin/products")
+async def admin_create_product(data: AdminProductCreate):
+    """Create a product for a vendor - Admin Panel"""
+    # Verify vendor exists
+    vendor = await db.users.find_one({"user_id": data.vendor_id, "partner_type": "vendor"})
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    now = datetime.now(timezone.utc)
+    product_id = f"prod_{uuid.uuid4().hex[:12]}"
+    
+    product_doc = {
+        "product_id": product_id,
+        "vendor_id": data.vendor_id,
+        "name": data.name,
+        "description": data.description,
+        "price": data.price,
+        "category": data.category,
+        "subcategory": data.subcategory,
+        "unit": data.unit,
+        "stock_quantity": data.stock_quantity,
+        "in_stock": data.in_stock,
+        "images": data.images,
+        "variations": data.variations or [],
+        "created_by": "admin",
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    await db.products.insert_one(product_doc)
+    
+    # Sync to hub_products
+    hub_product = {
+        "product_id": product_id,
+        "vendor_id": data.vendor_id,
+        "name": data.name,
+        "description": data.description,
+        "price": data.price,
+        "category": data.category,
+        "subcategory": data.subcategory,
+        "unit": data.unit,
+        "in_stock": data.in_stock,
+        "images": data.images,
+        "variations": data.variations or [],
+        "created_at": now,
+        "updated_at": now
+    }
+    await db.hub_products.insert_one(hub_product)
+    
+    return {
+        "message": "Product created",
+        "product_id": product_id,
+        "vendor_id": data.vendor_id
+    }
+
+
+class AdminProductUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    category: Optional[str] = None
+    subcategory: Optional[str] = None
+    unit: Optional[str] = None
+    stock_quantity: Optional[int] = None
+    in_stock: Optional[bool] = None
+    images: Optional[List[str]] = None
+    variations: Optional[List[dict]] = None
+
+@api_router.put("/admin/products/{product_id}")
+async def admin_update_product(product_id: str, data: AdminProductUpdate):
+    """Update a product - Admin Panel"""
+    product = await db.products.find_one({"product_id": product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    now = datetime.now(timezone.utc)
+    update_fields = {"updated_at": now, "updated_by": "admin"}
+    hub_update_fields = {"updated_at": now}
+    
+    if data.name is not None:
+        update_fields["name"] = data.name
+        hub_update_fields["name"] = data.name
+    if data.description is not None:
+        update_fields["description"] = data.description
+        hub_update_fields["description"] = data.description
+    if data.price is not None:
+        update_fields["price"] = data.price
+        hub_update_fields["price"] = data.price
+    if data.category is not None:
+        update_fields["category"] = data.category
+        hub_update_fields["category"] = data.category
+    if data.subcategory is not None:
+        update_fields["subcategory"] = data.subcategory
+        hub_update_fields["subcategory"] = data.subcategory
+    if data.unit is not None:
+        update_fields["unit"] = data.unit
+        hub_update_fields["unit"] = data.unit
+    if data.stock_quantity is not None:
+        update_fields["stock_quantity"] = data.stock_quantity
+    if data.in_stock is not None:
+        update_fields["in_stock"] = data.in_stock
+        hub_update_fields["in_stock"] = data.in_stock
+    if data.images is not None:
+        update_fields["images"] = data.images
+        hub_update_fields["images"] = data.images
+    if data.variations is not None:
+        update_fields["variations"] = data.variations
+        hub_update_fields["variations"] = data.variations
+    
+    await db.products.update_one({"product_id": product_id}, {"$set": update_fields})
+    await db.hub_products.update_one({"product_id": product_id}, {"$set": hub_update_fields})
+    
+    return {
+        "message": "Product updated",
+        "product_id": product_id,
+        "updated_fields": list(update_fields.keys())
+    }
+
+
+@api_router.patch("/admin/products/{product_id}/stock")
+async def admin_update_product_stock(product_id: str, quantity: int, in_stock: Optional[bool] = None):
+    """Update product stock quantity - Admin Panel"""
+    product = await db.products.find_one({"product_id": product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    now = datetime.now(timezone.utc)
+    update_fields = {
+        "stock_quantity": quantity,
+        "updated_at": now,
+        "stock_updated_by": "admin"
+    }
+    
+    # Auto-set in_stock based on quantity if not specified
+    if in_stock is not None:
+        update_fields["in_stock"] = in_stock
+    elif quantity <= 0:
+        update_fields["in_stock"] = False
+    elif quantity > 0 and not product.get("in_stock", True):
+        update_fields["in_stock"] = True
+    
+    await db.products.update_one({"product_id": product_id}, {"$set": update_fields})
+    
+    # Sync in_stock to hub
+    if "in_stock" in update_fields:
+        await db.hub_products.update_one(
+            {"product_id": product_id},
+            {"$set": {"in_stock": update_fields["in_stock"], "updated_at": now}}
+        )
+    
+    return {
+        "message": "Stock updated",
+        "product_id": product_id,
+        "stock_quantity": quantity,
+        "in_stock": update_fields.get("in_stock", product.get("in_stock", True))
+    }
+
+
+@api_router.patch("/admin/products/{product_id}/images")
+async def admin_update_product_images(product_id: str, images: List[str], action: str = "replace"):
+    """Update product images - Admin Panel
+    
+    action: 
+    - "replace": Replace all images with new list
+    - "add": Add images to existing list
+    - "remove": Remove specified images from list
+    """
+    product = await db.products.find_one({"product_id": product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    now = datetime.now(timezone.utc)
+    current_images = product.get("images", [])
+    
+    if action == "replace":
+        new_images = images
+    elif action == "add":
+        new_images = current_images + [img for img in images if img not in current_images]
+    elif action == "remove":
+        new_images = [img for img in current_images if img not in images]
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action. Use 'replace', 'add', or 'remove'")
+    
+    await db.products.update_one(
+        {"product_id": product_id},
+        {"$set": {"images": new_images, "updated_at": now, "images_updated_by": "admin"}}
+    )
+    
+    await db.hub_products.update_one(
+        {"product_id": product_id},
+        {"$set": {"images": new_images, "updated_at": now}}
+    )
+    
+    return {
+        "message": "Images updated",
+        "product_id": product_id,
+        "action": action,
+        "image_count": len(new_images),
+        "images": new_images
+    }
+
+
+@api_router.get("/admin/products/{product_id}")
+async def admin_get_product(product_id: str):
+    """Get single product details - Admin Panel"""
+    product = await db.products.find_one({"product_id": product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Get vendor info
+    vendor = await db.users.find_one(
+        {"user_id": product["vendor_id"]},
+        {"_id": 0, "vendor_shop_name": 1, "phone": 1}
+    )
+    product["vendor_name"] = vendor.get("vendor_shop_name") if vendor else None
+    product["vendor_phone"] = vendor.get("phone") if vendor else None
+    
+    return product
+
+
 @api_router.delete("/admin/products/{product_id}")
 async def admin_delete_product(product_id: str, reason: str = "Admin removal"):
     """Delete a product - Admin Panel"""
