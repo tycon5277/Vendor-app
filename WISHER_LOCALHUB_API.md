@@ -2,7 +2,7 @@
 
 ## API Base URL
 ```
-https://multi-app-platform-8.preview.emergentagent.com
+https://mission-hq-backend.preview.emergentagent.com
 ```
 
 ## Available Endpoints
@@ -147,7 +147,7 @@ GET /api/localhub/products
 
 ```typescript
 // src/utils/vendorApi.ts
-const VENDOR_API_URL = 'https://multi-app-platform-8.preview.emergentagent.com';
+const VENDOR_API_URL = 'https://mission-hq-backend.preview.emergentagent.com';
 
 export const vendorApi = {
   // Get all vendors

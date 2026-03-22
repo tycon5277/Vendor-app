@@ -15,7 +15,7 @@ import os
 import uuid
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://multi-app-platform-8.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://mission-hq-backend.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 VENDOR_PHONE = "1212121212"

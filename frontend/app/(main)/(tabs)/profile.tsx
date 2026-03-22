@@ -118,6 +118,17 @@ export default function ProfileScreen() {
                 <Text style={[styles.shopType, { color: colors.text.secondary }]}>{user?.vendor_shop_type}</Text>
                 
                 <View style={styles.profileMeta}>
+                  {user?.vendor_is_verified ? (
+                    <View style={[styles.verifiedBadge, { backgroundColor: isDark ? 'rgba(52, 199, 89, 0.2)' : '#D1FAE5' }]}>
+                      <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                      <Text style={[styles.verifiedText, { color: colors.success }]}>Verified</Text>
+                    </View>
+                  ) : (
+                    <View style={[styles.pendingBadge, { backgroundColor: isDark ? 'rgba(255, 149, 0, 0.2)' : '#FEF3C7' }]}>
+                      <Ionicons name="time" size={14} color={colors.warning} />
+                      <Text style={[styles.pendingText, { color: colors.warning }]}>Pending</Text>
+                    </View>
+                  )}
                   <View style={[styles.ratingBadge, { backgroundColor: isDark ? colors.background.tertiary : '#FEF3C7' }]}>
                     <Ionicons name="star" size={14} color={colors.warning} />
                     <Text style={[styles.ratingText, { color: colors.warning }]}>
@@ -492,5 +503,29 @@ const styles = StyleSheet.create({
   zoneWarningText: {
     fontSize: typography.footnote.fontSize,
     fontWeight: '500',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.s,
+    paddingVertical: 4,
+    borderRadius: borderRadius.full,
+    gap: 4,
+  },
+  verifiedText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  pendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.s,
+    paddingVertical: 4,
+    borderRadius: borderRadius.full,
+    gap: 4,
+  },
+  pendingText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

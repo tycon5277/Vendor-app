@@ -7,6 +7,7 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
 
 ## Latest Updates (March 2026)
+- **[March 22] Verified Vendor Badge Fix** — Fixed the "Verified Vendor" badge not rendering on Profile screen. Root cause: `typography.caption.fontSize` referenced non-existent property (only `caption1`/`caption2` exist). Changed to hardcoded value `12`. Badge now displays correctly showing ✓ Verified or ⏱ Pending status.
 - **[March 17] Vendor Admin APIs** — Added comprehensive admin APIs for vendor management, analytics, and zone integration. Ready for Admin Panel (Mission HQ) integration.
 - **[March 17] Zone System Architecture** — Zone CRUD will live in Admin Panel. Vendor App has read-only zone APIs.
 - **[March 14] Authorization Bug Fix** — Fixed "Only genies can access this endpoint" error on Mark as Delivered and other Genie endpoints. Root cause: inconsistent role check (`partner_type != "genie"` vs `partner_type != "agent"`). All Genie endpoints now consistently use `partner_type == "agent"`.

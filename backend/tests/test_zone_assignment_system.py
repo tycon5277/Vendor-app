@@ -18,7 +18,7 @@ import os
 import time
 import json
 
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://multi-app-platform-8.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://mission-hq-backend.preview.emergentagent.com').rstrip('/')
 
 # Test credentials from the review request
 VENDOR_PHONE = "1212121212"

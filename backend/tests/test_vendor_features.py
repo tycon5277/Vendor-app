@@ -11,7 +11,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://multi-app-platform-8.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://mission-hq-backend.preview.emergentagent.com')
 if BASE_URL.endswith('/'):
     BASE_URL = BASE_URL.rstrip('/')
 
