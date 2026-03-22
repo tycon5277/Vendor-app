@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Animated,
   AppState,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -310,6 +311,40 @@ export default function HomeScreen() {
         onStartPreparing={handleStartPreparing}
         onSnooze={handleSnoozePreparation}
       />
+      
+      {/* Suspension Modal - renders on top when vendor is suspended */}
+      {user?.vendor_suspended && (
+        <View style={styles.suspensionOverlay}>
+          <View style={[styles.suspensionModal, { backgroundColor: colors.card }]}>
+            <Ionicons name="ban" size={64} color="#EF4444" />
+            <Text style={[styles.suspensionTitle, { color: colors.text.primary }]}>Account Suspended</Text>
+            <Text style={[styles.suspensionShop, { color: colors.text.secondary }]}>{user?.vendor_shop_name}</Text>
+            <View style={[styles.suspensionReasonBox, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+              <Text style={styles.suspensionReasonLabel}>Reason:</Text>
+              <Text style={[styles.suspensionReasonText, { color: colors.text.primary }]}>
+                {user?.vendor_suspension_reason || 'Policy violation'}
+              </Text>
+            </View>
+            <Text style={[styles.suspensionMessage, { color: colors.text.secondary }]}>
+              Your shop is offline and cannot receive orders. Contact support to resolve this issue.
+            </Text>
+            <TouchableOpacity
+              style={styles.suspensionButton}
+              onPress={() => Linking.openURL('mailto:support@quickwish.app?subject=Account%20Suspension%20Appeal')}
+            >
+              <Ionicons name="mail" size={20} color="#FFFFFF" />
+              <Text style={styles.suspensionButtonText}>Contact Support</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.suspensionCallButton, { borderColor: colors.border }]}
+              onPress={() => Linking.openURL('tel:+919999999999')}
+            >
+              <Ionicons name="call" size={20} color={colors.primary} />
+              <Text style={[styles.suspensionCallText, { color: colors.primary }]}>Call Support</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
       
       <ScrollView
         style={styles.scrollView}
@@ -875,5 +910,92 @@ const styles = StyleSheet.create({
   handoverSubtitle: {
     fontSize: typography.footnote.fontSize,
     marginTop: 2,
+  },
+  // Suspension Overlay Styles
+  suspensionOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+    padding: spacing.l,
+  },
+  suspensionModal: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  suspensionTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginTop: spacing.l,
+    marginBottom: spacing.xs,
+  },
+  suspensionShop: {
+    fontSize: 16,
+    marginBottom: spacing.l,
+  },
+  suspensionReasonBox: {
+    width: '100%',
+    padding: spacing.m,
+    borderRadius: borderRadius.m,
+    marginBottom: spacing.l,
+    borderLeftWidth: 4,
+    borderLeftColor: '#EF4444',
+  },
+  suspensionReasonLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#EF4444',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  suspensionReasonText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  suspensionMessage: {
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+  },
+  suspensionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EF4444',
+    paddingVertical: spacing.m,
+    paddingHorizontal: spacing.xl,
+    borderRadius: borderRadius.m,
+    gap: spacing.s,
+    width: '100%',
+    marginBottom: spacing.m,
+  },
+  suspensionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  suspensionCallButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.m,
+    paddingHorizontal: spacing.xl,
+    borderRadius: borderRadius.m,
+    borderWidth: 1.5,
+    gap: spacing.s,
+    width: '100%',
+  },
+  suspensionCallText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

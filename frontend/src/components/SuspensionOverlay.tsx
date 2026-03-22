@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,13 +16,32 @@ const SUPPORT_EMAIL = 'support@quickwish.app';
 const SUPPORT_PHONE = '+91-9999999999';
 
 export const SuspensionOverlay: React.FC = () => {
+  console.log('[SuspensionOverlay] COMPONENT MOUNTED');
+  
   const { user, isSuspended } = useAuthStore();
   const { colors } = useTheme();
 
+  // Log on every render and state change
+  useEffect(() => {
+    console.log('[SuspensionOverlay] State check:', {
+      isSuspended,
+      vendor_suspended: user?.vendor_suspended,
+      user_id: user?.user_id,
+      shop_name: user?.vendor_shop_name,
+    });
+  }, [isSuspended, user?.vendor_suspended, user?.user_id]);
+
+  // Check if vendor is suspended
+  const shouldShowOverlay = isSuspended || user?.vendor_suspended === true;
+  
+  console.log('[SuspensionOverlay] shouldShowOverlay:', shouldShowOverlay);
+
   // Don't render if not suspended
-  if (!isSuspended && !user?.vendor_suspended) {
+  if (!shouldShowOverlay) {
     return null;
   }
+
+  console.log('[SuspensionOverlay] RENDERING OVERLAY');
 
   const handleContactSupport = () => {
     // Open email client
