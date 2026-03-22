@@ -14161,6 +14161,170 @@ async def receive_admin_webhook(request: Request):
         logger.info(f"Zone {zone_id} deleted, {len(affected_vendors)} vendors affected")
         return {"status": "received", "event": event, "zone_id": zone_id, "affected_vendors": len(affected_vendors)}
     
+    # ==================== VENDOR STATUS EVENTS ====================
+    
+    elif event == "vendor.suspended":
+        vendor_id = data.get("vendor_id")
+        reason = data.get("reason", "Policy violation")
+        suspended_by = data.get("suspended_by", "admin")
+        
+        if not vendor_id:
+            raise HTTPException(status_code=400, detail="Missing vendor_id")
+        
+        # Update vendor suspension status
+        await db.users.update_one(
+            {"user_id": vendor_id, "partner_type": "vendor"},
+            {"$set": {
+                "vendor_suspended": True,
+                "vendor_suspension_reason": reason,
+                "vendor_suspended_at": now,
+                "vendor_suspended_by": suspended_by,
+                "updated_at": now
+            }}
+        )
+        
+        # Update hub_vendors for Wisher App
+        await db.hub_vendors.update_one(
+            {"vendor_id": vendor_id},
+            {"$set": {"is_suspended": True, "updated_at": now}}
+        )
+        
+        # Create notification for vendor
+        await db.vendor_notifications.insert_one({
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "vendor_id": vendor_id,
+            "type": "account_suspended",
+            "title": "Account Suspended",
+            "message": f"Your vendor account has been suspended. Reason: {reason}",
+            "data": {"reason": reason, "suspended_by": suspended_by},
+            "is_read": False,
+            "created_at": now
+        })
+        
+        logger.info(f"Vendor {vendor_id} suspended via webhook. Reason: {reason}")
+        return {"status": "received", "event": event, "vendor_id": vendor_id}
+    
+    elif event == "vendor.approved":
+        vendor_id = data.get("vendor_id")
+        approved_by = data.get("approved_by", "admin")
+        
+        if not vendor_id:
+            raise HTTPException(status_code=400, detail="Missing vendor_id")
+        
+        # Update vendor verification status
+        await db.users.update_one(
+            {"user_id": vendor_id, "partner_type": "vendor"},
+            {"$set": {
+                "vendor_is_verified": True,
+                "vendor_suspended": False,
+                "vendor_approved_at": now,
+                "vendor_approved_by": approved_by,
+                "updated_at": now
+            }}
+        )
+        
+        # Update hub_vendors for Wisher App
+        await db.hub_vendors.update_one(
+            {"vendor_id": vendor_id},
+            {"$set": {"is_verified": True, "is_suspended": False, "updated_at": now}}
+        )
+        
+        # Create notification for vendor
+        await db.vendor_notifications.insert_one({
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "vendor_id": vendor_id,
+            "type": "account_approved",
+            "title": "Account Approved! 🎉",
+            "message": "Congratulations! Your vendor account has been verified. You can now start receiving orders.",
+            "data": {"approved_by": approved_by},
+            "is_read": False,
+            "created_at": now
+        })
+        
+        logger.info(f"Vendor {vendor_id} approved via webhook")
+        return {"status": "received", "event": event, "vendor_id": vendor_id}
+    
+    elif event == "vendor.rejected":
+        vendor_id = data.get("vendor_id")
+        reason = data.get("reason", "Application did not meet requirements")
+        rejected_by = data.get("rejected_by", "admin")
+        
+        if not vendor_id:
+            raise HTTPException(status_code=400, detail="Missing vendor_id")
+        
+        # Update vendor status
+        await db.users.update_one(
+            {"user_id": vendor_id, "partner_type": "vendor"},
+            {"$set": {
+                "vendor_is_verified": False,
+                "vendor_rejection_reason": reason,
+                "vendor_rejected_at": now,
+                "vendor_rejected_by": rejected_by,
+                "updated_at": now
+            }}
+        )
+        
+        # Update hub_vendors for Wisher App
+        await db.hub_vendors.update_one(
+            {"vendor_id": vendor_id},
+            {"$set": {"is_verified": False, "updated_at": now}}
+        )
+        
+        # Create notification for vendor
+        await db.vendor_notifications.insert_one({
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "vendor_id": vendor_id,
+            "type": "account_rejected",
+            "title": "Application Not Approved",
+            "message": f"Your vendor application was not approved. Reason: {reason}. Please contact support for more information.",
+            "data": {"reason": reason, "rejected_by": rejected_by},
+            "is_read": False,
+            "created_at": now
+        })
+        
+        logger.info(f"Vendor {vendor_id} rejected via webhook. Reason: {reason}")
+        return {"status": "received", "event": event, "vendor_id": vendor_id}
+    
+    elif event == "vendor.activated":
+        vendor_id = data.get("vendor_id")
+        activated_by = data.get("activated_by", "admin")
+        
+        if not vendor_id:
+            raise HTTPException(status_code=400, detail="Missing vendor_id")
+        
+        # Reactivate vendor (remove suspension)
+        await db.users.update_one(
+            {"user_id": vendor_id, "partner_type": "vendor"},
+            {"$set": {
+                "vendor_suspended": False,
+                "vendor_suspension_reason": None,
+                "vendor_activated_at": now,
+                "vendor_activated_by": activated_by,
+                "updated_at": now
+            }}
+        )
+        
+        # Update hub_vendors for Wisher App
+        await db.hub_vendors.update_one(
+            {"vendor_id": vendor_id},
+            {"$set": {"is_suspended": False, "updated_at": now}}
+        )
+        
+        # Create notification for vendor
+        await db.vendor_notifications.insert_one({
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "vendor_id": vendor_id,
+            "type": "account_activated",
+            "title": "Account Reactivated! ✅",
+            "message": "Your vendor account has been reactivated. You can now receive orders again.",
+            "data": {"activated_by": activated_by},
+            "is_read": False,
+            "created_at": now
+        })
+        
+        logger.info(f"Vendor {vendor_id} activated via webhook")
+        return {"status": "received", "event": event, "vendor_id": vendor_id}
+    
     else:
         logger.warning(f"Unknown webhook event: {event}")
         return {"status": "ignored", "event": event, "reason": "unknown_event"}
@@ -14176,7 +14340,11 @@ async def test_webhook_endpoint():
             "zone.vendor.assigned",
             "zone.vendor.unassigned",
             "zone.updated",
-            "zone.deleted"
+            "zone.deleted",
+            "vendor.suspended",
+            "vendor.approved",
+            "vendor.rejected",
+            "vendor.activated"
         ],
         "authentication": "X-Webhook-Secret header or X-Webhook-Signature (HMAC-SHA256)"
     }
