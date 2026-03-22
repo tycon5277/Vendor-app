@@ -14132,24 +14132,41 @@ async def receive_admin_webhook(request: Request):
     
     elif event == "zone.deleted":
         zone_id = data.get("zone_id")
+        zone_name = data.get("zone_name", "Unknown Zone")
+        affected_vendor_ids = data.get("affected_vendor_ids", [])
         
         if not zone_id:
             raise HTTPException(status_code=400, detail="Missing zone_id")
         
-        # Find all vendors assigned to this zone
-        affected_vendors = await db.users.find(
-            {"assigned_zone_id": zone_id},
-            {"user_id": 1}
-        ).to_list(1000)
+        # If affected_vendor_ids provided by admin, use those; otherwise query DB
+        if not affected_vendor_ids:
+            affected_vendors = await db.users.find(
+                {"assigned_zone_id": zone_id},
+                {"user_id": 1}
+            ).to_list(1000)
+            affected_vendor_ids = [v["user_id"] for v in affected_vendors]
         
-        # Clear zone assignment for affected vendors
+        # Clear zone assignment and set vendors to inactive/zoneless
         await db.users.update_many(
-            {"assigned_zone_id": zone_id},
+            {"user_id": {"$in": affected_vendor_ids}},
             {"$set": {
                 "assigned_zone_id": None,
                 "assigned_zone_name": None,
                 "assigned_zone_code": None,
+                "partner_status": "zoneless",
                 "zone_deleted_at": now,
+                "zone_deleted_reason": f"Zone '{zone_name}' was deleted",
+                "updated_at": now
+            }}
+        )
+        
+        # Update hub_vendors for Wisher App visibility - mark as inactive
+        await db.hub_vendors.update_many(
+            {"vendor_id": {"$in": affected_vendor_ids}},
+            {"$set": {
+                "is_active": False,
+                "is_open": False,
+                "zone_id": None,
                 "updated_at": now
             }}
         )
@@ -14161,23 +14178,23 @@ async def receive_admin_webhook(request: Request):
         )
         
         # Notify affected vendors
-        for vendor in affected_vendors:
+        for vendor_id in affected_vendor_ids:
             await db.vendor_notifications.insert_one({
                 "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
-                "vendor_id": vendor["user_id"],
+                "vendor_id": vendor_id,
                 "type": "zone_deleted",
-                "title": "Zone Removed",
-                "message": "Your assigned zone has been deleted. Contact admin for reassignment.",
-                "data": {"zone_id": zone_id},
+                "title": "Zone Deleted",
+                "message": f"Your assigned zone '{zone_name}' has been deleted. You are now inactive until reassigned to a new zone.",
+                "data": {"zone_id": zone_id, "zone_name": zone_name},
                 "is_read": False,
                 "created_at": now
             })
         
-        # Delete zone from local cache
+        # Delete zone from local cache (if we cache zones)
         await db.zones.delete_one({"zone_id": zone_id})
         
-        logger.info(f"Zone {zone_id} deleted, {len(affected_vendors)} vendors affected")
-        return {"status": "received", "event": event, "zone_id": zone_id, "affected_vendors": len(affected_vendors)}
+        logger.info(f"Zone {zone_id} ({zone_name}) deleted, {len(affected_vendor_ids)} vendors affected and set to zoneless")
+        return {"status": "received", "event": event, "zone_id": zone_id, "affected_vendors": len(affected_vendor_ids)}
     
     # ==================== VENDOR STATUS EVENTS ====================
     
