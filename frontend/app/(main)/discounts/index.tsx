@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { discountAPI, productAPI } from '../../../src/utils/api';
 import { useAlert } from '../../../src/context/AlertContext';
 import { DateWheelPicker } from '../../../src/components/WheelPicker';
+import { formatDateIST } from '../../../src/utils/timezone';
 
 const DISCOUNT_TYPES = [
   { id: 'percentage', label: 'Percentage Off', icon: 'trending-down', symbol: '%' },
@@ -280,8 +281,7 @@ export default function DiscountsScreen() {
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    return formatDateIST(dateStr);
   };
 
   const getDiscountDisplay = (discount: Discount) => {
