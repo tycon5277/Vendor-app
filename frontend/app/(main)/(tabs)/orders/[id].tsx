@@ -13,6 +13,7 @@ import {
   TextInput,
   Image,
   Platform,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -917,9 +918,28 @@ export default function OrderDetailScreen() {
             </TouchableOpacity>
           </View>
           {order.delivery_type !== 'self_pickup' && order.delivery_address && (
-            <View style={styles.addressRow}>
-              <Ionicons name="location" size={16} color="#6B7280" />
-              <Text style={styles.addressText}>{order.delivery_address?.address || 'No address'}</Text>
+            <View style={styles.addressSection}>
+              <View style={styles.addressRow}>
+                <Ionicons name="location" size={16} color="#6B7280" />
+                <Text style={styles.addressText}>{order.delivery_address?.address || 'No address'}</Text>
+              </View>
+              {order.delivery_address?.lat && order.delivery_address?.lng && (
+                <View style={styles.coordinatesRow}>
+                  <Text style={styles.coordinatesText}>
+                    GPS: {order.delivery_address.lat.toFixed(6)}, {order.delivery_address.lng.toFixed(6)}
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.mapButton}
+                    onPress={() => {
+                      const url = `https://www.google.com/maps/search/?api=1&query=${order.delivery_address.lat},${order.delivery_address.lng}`;
+                      Linking.openURL(url);
+                    }}
+                  >
+                    <Ionicons name="map" size={14} color="#FFFFFF" />
+                    <Text style={styles.mapButtonText}>Open Maps</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           )}
           {order.delivery_type === 'self_pickup' && (
@@ -2906,5 +2926,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#D97706',
     fontWeight: '500',
+  },
+  addressSection: {
+    gap: 8,
+  },
+  coordinatesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 22,
+    gap: 8,
+  },
+  coordinatesText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  mapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  mapButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
