@@ -22,6 +22,7 @@ from redis_manager import publish_to_genie
 import zone_service
 import assignment_engine
 from sse_handler import genie_delivery_stream, create_sse_response
+import delivery_service
 
 ROOT_DIR = Path(__file__).parent
 
@@ -3730,6 +3731,85 @@ class CreateOrderRequest(BaseModel):
     delivery_type: str = "agent_delivery"  # self_pickup, vendor_delivery, agent_delivery
     special_instructions: Optional[str] = None
     payment_method: str = "prepaid"  # prepaid, cod (cod not supported currently)
+
+
+# ==================== DELIVERY FEE CALCULATION ====================
+
+class DeliveryFeeRequest(BaseModel):
+    vendor_id: str
+    delivery_location: dict  # {"lat": float, "lng": float}
+    fee_config: Optional[dict] = None  # Optional custom fee config
+
+
+@api_router.post("/calculate-delivery-fee")
+async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
+    """
+    Calculate delivery fee based on road distance between vendor and delivery location.
+    Uses Google Maps Distance Matrix API for accurate road distance.
+    
+    Request:
+    {
+        "vendor_id": "user_xxx",
+        "delivery_location": {"lat": 11.85, "lng": 75.43}
+    }
+    
+    Response:
+    {
+        "delivery_fee": 45,
+        "distance_km": 3.2,
+        "distance_text": "3.2 km",
+        "duration_mins": 12,
+        "duration_text": "12 mins",
+        "estimated_delivery_time": "27-37 mins",
+        "fee_breakdown": "₹20 base + ₹8 × 3.2 km"
+    }
+    """
+    # Get vendor's shop location
+    vendor = await db.users.find_one(
+        {"user_id": data.vendor_id, "partner_type": "vendor"},
+        {"vendor_shop_location": 1, "vendor_shop_name": 1}
+    )
+    
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    vendor_location = vendor.get("vendor_shop_location")
+    if not vendor_location or "lat" not in vendor_location or "lng" not in vendor_location:
+        raise HTTPException(status_code=400, detail="Vendor location not set")
+    
+    # Validate delivery location
+    if not data.delivery_location or "lat" not in data.delivery_location or "lng" not in data.delivery_location:
+        raise HTTPException(status_code=400, detail="Invalid delivery location")
+    
+    # Calculate delivery fee
+    result = await delivery_service.calculate_delivery_fee_for_order(
+        vendor_location=vendor_location,
+        delivery_location=data.delivery_location,
+        fee_config=data.fee_config
+    )
+    
+    result["vendor_id"] = data.vendor_id
+    result["vendor_name"] = vendor.get("vendor_shop_name")
+    
+    return result
+
+
+@api_router.get("/delivery-fee-config")
+async def get_delivery_fee_config():
+    """
+    Get the default delivery fee configuration.
+    Can be customized per vendor/zone in the future.
+    """
+    return {
+        "base_fee": 20,
+        "per_km_rate": 8,
+        "min_fee": 20,
+        "max_fee": 200,
+        "free_delivery_below_km": 0,
+        "currency": "INR",
+        "description": "₹20 base fee + ₹8 per kilometer"
+    }
+
 
 @api_router.post("/wisher/orders")
 async def create_wisher_order(
