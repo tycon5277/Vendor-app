@@ -23,6 +23,7 @@ import zone_service
 import assignment_engine
 from sse_handler import genie_delivery_stream, create_sse_response
 import delivery_service
+import smart_delivery_service
 
 ROOT_DIR = Path(__file__).parent
 
@@ -3738,36 +3739,32 @@ class CreateOrderRequest(BaseModel):
 class DeliveryFeeRequest(BaseModel):
     vendor_id: str
     delivery_location: dict  # {"lat": float, "lng": float}
-    fee_config: Optional[dict] = None  # Optional custom fee config
+    vendor_type: str = "restaurant"  # "restaurant" or "grocery"
+    order_value: float = 0  # Total order value in INR
+    weight_kg: float = 0  # Total weight in kg (for grocery)
+    is_bad_weather: bool = False  # Weather condition
 
 
 @api_router.post("/calculate-delivery-fee")
 async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
     """
-    Calculate delivery fee based on road distance between vendor and delivery location.
+    Calculate smart delivery fee based on distance, vendor type, and various factors.
     Uses Google Maps Distance Matrix API for accurate road distance.
     
     Request:
     {
         "vendor_id": "user_xxx",
-        "delivery_location": {"lat": 11.85, "lng": 75.43}
-    }
-    
-    Response:
-    {
-        "delivery_fee": 45,
-        "distance_km": 3.2,
-        "distance_text": "3.2 km",
-        "duration_mins": 12,
-        "duration_text": "12 mins",
-        "estimated_delivery_time": "27-37 mins",
-        "fee_breakdown": "₹20 base + ₹8 × 3.2 km"
+        "delivery_location": {"lat": 11.85, "lng": 75.43},
+        "vendor_type": "restaurant",  // or "grocery"
+        "order_value": 350,
+        "weight_kg": 2.5,  // for grocery
+        "is_bad_weather": false
     }
     """
     # Get vendor's shop location
     vendor = await db.users.find_one(
         {"user_id": data.vendor_id, "partner_type": "vendor"},
-        {"vendor_shop_location": 1, "vendor_shop_name": 1}
+        {"vendor_shop_location": 1, "vendor_shop_name": 1, "vendor_shop_type": 1}
     )
     
     if not vendor:
@@ -3781,11 +3778,22 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
     if not data.delivery_location or "lat" not in data.delivery_location or "lng" not in data.delivery_location:
         raise HTTPException(status_code=400, detail="Invalid delivery location")
     
+    # Get delivery fee config from DB (or use default)
+    config = await db.delivery_fee_config.find_one(
+        {"vehicle_type": "two_wheeler", "is_active": True}
+    )
+    if config:
+        config.pop("_id", None)
+    
     # Calculate delivery fee
-    result = await delivery_service.calculate_delivery_fee_for_order(
+    result = await smart_delivery_service.calculate_full_delivery_fee(
         vendor_location=vendor_location,
         delivery_location=data.delivery_location,
-        fee_config=data.fee_config
+        vendor_type=data.vendor_type,
+        order_value=data.order_value,
+        weight_kg=data.weight_kg,
+        is_bad_weather=data.is_bad_weather,
+        config=config
     )
     
     result["vendor_id"] = data.vendor_id
@@ -3797,17 +3805,127 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
 @api_router.get("/delivery-fee-config")
 async def get_delivery_fee_config():
     """
-    Get the default delivery fee configuration.
-    Can be customized per vendor/zone in the future.
+    Get the current delivery fee configuration.
     """
+    config = await db.delivery_fee_config.find_one(
+        {"vehicle_type": "two_wheeler", "is_active": True}
+    )
+    
+    if config:
+        config.pop("_id", None)
+        return config
+    
+    # Return default config
+    return smart_delivery_service.DEFAULT_DELIVERY_CONFIG
+
+
+# ==================== ADMIN: DELIVERY FEE CONFIG ====================
+
+@api_router.get("/admin/delivery-fee-config")
+async def admin_get_delivery_fee_configs():
+    """
+    Get all delivery fee configurations (for Admin Panel).
+    Returns configs for all vehicle types.
+    """
+    configs = await db.delivery_fee_config.find().to_list(100)
+    for config in configs:
+        config["_id"] = str(config["_id"])
+    
+    if not configs:
+        # Return default config if none exists
+        return {
+            "configs": [smart_delivery_service.DEFAULT_DELIVERY_CONFIG],
+            "message": "Using default configuration. Save to customize."
+        }
+    
+    return {"configs": configs}
+
+
+@api_router.get("/admin/delivery-fee-config/{vehicle_type}")
+async def admin_get_delivery_fee_config_by_vehicle(vehicle_type: str):
+    """
+    Get delivery fee configuration for a specific vehicle type.
+    """
+    config = await db.delivery_fee_config.find_one({"vehicle_type": vehicle_type})
+    
+    if config:
+        config["_id"] = str(config["_id"])
+        return config
+    
+    if vehicle_type == "two_wheeler":
+        return smart_delivery_service.DEFAULT_DELIVERY_CONFIG
+    
+    raise HTTPException(status_code=404, detail=f"Config for {vehicle_type} not found")
+
+
+@api_router.put("/admin/delivery-fee-config/{vehicle_type}")
+async def admin_update_delivery_fee_config(vehicle_type: str, config: dict):
+    """
+    Update or create delivery fee configuration for a vehicle type.
+    
+    Request body should contain the full configuration object.
+    """
+    now = datetime.now(timezone.utc)
+    
+    # Validate required fields
+    required_fields = ["base_fee", "per_km_rate", "peak_hours", "small_order", "weight_surcharge"]
+    for field in required_fields:
+        if field not in config:
+            raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+    
+    # Ensure vehicle_type matches
+    config["vehicle_type"] = vehicle_type
+    config["updated_at"] = now
+    
+    # Upsert the config
+    result = await db.delivery_fee_config.update_one(
+        {"vehicle_type": vehicle_type},
+        {"$set": config},
+        upsert=True
+    )
+    
+    # Log the change
+    await db.admin_audit_log.insert_one({
+        "action": "delivery_fee_config_updated",
+        "vehicle_type": vehicle_type,
+        "timestamp": now,
+        "changes": config
+    })
+    
     return {
-        "base_fee": 20,
-        "per_km_rate": 8,
-        "min_fee": 20,
-        "max_fee": 200,
-        "free_delivery_below_km": 0,
-        "currency": "INR",
-        "description": "₹20 base fee + ₹8 per kilometer"
+        "message": f"Delivery fee config for {vehicle_type} updated successfully",
+        "vehicle_type": vehicle_type,
+        "upserted": result.upserted_id is not None
+    }
+
+
+@api_router.post("/admin/delivery-fee-config/initialize")
+async def admin_initialize_delivery_fee_config():
+    """
+    Initialize the delivery fee configuration with default values.
+    Use this to set up the initial configuration.
+    """
+    now = datetime.now(timezone.utc)
+    
+    # Check if config already exists
+    existing = await db.delivery_fee_config.find_one({"vehicle_type": "two_wheeler"})
+    if existing:
+        return {
+            "message": "Configuration already exists",
+            "config_id": str(existing["_id"])
+        }
+    
+    # Insert default config
+    default_config = smart_delivery_service.DEFAULT_DELIVERY_CONFIG.copy()
+    default_config["created_at"] = now
+    default_config["updated_at"] = now
+    
+    result = await db.delivery_fee_config.insert_one(default_config)
+    
+    return {
+        "message": "Delivery fee configuration initialized",
+        "config_id": str(result.inserted_id),
+        "vehicle_type": "two_wheeler"
     }
 
 
