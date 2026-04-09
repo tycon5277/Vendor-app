@@ -3795,15 +3795,13 @@ async def fetch_weather_from_admin_panel(zone_id: str) -> dict:
 
 async def fetch_weather_by_location(lat: float, lng: float) -> dict:
     """
-    Fetch weather for a location by first finding the zone, then checking Admin Panel.
+    Fetch weather for a location by first finding the zone from Admin Panel.
     Used when Wisher App opens to show weather warning.
     """
-    # Find which zone this location belongs to
-    zones = await zone_service.find_zones_for_point(lat, lng)
+    # Find which zone this location belongs to (from Admin Panel)
+    zone_result = await find_zone_for_point_from_admin(lat, lng)
     
-    if not zones:
-        # No zone found - check weather using coordinates directly
-        # For now, return no bad weather for unzoned areas
+    if not zone_result.get("success") or not zone_result.get("zone_id"):
         return {
             "is_bad_weather": False,
             "zone_id": None,
@@ -3812,40 +3810,32 @@ async def fetch_weather_by_location(lat: float, lng: float) -> dict:
             "source": "no_zone"
         }
     
-    # Use the first matching zone
-    zone = zones[0]
-    zone_id = zone["zone_id"]
+    zone_id = zone_result["zone_id"]
+    zone_name = zone_result.get("zone_name")
     
     # Fetch weather from Admin Panel for this zone
     weather = await fetch_weather_from_admin_panel(zone_id)
     
-    # Get zone's weather surge config
-    zone_config = await db.zone_delivery_fee_config.find_one(
-        {"zone_id": zone_id, "vehicle_type": "two_wheeler"}
-    )
-    if not zone_config:
-        zone_config = await db.delivery_fee_config.find_one(
-            {"vehicle_type": "two_wheeler", "is_active": True}
-        )
+    # Fetch fee config to get surge percent and toggle status
+    fee_result = await fetch_fee_config_from_admin(zone_id)
+    config = fee_result.get("config", {})
     
-    surge_percent = 0
-    weather_surge_enabled = True
+    surge_percent = config.get("bad_weather_surge_percent", 25)
+    toggles = config.get("toggles", {})
+    weather_surge_enabled = toggles.get("weather_surge_enabled", True)
     
-    if zone_config:
-        surge_percent = zone_config.get("bad_weather_surge_percent", 25)
-        toggles = zone_config.get("toggles", {})
-        weather_surge_enabled = toggles.get("weather_surge_enabled", True)
+    is_bad = weather.get("is_bad_weather", False) and weather_surge_enabled
     
     return {
-        "is_bad_weather": weather.get("is_bad_weather", False) and weather_surge_enabled,
+        "is_bad_weather": is_bad,
         "zone_id": zone_id,
-        "zone_name": zone.get("name"),
+        "zone_name": zone_name,
         "weather_type": weather.get("weather_type", ""),
         "temperature": weather.get("temperature"),
         "rain": weather.get("rain", 0),
         "wind_speed": weather.get("wind_speed", 0),
         "reasons": weather.get("reasons", []),
-        "surge_percent": surge_percent if weather.get("is_bad_weather") and weather_surge_enabled else 0,
+        "surge_percent": surge_percent if is_bad else 0,
         "surge_enabled": weather_surge_enabled,
         "message": _get_weather_message(weather, surge_percent, weather_surge_enabled),
         "source": weather.get("source", "admin_panel")
@@ -3983,8 +3973,7 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
     Uses Google Maps Distance Matrix API for accurate road distance.
     Returns full fee breakdown AND driver/company revenue split.
     
-    AUTOMATICALLY fetches weather from Admin Panel - no need to pass is_bad_weather.
-    Respects all fee toggles set by Admin.
+    ALL CONFIGS FETCHED FROM ADMIN PANEL IN REAL-TIME (no local storage).
     
     Request:
     {
@@ -4012,64 +4001,57 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
     if not data.delivery_location or "lat" not in data.delivery_location or "lng" not in data.delivery_location:
         raise HTTPException(status_code=400, detail="Invalid delivery location")
     
-    # Check which zone the vendor belongs to
-    vendor_zone = await zone_service.get_vendor_zone(data.vendor_id)
-    zone_id = vendor_zone["zone_id"] if vendor_zone else None
+    # STEP 1: Find zone for delivery location from Admin Panel
+    zone_result = await find_zone_for_point_from_admin(
+        data.delivery_location["lat"], 
+        data.delivery_location["lng"]
+    )
+    zone_id = zone_result.get("zone_id")
+    zone_name = zone_result.get("zone_name")
     
-    config = None
-    split_config = None
-    config_source = "global"
+    # STEP 2: Fetch fee config from Admin Panel (NOT local DB)
+    fee_result = await fetch_fee_config_from_admin(zone_id)
+    config = fee_result.get("config")
+    config_source = "admin_panel"
     
-    # Try to get zone-specific config first (if vendor has a zone)
-    if zone_id:
-        zone_fee_config = await db.zone_delivery_fee_config.find_one(
-            {"zone_id": zone_id, "vehicle_type": "two_wheeler", "is_active": True, "is_suspended": {"$ne": True}}
-        )
-        if zone_fee_config:
-            zone_fee_config.pop("_id", None)
-            config = zone_fee_config
-            config_source = "zone"
-        
-        zone_split_config = await db.zone_revenue_split_config.find_one(
-            {"zone_id": zone_id, "vehicle_type": "two_wheeler", "is_active": True}
-        )
-        if zone_split_config:
-            zone_split_config.pop("_id", None)
-            split_config = zone_split_config
-    
-    # Fall back to global config if no zone-specific config
     if not config:
-        config = await db.delivery_fee_config.find_one(
-            {"vehicle_type": "two_wheeler", "is_active": True}
-        )
-        if config:
-            config.pop("_id", None)
+        # Fallback to global config from Admin Panel
+        fee_result = await fetch_fee_config_from_admin(None)
+        config = fee_result.get("config")
+        config_source = "admin_panel_global"
+    
+    if not config:
+        # Last resort: use defaults from smart_delivery_service
+        config = smart_delivery_service.DEFAULT_DELIVERY_CONFIG
+        config_source = "default"
+    
+    # STEP 3: Fetch revenue split from Admin Panel (NOT local DB)
+    split_result = await fetch_revenue_split_from_admin(zone_id)
+    split_config = split_result.get("config")
     
     if not split_config:
-        split_config = await db.revenue_split_config.find_one(
-            {"vehicle_type": "two_wheeler", "is_active": True}
-        )
-        if split_config:
-            split_config.pop("_id", None)
+        # Fallback to global split from Admin Panel
+        split_result = await fetch_revenue_split_from_admin(None)
+        split_config = split_result.get("config")
     
-    # AUTO-FETCH WEATHER FROM ADMIN PANEL (not passed by client anymore)
+    if not split_config:
+        # Last resort: use defaults
+        split_config = smart_delivery_service.DEFAULT_REVENUE_SPLIT_CONFIG
+    
+    # STEP 4: Fetch weather from Admin Panel (real-time, no cache)
     weather_data = None
     is_bad_weather = False
     
     if zone_id:
         weather_data = await fetch_weather_from_admin_panel(zone_id)
-        # Check if weather surge is enabled in config
-        toggles = config.get("toggles", {}) if config else {}
+        # Check if weather surge is enabled in config toggles
+        toggles = config.get("toggles", {})
         weather_surge_enabled = toggles.get("weather_surge_enabled", True)
         
         if weather_data.get("is_bad_weather") and weather_surge_enabled:
             is_bad_weather = True
     
-    # Legacy support: if client explicitly passed is_bad_weather, respect it (for backward compatibility)
-    if data.is_bad_weather is not None:
-        is_bad_weather = data.is_bad_weather
-    
-    # Calculate delivery fee with toggles support
+    # STEP 5: Calculate delivery fee (respecting toggles from Admin Panel)
     result = await smart_delivery_service.calculate_full_delivery_fee(
         vendor_location=vendor_location,
         delivery_location=data.delivery_location,
@@ -4080,7 +4062,7 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
         config=config
     )
     
-    # Calculate revenue split
+    # STEP 6: Calculate revenue split
     revenue_split = smart_delivery_service.calculate_revenue_split(result, split_config)
     
     result["vendor_id"] = data.vendor_id
@@ -4093,13 +4075,16 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
         result["weather"] = {
             "is_bad_weather": is_bad_weather,
             "weather_type": weather_data.get("weather_type", ""),
+            "temperature": weather_data.get("temperature"),
+            "rain": weather_data.get("rain"),
             "reasons": weather_data.get("reasons", []),
             "source": weather_data.get("source", "admin_panel")
         }
     
+    # Include zone info
     if zone_id:
         result["zone_id"] = zone_id
-        result["zone_name"] = vendor_zone.get("name") if vendor_zone else None
+        result["zone_name"] = zone_name
     
     return result
 
