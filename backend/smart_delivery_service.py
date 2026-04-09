@@ -1,6 +1,7 @@
 """
 Smart Delivery Fee Calculation Service
 Supports Restaurant and Grocery with configurable pricing via Admin Panel
+Includes revenue split calculation between Driver and Company
 """
 import os
 import httpx
@@ -80,6 +81,47 @@ DEFAULT_DELIVERY_CONFIG = {
     
     # Currency
     "currency": "INR"
+}
+
+
+# Default revenue split configuration
+DEFAULT_REVENUE_SPLIT_CONFIG = {
+    "vehicle_type": "two_wheeler",
+    "version": 1,
+    "is_active": True,
+    
+    "splits": {
+        "base_fee": {
+            "driver_percent": 71.4,  # ₹25 out of ₹34.99
+            "company_percent": 28.6   # ₹9.99 out of ₹34.99
+        },
+        "distance_fee": {
+            "driver_percent": 72.7,  # ₹8 out of ₹11
+            "company_percent": 27.3   # ₹3 out of ₹11
+        },
+        "peak_surge": {
+            "driver_percent": 0,
+            "company_percent": 100
+        },
+        "weekend_surge": {
+            "driver_percent": 0,
+            "company_percent": 100
+        },
+        "weather_surge": {
+            "driver_percent": 0,
+            "company_percent": 100
+        },
+        "small_order_fee": {
+            "driver_percent": 0,
+            "company_percent": 100
+        },
+        "weight_surcharge": {
+            "driver_percent": 100,
+            "company_percent": 0
+        }
+    },
+    
+    "description": "Default revenue split between driver and company"
 }
 
 
@@ -322,12 +364,200 @@ def calculate_smart_delivery_fee(
         "delivery_fee": total_fee,
         "base_fee": base_fee,
         "distance_fee": distance_fee,
+        "peak_surge": peak_surge,
+        "weekend_surge": weekend_surge,
+        "weather_surge": weather_surge,
         "surcharges": round(peak_surge + weekend_surge + weather_surge, 2),
         "small_order_fee": small_order_fee,
         "weight_surcharge": weight_surcharge,
         "breakdown": breakdown,
         "currency": cfg.get("currency", "INR"),
         "vehicle_type": cfg.get("vehicle_type", "two_wheeler")
+    }
+
+
+def calculate_revenue_split(
+    fee_breakdown: Dict[str, Any],
+    split_config: Optional[Dict] = None
+) -> Dict[str, Any]:
+    """
+    Calculate revenue split between driver and company for each fee component.
+    
+    Args:
+        fee_breakdown: Result from calculate_smart_delivery_fee
+        split_config: Revenue split configuration (from DB or default)
+    
+    Returns:
+        Dictionary with driver_earnings and company_revenue breakdowns
+    """
+    splits = (split_config or DEFAULT_REVENUE_SPLIT_CONFIG).get("splits", DEFAULT_REVENUE_SPLIT_CONFIG["splits"])
+    
+    driver_earnings = {
+        "total": 0,
+        "breakdown": []
+    }
+    
+    company_revenue = {
+        "total": 0,
+        "breakdown": []
+    }
+    
+    # 1. Base Fee Split
+    base_fee = fee_breakdown.get("base_fee", 0)
+    if base_fee > 0:
+        base_split = splits.get("base_fee", {"driver_percent": 71.4, "company_percent": 28.6})
+        driver_base = round(base_fee * base_split["driver_percent"] / 100, 2)
+        company_base = round(base_fee * base_split["company_percent"] / 100, 2)
+        
+        driver_earnings["breakdown"].append({
+            "component": "base_fee",
+            "amount": driver_base,
+            "percent": base_split["driver_percent"]
+        })
+        driver_earnings["total"] += driver_base
+        
+        company_revenue["breakdown"].append({
+            "component": "base_fee",
+            "amount": company_base,
+            "percent": base_split["company_percent"]
+        })
+        company_revenue["total"] += company_base
+    
+    # 2. Distance Fee Split
+    distance_fee = fee_breakdown.get("distance_fee", 0)
+    if distance_fee > 0:
+        dist_split = splits.get("distance_fee", {"driver_percent": 72.7, "company_percent": 27.3})
+        driver_dist = round(distance_fee * dist_split["driver_percent"] / 100, 2)
+        company_dist = round(distance_fee * dist_split["company_percent"] / 100, 2)
+        
+        driver_earnings["breakdown"].append({
+            "component": "distance_fee",
+            "amount": driver_dist,
+            "percent": dist_split["driver_percent"]
+        })
+        driver_earnings["total"] += driver_dist
+        
+        company_revenue["breakdown"].append({
+            "component": "distance_fee",
+            "amount": company_dist,
+            "percent": dist_split["company_percent"]
+        })
+        company_revenue["total"] += company_dist
+    
+    # 3. Peak Surge Split
+    peak_surge = fee_breakdown.get("peak_surge", 0)
+    if peak_surge > 0:
+        peak_split = splits.get("peak_surge", {"driver_percent": 0, "company_percent": 100})
+        driver_peak = round(peak_surge * peak_split["driver_percent"] / 100, 2)
+        company_peak = round(peak_surge * peak_split["company_percent"] / 100, 2)
+        
+        driver_earnings["breakdown"].append({
+            "component": "peak_surge",
+            "amount": driver_peak,
+            "percent": peak_split["driver_percent"]
+        })
+        driver_earnings["total"] += driver_peak
+        
+        company_revenue["breakdown"].append({
+            "component": "peak_surge",
+            "amount": company_peak,
+            "percent": peak_split["company_percent"]
+        })
+        company_revenue["total"] += company_peak
+    
+    # 4. Weekend Surge Split
+    weekend_surge = fee_breakdown.get("weekend_surge", 0)
+    if weekend_surge > 0:
+        wknd_split = splits.get("weekend_surge", {"driver_percent": 0, "company_percent": 100})
+        driver_wknd = round(weekend_surge * wknd_split["driver_percent"] / 100, 2)
+        company_wknd = round(weekend_surge * wknd_split["company_percent"] / 100, 2)
+        
+        driver_earnings["breakdown"].append({
+            "component": "weekend_surge",
+            "amount": driver_wknd,
+            "percent": wknd_split["driver_percent"]
+        })
+        driver_earnings["total"] += driver_wknd
+        
+        company_revenue["breakdown"].append({
+            "component": "weekend_surge",
+            "amount": company_wknd,
+            "percent": wknd_split["company_percent"]
+        })
+        company_revenue["total"] += company_wknd
+    
+    # 5. Weather Surge Split
+    weather_surge = fee_breakdown.get("weather_surge", 0)
+    if weather_surge > 0:
+        wthr_split = splits.get("weather_surge", {"driver_percent": 0, "company_percent": 100})
+        driver_wthr = round(weather_surge * wthr_split["driver_percent"] / 100, 2)
+        company_wthr = round(weather_surge * wthr_split["company_percent"] / 100, 2)
+        
+        driver_earnings["breakdown"].append({
+            "component": "weather_surge",
+            "amount": driver_wthr,
+            "percent": wthr_split["driver_percent"]
+        })
+        driver_earnings["total"] += driver_wthr
+        
+        company_revenue["breakdown"].append({
+            "component": "weather_surge",
+            "amount": company_wthr,
+            "percent": wthr_split["company_percent"]
+        })
+        company_revenue["total"] += company_wthr
+    
+    # 6. Small Order Fee Split
+    small_order_fee = fee_breakdown.get("small_order_fee", 0)
+    if small_order_fee > 0:
+        small_split = splits.get("small_order_fee", {"driver_percent": 0, "company_percent": 100})
+        driver_small = round(small_order_fee * small_split["driver_percent"] / 100, 2)
+        company_small = round(small_order_fee * small_split["company_percent"] / 100, 2)
+        
+        driver_earnings["breakdown"].append({
+            "component": "small_order_fee",
+            "amount": driver_small,
+            "percent": small_split["driver_percent"]
+        })
+        driver_earnings["total"] += driver_small
+        
+        company_revenue["breakdown"].append({
+            "component": "small_order_fee",
+            "amount": company_small,
+            "percent": small_split["company_percent"]
+        })
+        company_revenue["total"] += company_small
+    
+    # 7. Weight Surcharge Split
+    weight_surcharge = fee_breakdown.get("weight_surcharge", 0)
+    if weight_surcharge > 0:
+        wght_split = splits.get("weight_surcharge", {"driver_percent": 100, "company_percent": 0})
+        driver_wght = round(weight_surcharge * wght_split["driver_percent"] / 100, 2)
+        company_wght = round(weight_surcharge * wght_split["company_percent"] / 100, 2)
+        
+        driver_earnings["breakdown"].append({
+            "component": "weight_surcharge",
+            "amount": driver_wght,
+            "percent": wght_split["driver_percent"]
+        })
+        driver_earnings["total"] += driver_wght
+        
+        company_revenue["breakdown"].append({
+            "component": "weight_surcharge",
+            "amount": company_wght,
+            "percent": wght_split["company_percent"]
+        })
+        company_revenue["total"] += company_wght
+    
+    # Round totals
+    driver_earnings["total"] = round(driver_earnings["total"], 2)
+    company_revenue["total"] = round(company_revenue["total"], 2)
+    
+    return {
+        "driver_earnings": driver_earnings,
+        "company_revenue": company_revenue,
+        "total_fee": fee_breakdown.get("delivery_fee", 0),
+        "split_verification": round(driver_earnings["total"] + company_revenue["total"], 2)
     }
 
 

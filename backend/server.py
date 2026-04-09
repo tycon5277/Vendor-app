@@ -3750,6 +3750,7 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
     """
     Calculate smart delivery fee based on distance, vendor type, and various factors.
     Uses Google Maps Distance Matrix API for accurate road distance.
+    Returns full fee breakdown AND driver/company revenue split.
     
     Request:
     {
@@ -3785,6 +3786,13 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
     if config:
         config.pop("_id", None)
     
+    # Get revenue split config from DB (or use default)
+    split_config = await db.revenue_split_config.find_one(
+        {"vehicle_type": "two_wheeler", "is_active": True}
+    )
+    if split_config:
+        split_config.pop("_id", None)
+    
     # Calculate delivery fee
     result = await smart_delivery_service.calculate_full_delivery_fee(
         vendor_location=vendor_location,
@@ -3796,8 +3804,12 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
         config=config
     )
     
+    # Calculate revenue split
+    revenue_split = smart_delivery_service.calculate_revenue_split(result, split_config)
+    
     result["vendor_id"] = data.vendor_id
     result["vendor_name"] = vendor.get("vendor_shop_name")
+    result["revenue_split"] = revenue_split
     
     return result
 
@@ -3926,6 +3938,440 @@ async def admin_initialize_delivery_fee_config():
         "message": "Delivery fee configuration initialized",
         "config_id": str(result.inserted_id),
         "vehicle_type": "two_wheeler"
+    }
+
+
+# ==================== ADMIN: REVENUE SPLIT CONFIG ====================
+
+@api_router.get("/admin/revenue-split-config")
+async def admin_get_all_revenue_split_configs():
+    """
+    Get all revenue split configurations.
+    """
+    configs = await db.revenue_split_config.find().to_list(100)
+    for config in configs:
+        config["_id"] = str(config["_id"])
+    
+    if not configs:
+        return {
+            "configs": [smart_delivery_service.DEFAULT_REVENUE_SPLIT_CONFIG],
+            "message": "Using default configuration. Save to customize."
+        }
+    
+    return {"configs": configs}
+
+
+@api_router.get("/admin/revenue-split-config/{vehicle_type}")
+async def admin_get_revenue_split_config(vehicle_type: str):
+    """
+    Get revenue split configuration for a specific vehicle type.
+    """
+    config = await db.revenue_split_config.find_one({"vehicle_type": vehicle_type})
+    
+    if config:
+        config["_id"] = str(config["_id"])
+        return config
+    
+    if vehicle_type == "two_wheeler":
+        return smart_delivery_service.DEFAULT_REVENUE_SPLIT_CONFIG
+    
+    raise HTTPException(status_code=404, detail=f"Revenue split config for {vehicle_type} not found")
+
+
+@api_router.put("/admin/revenue-split-config/{vehicle_type}")
+async def admin_update_revenue_split_config(vehicle_type: str, config: dict):
+    """
+    Update or create revenue split configuration for a vehicle type.
+    
+    Request body example:
+    {
+        "splits": {
+            "base_fee": {"driver_percent": 71.4, "company_percent": 28.6},
+            "distance_fee": {"driver_percent": 72.7, "company_percent": 27.3},
+            "peak_surge": {"driver_percent": 0, "company_percent": 100},
+            "weekend_surge": {"driver_percent": 0, "company_percent": 100},
+            "weather_surge": {"driver_percent": 0, "company_percent": 100},
+            "small_order_fee": {"driver_percent": 0, "company_percent": 100},
+            "weight_surcharge": {"driver_percent": 100, "company_percent": 0}
+        }
+    }
+    """
+    now = datetime.now(timezone.utc)
+    
+    # Validate splits
+    if "splits" not in config:
+        raise HTTPException(status_code=400, detail="Missing 'splits' in config")
+    
+    # Validate each split totals 100%
+    for component, split in config["splits"].items():
+        total = split.get("driver_percent", 0) + split.get("company_percent", 0)
+        if abs(total - 100) > 0.01:  # Allow small floating point errors
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Split for {component} must total 100% (got {total}%)"
+            )
+    
+    config["vehicle_type"] = vehicle_type
+    config["updated_at"] = now
+    config["is_active"] = True
+    
+    result = await db.revenue_split_config.update_one(
+        {"vehicle_type": vehicle_type},
+        {"$set": config},
+        upsert=True
+    )
+    
+    # Log the change
+    await db.admin_audit_log.insert_one({
+        "action": "revenue_split_config_updated",
+        "vehicle_type": vehicle_type,
+        "timestamp": now,
+        "changes": config
+    })
+    
+    return {
+        "message": f"Revenue split config for {vehicle_type} updated successfully",
+        "vehicle_type": vehicle_type
+    }
+
+
+@api_router.post("/admin/revenue-split-config/initialize")
+async def admin_initialize_revenue_split_config():
+    """
+    Initialize the revenue split configuration with default values.
+    """
+    now = datetime.now(timezone.utc)
+    
+    existing = await db.revenue_split_config.find_one({"vehicle_type": "two_wheeler"})
+    if existing:
+        return {
+            "message": "Revenue split configuration already exists",
+            "config_id": str(existing["_id"])
+        }
+    
+    default_config = smart_delivery_service.DEFAULT_REVENUE_SPLIT_CONFIG.copy()
+    default_config["created_at"] = now
+    default_config["updated_at"] = now
+    
+    result = await db.revenue_split_config.insert_one(default_config)
+    
+    return {
+        "message": "Revenue split configuration initialized",
+        "config_id": str(result.inserted_id),
+        "vehicle_type": "two_wheeler"
+    }
+
+
+# ==================== ADMIN: DELIVERY ANALYTICS ====================
+
+@api_router.get("/admin/delivery-analytics")
+async def admin_get_delivery_analytics(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    period: str = "daily"  # daily, weekly, monthly
+):
+    """
+    Get delivery fee analytics and revenue breakdown.
+    
+    Query params:
+    - start_date: YYYY-MM-DD (default: 30 days ago)
+    - end_date: YYYY-MM-DD (default: today)
+    - period: daily, weekly, monthly
+    """
+    now = datetime.now(timezone.utc)
+    
+    # Parse dates
+    if end_date:
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    else:
+        end_dt = now
+    
+    if start_date:
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    else:
+        start_dt = end_dt - timedelta(days=30)
+    
+    # Aggregate delivery transactions
+    pipeline = [
+        {
+            "$match": {
+                "created_at": {"$gte": start_dt, "$lte": end_dt}
+            }
+        },
+        {
+            "$group": {
+                "_id": None,
+                "total_deliveries": {"$sum": 1},
+                "total_fees_collected": {"$sum": "$total_fee"},
+                "total_driver_earnings": {"$sum": "$driver_earnings.total"},
+                "total_company_revenue": {"$sum": "$company_revenue.total"},
+                "avg_delivery_fee": {"$avg": "$total_fee"},
+                "avg_distance_km": {"$avg": "$distance_km"},
+                "total_base_fees": {"$sum": "$base_fee"},
+                "total_distance_fees": {"$sum": "$distance_fee"},
+                "total_surcharges": {"$sum": "$surcharges"},
+                "total_small_order_fees": {"$sum": "$small_order_fee"},
+                "total_weight_surcharges": {"$sum": "$weight_surcharge"}
+            }
+        }
+    ]
+    
+    results = await db.delivery_transactions.aggregate(pipeline).to_list(1)
+    
+    if results:
+        analytics = results[0]
+        analytics.pop("_id", None)
+    else:
+        analytics = {
+            "total_deliveries": 0,
+            "total_fees_collected": 0,
+            "total_driver_earnings": 0,
+            "total_company_revenue": 0,
+            "avg_delivery_fee": 0,
+            "avg_distance_km": 0,
+            "total_base_fees": 0,
+            "total_distance_fees": 0,
+            "total_surcharges": 0,
+            "total_small_order_fees": 0,
+            "total_weight_surcharges": 0
+        }
+    
+    # Get daily/weekly/monthly breakdown
+    if period == "daily":
+        group_format = "%Y-%m-%d"
+    elif period == "weekly":
+        group_format = "%Y-W%V"
+    else:
+        group_format = "%Y-%m"
+    
+    trend_pipeline = [
+        {
+            "$match": {
+                "created_at": {"$gte": start_dt, "$lte": end_dt}
+            }
+        },
+        {
+            "$group": {
+                "_id": {"$dateToString": {"format": group_format, "date": "$created_at"}},
+                "deliveries": {"$sum": 1},
+                "fees_collected": {"$sum": "$total_fee"},
+                "driver_earnings": {"$sum": "$driver_earnings.total"},
+                "company_revenue": {"$sum": "$company_revenue.total"}
+            }
+        },
+        {"$sort": {"_id": 1}}
+    ]
+    
+    trends = await db.delivery_transactions.aggregate(trend_pipeline).to_list(100)
+    
+    return {
+        "period": {
+            "start_date": start_dt.isoformat(),
+            "end_date": end_dt.isoformat(),
+            "aggregation": period
+        },
+        "summary": analytics,
+        "trends": trends,
+        "revenue_split_summary": {
+            "driver_share_percent": round(
+                (analytics["total_driver_earnings"] / analytics["total_fees_collected"] * 100)
+                if analytics["total_fees_collected"] > 0 else 0, 2
+            ),
+            "company_share_percent": round(
+                (analytics["total_company_revenue"] / analytics["total_fees_collected"] * 100)
+                if analytics["total_fees_collected"] > 0 else 0, 2
+            )
+        }
+    }
+
+
+@api_router.get("/admin/driver-earnings")
+async def admin_get_driver_earnings(
+    driver_id: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """
+    Get driver earnings report.
+    
+    Query params:
+    - driver_id: Optional specific driver
+    - start_date: YYYY-MM-DD
+    - end_date: YYYY-MM-DD
+    """
+    now = datetime.now(timezone.utc)
+    
+    if end_date:
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    else:
+        end_dt = now
+    
+    if start_date:
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    else:
+        start_dt = end_dt - timedelta(days=30)
+    
+    match_stage = {"created_at": {"$gte": start_dt, "$lte": end_dt}}
+    if driver_id:
+        match_stage["driver_id"] = driver_id
+    
+    pipeline = [
+        {"$match": match_stage},
+        {
+            "$group": {
+                "_id": "$driver_id",
+                "total_deliveries": {"$sum": 1},
+                "total_earnings": {"$sum": "$driver_earnings.total"},
+                "earnings_from_base": {"$sum": {"$arrayElemAt": [
+                    {"$filter": {
+                        "input": "$driver_earnings.breakdown",
+                        "cond": {"$eq": ["$$this.component", "base_fee"]}
+                    }}, 0
+                ]}},
+                "earnings_from_distance": {"$sum": {"$arrayElemAt": [
+                    {"$filter": {
+                        "input": "$driver_earnings.breakdown", 
+                        "cond": {"$eq": ["$$this.component", "distance_fee"]}
+                    }}, 0
+                ]}},
+                "earnings_from_weight": {"$sum": {"$arrayElemAt": [
+                    {"$filter": {
+                        "input": "$driver_earnings.breakdown",
+                        "cond": {"$eq": ["$$this.component", "weight_surcharge"]}
+                    }}, 0
+                ]}},
+                "avg_earnings_per_delivery": {"$avg": "$driver_earnings.total"},
+                "total_distance_km": {"$sum": "$distance_km"}
+            }
+        },
+        {"$sort": {"total_earnings": -1}}
+    ]
+    
+    results = await db.delivery_transactions.aggregate(pipeline).to_list(100)
+    
+    # Enrich with driver names
+    for r in results:
+        driver = await db.users.find_one({"user_id": r["_id"]}, {"name": 1, "phone": 1})
+        if driver:
+            r["driver_name"] = driver.get("name", "Unknown")
+            r["driver_phone"] = driver.get("phone", "N/A")
+        r["driver_id"] = r.pop("_id")
+    
+    return {
+        "period": {
+            "start_date": start_dt.isoformat(),
+            "end_date": end_dt.isoformat()
+        },
+        "drivers": results,
+        "total_drivers": len(results)
+    }
+
+
+# ==================== ADMIN: REVENUE POOL ====================
+
+@api_router.get("/admin/revenue-pool")
+async def admin_get_revenue_pool():
+    """
+    Get company revenue pool balance and recent allocations.
+    """
+    # Calculate total company revenue from transactions
+    pipeline = [
+        {
+            "$group": {
+                "_id": None,
+                "total_revenue": {"$sum": "$company_revenue.total"}
+            }
+        }
+    ]
+    
+    revenue_result = await db.delivery_transactions.aggregate(pipeline).to_list(1)
+    total_revenue = revenue_result[0]["total_revenue"] if revenue_result else 0
+    
+    # Get total allocations
+    alloc_pipeline = [
+        {
+            "$group": {
+                "_id": "$type",
+                "total_allocated": {"$sum": "$amount"}
+            }
+        }
+    ]
+    
+    allocations = await db.revenue_pool_allocations.aggregate(alloc_pipeline).to_list(10)
+    
+    total_allocated = sum(a["total_allocated"] for a in allocations)
+    
+    # Get recent allocations
+    recent_allocations = await db.revenue_pool_allocations.find().sort("created_at", -1).limit(20).to_list(20)
+    for alloc in recent_allocations:
+        alloc["_id"] = str(alloc["_id"])
+    
+    return {
+        "pool_balance": round(total_revenue - total_allocated, 2),
+        "total_revenue_collected": round(total_revenue, 2),
+        "total_allocated": round(total_allocated, 2),
+        "allocation_breakdown": {a["_id"]: a["total_allocated"] for a in allocations},
+        "recent_allocations": recent_allocations
+    }
+
+
+@api_router.post("/admin/revenue-pool/allocate")
+async def admin_allocate_from_revenue_pool(data: dict):
+    """
+    Allocate funds from the revenue pool.
+    
+    Request body:
+    {
+        "type": "driver_bonus" | "customer_discount" | "operational" | "marketing",
+        "amount": 1000,
+        "description": "Rain day bonus for top 10 drivers",
+        "recipient_ids": ["user_xxx", "user_yyy"]  // Optional
+    }
+    """
+    now = datetime.now(timezone.utc)
+    
+    allocation_type = data.get("type")
+    amount = data.get("amount")
+    description = data.get("description", "")
+    recipient_ids = data.get("recipient_ids", [])
+    
+    if not allocation_type or not amount:
+        raise HTTPException(status_code=400, detail="Missing type or amount")
+    
+    valid_types = ["driver_bonus", "customer_discount", "operational", "marketing", "refund"]
+    if allocation_type not in valid_types:
+        raise HTTPException(status_code=400, detail=f"Invalid type. Must be one of: {valid_types}")
+    
+    # Check pool balance
+    pool_info = await admin_get_revenue_pool()
+    if amount > pool_info["pool_balance"]:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Insufficient pool balance. Available: ₹{pool_info['pool_balance']}"
+        )
+    
+    allocation = {
+        "allocation_id": f"alloc_{uuid.uuid4().hex[:12]}",
+        "type": allocation_type,
+        "amount": amount,
+        "description": description,
+        "recipient_ids": recipient_ids,
+        "created_at": now
+    }
+    
+    await db.revenue_pool_allocations.insert_one(allocation)
+    
+    # Log the action
+    await db.admin_audit_log.insert_one({
+        "action": "revenue_pool_allocation",
+        "allocation": allocation,
+        "timestamp": now
+    })
+    
+    return {
+        "message": f"Successfully allocated ₹{amount} for {allocation_type}",
+        "allocation_id": allocation["allocation_id"],
+        "new_pool_balance": round(pool_info["pool_balance"] - amount, 2)
     }
 
 
