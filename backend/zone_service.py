@@ -16,8 +16,8 @@ logger = logging.getLogger("zone_service")
 # Will be set from server.py
 db = None
 
-# Admin Panel URL - Source of truth for zones
-ADMIN_PANEL_URL = os.environ.get("ADMIN_PANEL_URL", "https://bad-weather-fees.preview.emergentagent.com")
+# Admin Panel URL - Source of truth for zones, fees, and weather
+ADMIN_PANEL_URL = os.environ.get("ADMIN_PANEL_URL", "https://zone-config-api.preview.emergentagent.com")
 
 def set_db(database):
     global db
@@ -71,42 +71,54 @@ async def sync_zones_from_admin() -> dict:
     Sync all zones from Admin Panel to local database.
     Admin Panel is the source of truth for zones.
     
-    NOTE: Requires Admin Panel to expose a public zones endpoint:
-    GET /api/zones/public
+    Endpoint: GET /api/zones/public/sync
     """
     try:
         async with httpx.AsyncClient() as client:
-            # Try public endpoint first
             response = await client.get(
-                f"{ADMIN_PANEL_URL}/api/zones/public",
+                f"{ADMIN_PANEL_URL}/api/zones/public/sync",
                 timeout=10.0
             )
             
-            if response.status_code != 200:
-                # Try alternative endpoint
-                response = await client.get(
-                    f"{ADMIN_PANEL_URL}/api/admin/zones/public",
-                    timeout=10.0
-                )
-            
             if response.status_code == 200:
                 data = response.json()
-                zones = data.get("zones", data) if isinstance(data, dict) else data
-                
-                if not isinstance(zones, list):
-                    zones = [zones] if zones else []
+                zones = data.get("zones", [])
                 
                 synced_count = 0
                 for zone in zones:
                     if not zone.get("zone_id"):
                         continue
-                    # Upsert each zone from Admin Panel
-                    zone["synced_from_admin"] = True
-                    zone["synced_at"] = datetime.now(timezone.utc).isoformat()
+                    
+                    # Transform Admin Panel zone format to Vendor App format
+                    zone_doc = {
+                        "zone_id": zone["zone_id"],
+                        "name": zone.get("name", "").strip(),
+                        "zone_code": zone.get("zone_code"),
+                        "status": zone.get("status", "active"),
+                        "is_active": zone.get("status") == "active",
+                        "boundary": zone.get("boundary"),
+                        "center": zone.get("center"),
+                        "zone_type": "polygon" if zone.get("boundary") else "circle",
+                        "vendor_count": zone.get("vendor_count", 0),
+                        "carpet_genie_zone_id": zone.get("carpet_genie_zone_id"),
+                        "synced_from_admin": True,
+                        "synced_at": datetime.now(timezone.utc).isoformat(),
+                        "admin_created_at": zone.get("created_at"),
+                        "admin_updated_at": zone.get("updated_at")
+                    }
+                    
+                    # Calculate center from boundary if not provided
+                    if not zone_doc["center"] and zone_doc["boundary"]:
+                        try:
+                            zone_shape = shape(zone_doc["boundary"])
+                            centroid = zone_shape.centroid
+                            zone_doc["center"] = {"lat": centroid.y, "lng": centroid.x}
+                        except Exception:
+                            pass
                     
                     await db.zones.update_one(
                         {"zone_id": zone["zone_id"]},
-                        {"$set": zone},
+                        {"$set": zone_doc},
                         upsert=True
                     )
                     synced_count += 1
@@ -115,14 +127,14 @@ async def sync_zones_from_admin() -> dict:
                 return {
                     "success": True,
                     "synced_count": synced_count,
-                    "source": "admin_panel"
+                    "source": "admin_panel",
+                    "sync_timestamp": data.get("sync_timestamp")
                 }
             else:
-                logger.warning(f"Admin Panel zones API returned {response.status_code}. Need public endpoint.")
+                logger.warning(f"Admin Panel zones API returned {response.status_code}")
                 return {
                     "success": False,
-                    "error": f"Admin Panel returned {response.status_code}. Please create GET /api/zones/public endpoint in Admin Panel.",
-                    "hint": "Admin Panel needs to expose zones publicly for Vendor App to sync"
+                    "error": f"Admin Panel returned {response.status_code}"
                 }
     except Exception as e:
         logger.error(f"Failed to sync zones from Admin Panel: {e}")

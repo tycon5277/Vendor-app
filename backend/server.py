@@ -3746,7 +3746,7 @@ class DeliveryFeeRequest(BaseModel):
 
 
 # Admin Panel Weather API URL
-ADMIN_PANEL_URL = os.environ.get("ADMIN_PANEL_URL", "https://bad-weather-fees.preview.emergentagent.com")
+ADMIN_PANEL_URL = os.environ.get("ADMIN_PANEL_URL", "https://zone-config-api.preview.emergentagent.com")
 
 
 async def fetch_weather_from_admin_panel(zone_id: str) -> dict:
@@ -3869,6 +3869,111 @@ def _get_weather_message(weather: dict, surge_percent: float, enabled: bool) -> 
         return f"🌡️ Extreme temperature - delivery fees are {surge_percent}% higher"
     else:
         return f"⚠️ Bad weather - delivery fees are {surge_percent}% higher"
+
+
+async def fetch_fee_config_from_admin(zone_id: str = None) -> dict:
+    """
+    Fetch fee configuration from Admin Panel.
+    Admin Panel is the source of truth for all fee configs.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            if zone_id:
+                # Try zone-specific config first
+                response = await client.get(
+                    f"{ADMIN_PANEL_URL}/api/fees/public/zone/{zone_id}",
+                    timeout=5.0
+                )
+            else:
+                # Get global config
+                response = await client.get(
+                    f"{ADMIN_PANEL_URL}/api/fees/public/global",
+                    timeout=5.0
+                )
+            
+            if response.status_code == 200:
+                data = response.json()
+                config = data.get("config", data)
+                return {
+                    "success": True,
+                    "config": config,
+                    "zone_id": zone_id,
+                    "has_custom_config": data.get("has_custom_config", False),
+                    "source": "admin_panel"
+                }
+    except Exception as e:
+        logger.warning(f"Failed to fetch fee config from Admin Panel: {e}")
+    
+    return {"success": False, "config": None, "source": "fallback"}
+
+
+async def fetch_revenue_split_from_admin(zone_id: str = None) -> dict:
+    """
+    Fetch revenue split configuration from Admin Panel.
+    Admin Panel is the source of truth for all revenue splits.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            if zone_id:
+                response = await client.get(
+                    f"{ADMIN_PANEL_URL}/api/revenue-split/public/zone/{zone_id}",
+                    timeout=5.0
+                )
+            else:
+                response = await client.get(
+                    f"{ADMIN_PANEL_URL}/api/revenue-split/public/global",
+                    timeout=5.0
+                )
+            
+            if response.status_code == 200:
+                data = response.json()
+                config = data.get("config", data)
+                return {
+                    "success": True,
+                    "config": config,
+                    "zone_id": zone_id,
+                    "source": "admin_panel"
+                }
+    except Exception as e:
+        logger.warning(f"Failed to fetch revenue split from Admin Panel: {e}")
+    
+    return {"success": False, "config": None, "source": "fallback"}
+
+
+async def find_zone_for_point_from_admin(lat: float, lng: float) -> dict:
+    """
+    Find which zone a point belongs to using Admin Panel.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{ADMIN_PANEL_URL}/api/zones/public/find-for-point",
+                json={"lat": lat, "lng": lng},
+                timeout=5.0
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                matching_zones = data.get("matching_zones", [])
+                if matching_zones:
+                    return {
+                        "success": True,
+                        "zone_id": matching_zones[0].get("zone_id"),
+                        "zone_name": matching_zones[0].get("name"),
+                        "all_zones": matching_zones,
+                        "source": "admin_panel"
+                    }
+                return {
+                    "success": True,
+                    "zone_id": None,
+                    "zone_name": None,
+                    "message": "Location not in any delivery zone",
+                    "source": "admin_panel"
+                }
+    except Exception as e:
+        logger.warning(f"Failed to find zone from Admin Panel: {e}")
+    
+    return {"success": False, "zone_id": None, "source": "fallback"}
 
 
 @api_router.post("/calculate-delivery-fee")
