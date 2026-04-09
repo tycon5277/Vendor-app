@@ -6,8 +6,15 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 ## Scale Target
 - 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
 
-## Latest Updates (March 2026)
-- **[March 22] Verified Vendor Badge Fix** — Fixed the "Verified Vendor" badge not rendering on Profile screen. Root cause: `typography.caption.fontSize` referenced non-existent property (only `caption1`/`caption2` exist). Changed to hardcoded value `12`. Badge now displays correctly showing ✓ Verified or ⏱ Pending status.
+## Latest Updates (April 2026)
+- **[April 9] Zone-by-Zone Delivery Fee Control** — Added complete zone-specific delivery fee and revenue split configuration APIs. Admin can now:
+  - Set different fees per zone (higher fees for remote areas)
+  - Configure different driver/company splits per zone
+  - Suspend/activate fees globally or per-zone
+  - View all zones with their config status (custom vs global)
+- **[April 6] Smart Delivery Fee System** — Built comprehensive delivery fee calculation with Google Maps Distance Matrix API for accurate road distances. Includes base fee, distance fee, peak/weekend/weather surges, small order fees, and weight surcharges.
+- **[April 6] Revenue Split Model** — Configurable driver/company percentage splits for all fee components (base_fee: 71.4%/28.6%, distance_fee: 72.7%/27.3%, surges: 0%/100%, weight: 100%/0%).
+- **[March 22] Verified Vendor Badge Fix** — Fixed the "Verified Vendor" badge not rendering on Profile screen.
 - **[March 17] Vendor Admin APIs** — Added comprehensive admin APIs for vendor management, analytics, and zone integration. Ready for Admin Panel (Mission HQ) integration.
 - **[March 17] Zone System Architecture** — Zone CRUD will live in Admin Panel. Vendor App has read-only zone APIs.
 - **[March 14] Authorization Bug Fix** — Fixed "Only genies can access this endpoint" error on Mark as Delivered and other Genie endpoints. Root cause: inconsistent role check (`partner_type != "genie"` vs `partner_type != "agent"`). All Genie endpoints now consistently use `partner_type == "agent"`.
@@ -249,9 +256,9 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - `/app/documents/WISHER_VARIATION_UI_GUIDE.md` — NEW: Complete guide for displaying products with variations in Wisher App
 
 ## Upcoming
-- (P1) Fee Calculation Algorithm for delivery fees
+- (P1) Auto Rickshaw Delivery Fee Pricing — Separate fee structure for autos
+- (P1) Discounts Feature — Promo codes and promotional discounts
 - (P1) Admin Panel UI for zone management
-- (P1) **POS Integration Study** — Research vendor POS systems for real-time stock sync
 
 ## Backlog
 - (P1) Wisher App "Multi-Order" UI

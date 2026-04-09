@@ -4,6 +4,19 @@
 
 ---
 
+## API Overview
+
+| Category | Scope | Description |
+|----------|-------|-------------|
+| Fee Configuration | Global | System-wide fee settings for all zones |
+| Fee Configuration | Zone | Zone-specific fee overrides |
+| Revenue Split | Global | System-wide driver/company split |
+| Revenue Split | Zone | Zone-specific split overrides |
+| Suspend/Activate | Both | Enable/disable fees globally or per-zone |
+| Analytics | Both | Revenue tracking and reports |
+
+---
+
 ## 1. Fee Calculation API (Wisher App)
 
 ### Calculate Delivery Fee
@@ -12,13 +25,14 @@ POST /api/calculate-delivery-fee
 ```
 
 Calculates delivery fee with full breakdown and driver/company revenue split.
+**Automatically uses zone-specific config if vendor belongs to a zone with custom config.**
 
 **Request:**
 ```json
 {
   "vendor_id": "user_xxx",
   "delivery_location": {"lat": 11.85, "lng": 75.43},
-  "vendor_type": "restaurant",  // or "grocery"
+  "vendor_type": "restaurant",
   "order_value": 350,
   "weight_kg": 2.5,
   "is_bad_weather": false
@@ -40,35 +54,22 @@ Calculates delivery fee with full breakdown and driver/company revenue split.
   "distance_text": "3.8 km",
   "duration_mins": 10,
   "estimated_delivery_time": "25-35 mins",
-  "breakdown": {
-    "components": [
-      {"name": "Base Fee (first 3 km)", "amount": 34.99},
-      {"name": "Distance Fee (0.8 km × ₹11)", "amount": 8.25}
-    ]
-  },
+  "config_source": "zone",
+  "zone_id": "zone_xxx",
+  "zone_name": "Kowdiar Circle",
+  "breakdown": {...},
   "revenue_split": {
-    "driver_earnings": {
-      "total": 50.97,
-      "breakdown": [
-        {"component": "base_fee", "amount": 24.98, "percent": 71.4},
-        {"component": "distance_fee", "amount": 6.0, "percent": 72.7}
-      ]
-    },
-    "company_revenue": {
-      "total": 27.25,
-      "breakdown": [
-        {"component": "base_fee", "amount": 10.01, "percent": 28.6}
-      ]
-    }
+    "driver_earnings": {"total": 50.97, "breakdown": [...]},
+    "company_revenue": {"total": 27.25, "breakdown": [...]}
   }
 }
 ```
 
 ---
 
-## 2. Delivery Fee Configuration APIs
+## 2. GLOBAL Delivery Fee Configuration APIs
 
-### Get All Configurations
+### Get All Global Configurations
 ```
 GET /api/admin/delivery-fee-config
 ```
@@ -79,7 +80,7 @@ GET /api/admin/delivery-fee-config/{vehicle_type}
 ```
 Example: `GET /api/admin/delivery-fee-config/two_wheeler`
 
-### Update Configuration
+### Update Global Configuration
 ```
 PUT /api/admin/delivery-fee-config/{vehicle_type}
 ```
@@ -128,9 +129,91 @@ PUT /api/admin/delivery-fee-config/{vehicle_type}
 POST /api/admin/delivery-fee-config/initialize
 ```
 
+### Suspend Global Delivery Fees
+```
+PUT /api/admin/delivery-fee-config/{vehicle_type}/suspend
+```
+
+### Activate Global Delivery Fees
+```
+PUT /api/admin/delivery-fee-config/{vehicle_type}/activate
+```
+
 ---
 
-## 3. Revenue Split Configuration APIs
+## 3. ZONE-SPECIFIC Delivery Fee Configuration APIs
+
+### Get All Zones with Fee Config Status
+```
+GET /api/admin/zones/delivery-fee-configs
+```
+
+**Response:**
+```json
+{
+  "zones": [
+    {
+      "zone_id": "zone_xxx",
+      "zone_name": "Kowdiar Circle",
+      "config_type": "zone_specific",
+      "is_suspended": false,
+      "is_active": true,
+      "base_fee": {...},
+      "per_km_rate": 14
+    },
+    {
+      "zone_id": "zone_yyy",
+      "zone_name": "Edappally Zone",
+      "config_type": "global",
+      "is_suspended": false,
+      "is_active": true,
+      "message": "Using global configuration"
+    }
+  ],
+  "total_zones": 2,
+  "zones_with_custom_config": 1,
+  "global_config_exists": true
+}
+```
+
+### Get Zone-Specific Fee Config
+```
+GET /api/admin/zones/{zone_id}/delivery-fee-config
+```
+
+Returns zone-specific config if exists, otherwise falls back to global config with `config_type: "global_fallback"`.
+
+### Create/Update Zone-Specific Fee Config
+```
+PUT /api/admin/zones/{zone_id}/delivery-fee-config
+```
+
+**Request Body:** (Same structure as global config)
+```json
+{
+  "base_fee": {"restaurant": 39.99, "grocery": 39.99},
+  "base_distance_km": 2,
+  "per_km_rate": 14,
+  "peak_surge_percent": 30,
+  ...
+}
+```
+
+### Suspend Zone Delivery Fees
+```
+PUT /api/admin/zones/{zone_id}/delivery-fee-config/suspend
+```
+
+When suspended, zone will fall back to global config.
+
+### Activate Zone Delivery Fees
+```
+PUT /api/admin/zones/{zone_id}/delivery-fee-config/activate
+```
+
+---
+
+## 4. GLOBAL Revenue Split Configuration APIs
 
 ### Get All Split Configurations
 ```
@@ -142,7 +225,7 @@ GET /api/admin/revenue-split-config
 GET /api/admin/revenue-split-config/{vehicle_type}
 ```
 
-### Update Split Configuration
+### Update Global Split Configuration
 ```
 PUT /api/admin/revenue-split-config/{vehicle_type}
 ```
@@ -171,43 +254,70 @@ POST /api/admin/revenue-split-config/initialize
 
 ---
 
-## 4. Analytics APIs
+## 5. ZONE-SPECIFIC Revenue Split Configuration APIs
 
-### Get Delivery Analytics
+### Get All Zones with Split Config Status
 ```
-GET /api/admin/delivery-analytics?start_date=2026-03-01&end_date=2026-03-31&period=daily
+GET /api/admin/zones/revenue-split-configs
 ```
-
-**Query Parameters:**
-- `start_date`: YYYY-MM-DD (default: 30 days ago)
-- `end_date`: YYYY-MM-DD (default: today)
-- `period`: `daily`, `weekly`, or `monthly`
 
 **Response:**
 ```json
 {
-  "period": {
-    "start_date": "2026-03-01T00:00:00Z",
-    "end_date": "2026-03-31T00:00:00Z",
-    "aggregation": "daily"
-  },
-  "summary": {
-    "total_deliveries": 1500,
-    "total_fees_collected": 89500,
-    "total_driver_earnings": 62650,
-    "total_company_revenue": 26850,
-    "avg_delivery_fee": 59.67,
-    "avg_distance_km": 4.2
-  },
-  "trends": [
-    {"_id": "2026-03-01", "deliveries": 45, "fees_collected": 2680},
-    {"_id": "2026-03-02", "deliveries": 52, "fees_collected": 3100}
+  "zones": [
+    {
+      "zone_id": "zone_xxx",
+      "zone_name": "Kowdiar Circle",
+      "config_type": "zone_specific",
+      "splits": {
+        "base_fee": {"driver_percent": 80, "company_percent": 20},
+        ...
+      }
+    },
+    {
+      "zone_id": "zone_yyy",
+      "zone_name": "Edappally Zone",
+      "config_type": "global",
+      "message": "Using global split configuration"
+    }
   ],
-  "revenue_split_summary": {
-    "driver_share_percent": 70.0,
-    "company_share_percent": 30.0
+  "total_zones": 2,
+  "zones_with_custom_split": 1
+}
+```
+
+### Get Zone-Specific Split Config
+```
+GET /api/admin/zones/{zone_id}/revenue-split-config
+```
+
+### Create/Update Zone-Specific Split Config
+```
+PUT /api/admin/zones/{zone_id}/revenue-split-config
+```
+
+**Request Body:**
+```json
+{
+  "splits": {
+    "base_fee": {"driver_percent": 80, "company_percent": 20},
+    "distance_fee": {"driver_percent": 85, "company_percent": 15},
+    "peak_surge": {"driver_percent": 10, "company_percent": 90},
+    "weekend_surge": {"driver_percent": 10, "company_percent": 90},
+    "weather_surge": {"driver_percent": 15, "company_percent": 85},
+    "small_order_fee": {"driver_percent": 0, "company_percent": 100},
+    "weight_surcharge": {"driver_percent": 100, "company_percent": 0}
   }
 }
+```
+
+---
+
+## 6. Analytics APIs
+
+### Get Delivery Analytics
+```
+GET /api/admin/delivery-analytics?start_date=2026-03-01&end_date=2026-03-31&period=daily
 ```
 
 ### Get Driver Earnings Report
@@ -215,63 +325,13 @@ GET /api/admin/delivery-analytics?start_date=2026-03-01&end_date=2026-03-31&peri
 GET /api/admin/driver-earnings?driver_id=user_xxx&start_date=2026-03-01&end_date=2026-03-31
 ```
 
-**Query Parameters:**
-- `driver_id`: Optional - specific driver
-- `start_date`: YYYY-MM-DD
-- `end_date`: YYYY-MM-DD
-
-**Response:**
-```json
-{
-  "period": {
-    "start_date": "2026-03-01T00:00:00Z",
-    "end_date": "2026-03-31T00:00:00Z"
-  },
-  "drivers": [
-    {
-      "driver_id": "user_xxx",
-      "driver_name": "Rahul Kumar",
-      "driver_phone": "9876543210",
-      "total_deliveries": 120,
-      "total_earnings": 8400,
-      "avg_earnings_per_delivery": 70,
-      "total_distance_km": 480
-    }
-  ],
-  "total_drivers": 25
-}
-```
-
 ---
 
-## 5. Revenue Pool APIs
+## 7. Revenue Pool APIs
 
 ### Get Revenue Pool Status
 ```
 GET /api/admin/revenue-pool
-```
-
-**Response:**
-```json
-{
-  "pool_balance": 15000,
-  "total_revenue_collected": 26850,
-  "total_allocated": 11850,
-  "allocation_breakdown": {
-    "driver_bonus": 8000,
-    "customer_discount": 3000,
-    "operational": 850
-  },
-  "recent_allocations": [
-    {
-      "allocation_id": "alloc_xxx",
-      "type": "driver_bonus",
-      "amount": 1000,
-      "description": "Rain day bonus for top drivers",
-      "created_at": "2026-03-15T10:00:00Z"
-    }
-  ]
-}
 ```
 
 ### Allocate Funds from Pool
@@ -284,37 +344,53 @@ POST /api/admin/revenue-pool/allocate
 {
   "type": "driver_bonus",
   "amount": 1000,
-  "description": "Rain day bonus for top 10 drivers",
+  "description": "Rain day bonus for top drivers",
   "recipient_ids": ["user_xxx", "user_yyy"]
 }
 ```
 
-**Valid Types:**
-- `driver_bonus` - Bonuses for drivers
-- `customer_discount` - Discounts/cashback for customers
-- `operational` - Operational costs
-- `marketing` - Marketing expenses
-- `refund` - Customer refunds
-
-**Response:**
-```json
-{
-  "message": "Successfully allocated ₹1000 for driver_bonus",
-  "allocation_id": "alloc_xxx",
-  "new_pool_balance": 14000
-}
-```
+**Valid Types:** `driver_bonus`, `customer_discount`, `operational`, `marketing`, `refund`
 
 ---
 
-## 6. Public Configuration API
+## 8. Public Configuration API (Read-Only)
 
 ### Get Current Delivery Fee Config
 ```
 GET /api/delivery-fee-config
 ```
 
-Returns the current active delivery fee configuration (read-only for non-admin).
+---
+
+## Configuration Hierarchy
+
+```
+Zone-Specific Config (if exists & not suspended)
+         ↓ (fallback)
+    Global Config
+         ↓ (fallback)
+    Default Values
+```
+
+When calculating delivery fee:
+1. System checks if vendor belongs to a zone
+2. If zone has custom config AND is not suspended → use zone config
+3. Otherwise → use global config
+4. If no global config → use hardcoded defaults
+
+---
+
+## Admin Actions Summary
+
+| Action | Global API | Zone API |
+|--------|------------|----------|
+| **View config** | `GET /api/admin/delivery-fee-config` | `GET /api/admin/zones/{zone_id}/delivery-fee-config` |
+| **Update config** | `PUT /api/admin/delivery-fee-config/{vehicle}` | `PUT /api/admin/zones/{zone_id}/delivery-fee-config` |
+| **Suspend fees** | `PUT /api/admin/delivery-fee-config/{vehicle}/suspend` | `PUT /api/admin/zones/{zone_id}/delivery-fee-config/suspend` |
+| **Activate fees** | `PUT /api/admin/delivery-fee-config/{vehicle}/activate` | `PUT /api/admin/zones/{zone_id}/delivery-fee-config/activate` |
+| **View all zones** | - | `GET /api/admin/zones/delivery-fee-configs` |
+| **View splits** | `GET /api/admin/revenue-split-config` | `GET /api/admin/zones/{zone_id}/revenue-split-config` |
+| **Update splits** | `PUT /api/admin/revenue-split-config/{vehicle}` | `PUT /api/admin/zones/{zone_id}/revenue-split-config` |
 
 ---
 
@@ -322,8 +398,7 @@ Returns the current active delivery fee configuration (read-only for non-admin).
 
 | Component | Default Value |
 |-----------|---------------|
-| Base Fee (Restaurant) | ₹34.99 |
-| Base Fee (Grocery) | ₹34.99 |
+| Base Fee (Restaurant/Grocery) | ₹34.99 |
 | Base Distance | 3 km |
 | Per KM Rate | ₹11 |
 | Peak Surge | 25% |
@@ -338,8 +413,8 @@ Returns the current active delivery fee configuration (read-only for non-admin).
 
 ## Default Revenue Split
 
-| Component | Driver | Company |
-|-----------|--------|---------|
+| Component | Driver % | Company % |
+|-----------|----------|-----------|
 | Base Fee | 71.4% | 28.6% |
 | Distance Fee | 72.7% | 27.3% |
 | Peak Surge | 0% | 100% |
@@ -347,3 +422,18 @@ Returns the current active delivery fee configuration (read-only for non-admin).
 | Weather Surge | 0% | 100% |
 | Small Order Fee | 0% | 100% |
 | Weight Surcharge | 100% | 0% |
+
+---
+
+## Database Collections
+
+| Collection | Purpose |
+|------------|---------|
+| `delivery_fee_config` | Global fee configurations |
+| `zone_delivery_fee_config` | Zone-specific fee configurations |
+| `revenue_split_config` | Global revenue split configurations |
+| `zone_revenue_split_config` | Zone-specific split configurations |
+| `delivery_transactions` | Individual delivery records with fee breakdown |
+| `revenue_pool` | Company revenue pool balance and allocations |
+| `driver_earnings` | Aggregated driver earnings |
+| `admin_audit_log` | Tracks all admin config changes |

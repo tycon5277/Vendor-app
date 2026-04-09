@@ -3779,19 +3779,45 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
     if not data.delivery_location or "lat" not in data.delivery_location or "lng" not in data.delivery_location:
         raise HTTPException(status_code=400, detail="Invalid delivery location")
     
-    # Get delivery fee config from DB (or use default)
-    config = await db.delivery_fee_config.find_one(
-        {"vehicle_type": "two_wheeler", "is_active": True}
-    )
-    if config:
-        config.pop("_id", None)
+    # Check which zone the vendor belongs to
+    vendor_zone = await zone_service.get_vendor_zone(data.vendor_id)
+    zone_id = vendor_zone["zone_id"] if vendor_zone else None
     
-    # Get revenue split config from DB (or use default)
-    split_config = await db.revenue_split_config.find_one(
-        {"vehicle_type": "two_wheeler", "is_active": True}
-    )
-    if split_config:
-        split_config.pop("_id", None)
+    config = None
+    split_config = None
+    config_source = "global"
+    
+    # Try to get zone-specific config first (if vendor has a zone)
+    if zone_id:
+        zone_fee_config = await db.zone_delivery_fee_config.find_one(
+            {"zone_id": zone_id, "vehicle_type": "two_wheeler", "is_active": True, "is_suspended": {"$ne": True}}
+        )
+        if zone_fee_config:
+            zone_fee_config.pop("_id", None)
+            config = zone_fee_config
+            config_source = "zone"
+        
+        zone_split_config = await db.zone_revenue_split_config.find_one(
+            {"zone_id": zone_id, "vehicle_type": "two_wheeler", "is_active": True}
+        )
+        if zone_split_config:
+            zone_split_config.pop("_id", None)
+            split_config = zone_split_config
+    
+    # Fall back to global config if no zone-specific config
+    if not config:
+        config = await db.delivery_fee_config.find_one(
+            {"vehicle_type": "two_wheeler", "is_active": True}
+        )
+        if config:
+            config.pop("_id", None)
+    
+    if not split_config:
+        split_config = await db.revenue_split_config.find_one(
+            {"vehicle_type": "two_wheeler", "is_active": True}
+        )
+        if split_config:
+            split_config.pop("_id", None)
     
     # Calculate delivery fee
     result = await smart_delivery_service.calculate_full_delivery_fee(
@@ -3810,6 +3836,10 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
     result["vendor_id"] = data.vendor_id
     result["vendor_name"] = vendor.get("vendor_shop_name")
     result["revenue_split"] = revenue_split
+    result["config_source"] = config_source
+    if zone_id:
+        result["zone_id"] = zone_id
+        result["zone_name"] = vendor_zone.get("name") if vendor_zone else None
     
     return result
 
@@ -3931,6 +3961,7 @@ async def admin_initialize_delivery_fee_config():
     default_config = smart_delivery_service.DEFAULT_DELIVERY_CONFIG.copy()
     default_config["created_at"] = now
     default_config["updated_at"] = now
+    default_config["is_suspended"] = False
     
     result = await db.delivery_fee_config.insert_one(default_config)
     
@@ -3938,6 +3969,79 @@ async def admin_initialize_delivery_fee_config():
         "message": "Delivery fee configuration initialized",
         "config_id": str(result.inserted_id),
         "vehicle_type": "two_wheeler"
+    }
+
+
+@api_router.put("/admin/delivery-fee-config/{vehicle_type}/suspend")
+async def admin_suspend_global_delivery_fee(vehicle_type: str):
+    """
+    Suspend delivery fees globally for a vehicle type.
+    When suspended, delivery service may be disabled system-wide.
+    """
+    now = datetime.now(timezone.utc)
+    
+    result = await db.delivery_fee_config.update_one(
+        {"vehicle_type": vehicle_type},
+        {
+            "$set": {
+                "is_suspended": True,
+                "is_active": False,
+                "suspended_at": now,
+                "updated_at": now
+            }
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail=f"Config for {vehicle_type} not found")
+    
+    await db.admin_audit_log.insert_one({
+        "action": "global_delivery_fee_suspended",
+        "vehicle_type": vehicle_type,
+        "timestamp": now
+    })
+    
+    return {
+        "message": f"Global delivery fees for {vehicle_type} suspended",
+        "vehicle_type": vehicle_type,
+        "is_suspended": True
+    }
+
+
+@api_router.put("/admin/delivery-fee-config/{vehicle_type}/activate")
+async def admin_activate_global_delivery_fee(vehicle_type: str):
+    """
+    Activate (unsuspend) delivery fees globally for a vehicle type.
+    """
+    now = datetime.now(timezone.utc)
+    
+    result = await db.delivery_fee_config.update_one(
+        {"vehicle_type": vehicle_type},
+        {
+            "$set": {
+                "is_suspended": False,
+                "is_active": True,
+                "activated_at": now,
+                "updated_at": now
+            },
+            "$unset": {"suspended_at": ""}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail=f"Config for {vehicle_type} not found")
+    
+    await db.admin_audit_log.insert_one({
+        "action": "global_delivery_fee_activated",
+        "vehicle_type": vehicle_type,
+        "timestamp": now
+    })
+    
+    return {
+        "message": f"Global delivery fees for {vehicle_type} activated",
+        "vehicle_type": vehicle_type,
+        "is_suspended": False,
+        "is_active": True
     }
 
 
@@ -4059,6 +4163,373 @@ async def admin_initialize_revenue_split_config():
         "message": "Revenue split configuration initialized",
         "config_id": str(result.inserted_id),
         "vehicle_type": "two_wheeler"
+    }
+
+
+# ==================== ADMIN: ZONE-SPECIFIC DELIVERY FEE CONFIG ====================
+
+@api_router.get("/admin/zones/{zone_id}/delivery-fee-config")
+async def admin_get_zone_delivery_fee_config(zone_id: str):
+    """
+    Get delivery fee configuration for a specific zone.
+    Falls back to global config if zone-specific config doesn't exist.
+    """
+    # Verify zone exists
+    zone = await zone_service.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail=f"Zone {zone_id} not found")
+    
+    # Look for zone-specific config
+    config = await db.zone_delivery_fee_config.find_one(
+        {"zone_id": zone_id, "vehicle_type": "two_wheeler"}
+    )
+    
+    if config:
+        config["_id"] = str(config["_id"])
+        config["config_type"] = "zone_specific"
+        config["zone_name"] = zone.get("name")
+        return config
+    
+    # Fall back to global config
+    global_config = await db.delivery_fee_config.find_one(
+        {"vehicle_type": "two_wheeler", "is_active": True}
+    )
+    
+    if global_config:
+        global_config["_id"] = str(global_config["_id"])
+        global_config["config_type"] = "global_fallback"
+        global_config["zone_id"] = zone_id
+        global_config["zone_name"] = zone.get("name")
+        global_config["message"] = "Using global config. Create zone-specific config to customize."
+        return global_config
+    
+    # Return default config
+    default = smart_delivery_service.DEFAULT_DELIVERY_CONFIG.copy()
+    default["config_type"] = "default_fallback"
+    default["zone_id"] = zone_id
+    default["zone_name"] = zone.get("name")
+    default["message"] = "Using default config. Create zone-specific config to customize."
+    return default
+
+
+@api_router.put("/admin/zones/{zone_id}/delivery-fee-config")
+async def admin_update_zone_delivery_fee_config(zone_id: str, config: dict):
+    """
+    Update or create delivery fee configuration for a specific zone.
+    This allows different fees per zone (e.g., higher fees in remote areas).
+    """
+    # Verify zone exists
+    zone = await zone_service.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail=f"Zone {zone_id} not found")
+    
+    now = datetime.now(timezone.utc)
+    
+    # Ensure required fields
+    config["zone_id"] = zone_id
+    config["vehicle_type"] = config.get("vehicle_type", "two_wheeler")
+    config["updated_at"] = now
+    config["is_active"] = config.get("is_active", True)
+    config["is_suspended"] = config.get("is_suspended", False)
+    
+    # Upsert the zone-specific config
+    result = await db.zone_delivery_fee_config.update_one(
+        {"zone_id": zone_id, "vehicle_type": config["vehicle_type"]},
+        {"$set": config, "$setOnInsert": {"created_at": now}},
+        upsert=True
+    )
+    
+    # Log the change
+    await db.admin_audit_log.insert_one({
+        "action": "zone_delivery_fee_config_updated",
+        "zone_id": zone_id,
+        "zone_name": zone.get("name"),
+        "vehicle_type": config["vehicle_type"],
+        "timestamp": now,
+        "changes": config
+    })
+    
+    return {
+        "message": f"Delivery fee config for zone '{zone.get('name')}' updated",
+        "zone_id": zone_id,
+        "zone_name": zone.get("name"),
+        "upserted": result.upserted_id is not None
+    }
+
+
+@api_router.put("/admin/zones/{zone_id}/delivery-fee-config/suspend")
+async def admin_suspend_zone_delivery_fee(zone_id: str):
+    """
+    Suspend delivery fees for a specific zone.
+    When suspended, the zone uses global config or delivery may be disabled.
+    """
+    zone = await zone_service.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail=f"Zone {zone_id} not found")
+    
+    now = datetime.now(timezone.utc)
+    
+    result = await db.zone_delivery_fee_config.update_one(
+        {"zone_id": zone_id, "vehicle_type": "two_wheeler"},
+        {
+            "$set": {
+                "is_suspended": True,
+                "suspended_at": now,
+                "updated_at": now
+            }
+        }
+    )
+    
+    if result.matched_count == 0:
+        # Create a suspended config entry
+        await db.zone_delivery_fee_config.insert_one({
+            "zone_id": zone_id,
+            "vehicle_type": "two_wheeler",
+            "is_suspended": True,
+            "is_active": False,
+            "suspended_at": now,
+            "created_at": now,
+            "updated_at": now
+        })
+    
+    await db.admin_audit_log.insert_one({
+        "action": "zone_delivery_fee_suspended",
+        "zone_id": zone_id,
+        "zone_name": zone.get("name"),
+        "timestamp": now
+    })
+    
+    return {
+        "message": f"Delivery fees suspended for zone '{zone.get('name')}'",
+        "zone_id": zone_id,
+        "is_suspended": True
+    }
+
+
+@api_router.put("/admin/zones/{zone_id}/delivery-fee-config/activate")
+async def admin_activate_zone_delivery_fee(zone_id: str):
+    """
+    Activate (unsuspend) delivery fees for a specific zone.
+    """
+    zone = await zone_service.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail=f"Zone {zone_id} not found")
+    
+    now = datetime.now(timezone.utc)
+    
+    result = await db.zone_delivery_fee_config.update_one(
+        {"zone_id": zone_id, "vehicle_type": "two_wheeler"},
+        {
+            "$set": {
+                "is_suspended": False,
+                "is_active": True,
+                "activated_at": now,
+                "updated_at": now
+            },
+            "$unset": {"suspended_at": ""}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="No config exists for this zone. Create one first.")
+    
+    await db.admin_audit_log.insert_one({
+        "action": "zone_delivery_fee_activated",
+        "zone_id": zone_id,
+        "zone_name": zone.get("name"),
+        "timestamp": now
+    })
+    
+    return {
+        "message": f"Delivery fees activated for zone '{zone.get('name')}'",
+        "zone_id": zone_id,
+        "is_suspended": False,
+        "is_active": True
+    }
+
+
+@api_router.get("/admin/zones/delivery-fee-configs")
+async def admin_get_all_zone_delivery_fee_configs():
+    """
+    Get delivery fee configurations for ALL zones.
+    Shows which zones have custom configs vs using global.
+    """
+    # Get all zones
+    zones = await zone_service.list_zones(active_only=False)
+    
+    # Get all zone-specific configs
+    zone_configs = await db.zone_delivery_fee_config.find().to_list(500)
+    zone_config_map = {c["zone_id"]: c for c in zone_configs}
+    
+    # Get global config
+    global_config = await db.delivery_fee_config.find_one(
+        {"vehicle_type": "two_wheeler", "is_active": True}
+    )
+    
+    result = []
+    for zone in zones:
+        zone_id = zone["zone_id"]
+        zone_cfg = zone_config_map.get(zone_id)
+        
+        if zone_cfg:
+            zone_cfg["_id"] = str(zone_cfg["_id"])
+            zone_cfg["zone_name"] = zone.get("name")
+            zone_cfg["config_type"] = "zone_specific"
+            result.append(zone_cfg)
+        else:
+            # Zone using global config
+            result.append({
+                "zone_id": zone_id,
+                "zone_name": zone.get("name"),
+                "config_type": "global",
+                "is_suspended": False,
+                "is_active": zone.get("is_active", True),
+                "message": "Using global configuration"
+            })
+    
+    return {
+        "zones": result,
+        "total_zones": len(zones),
+        "zones_with_custom_config": len(zone_configs),
+        "global_config_exists": global_config is not None
+    }
+
+
+# ==================== ADMIN: ZONE-SPECIFIC REVENUE SPLIT CONFIG ====================
+
+@api_router.get("/admin/zones/{zone_id}/revenue-split-config")
+async def admin_get_zone_revenue_split_config(zone_id: str):
+    """
+    Get revenue split configuration for a specific zone.
+    Falls back to global config if zone-specific config doesn't exist.
+    """
+    zone = await zone_service.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail=f"Zone {zone_id} not found")
+    
+    # Look for zone-specific config
+    config = await db.zone_revenue_split_config.find_one(
+        {"zone_id": zone_id, "vehicle_type": "two_wheeler"}
+    )
+    
+    if config:
+        config["_id"] = str(config["_id"])
+        config["config_type"] = "zone_specific"
+        config["zone_name"] = zone.get("name")
+        return config
+    
+    # Fall back to global config
+    global_config = await db.revenue_split_config.find_one(
+        {"vehicle_type": "two_wheeler", "is_active": True}
+    )
+    
+    if global_config:
+        global_config["_id"] = str(global_config["_id"])
+        global_config["config_type"] = "global_fallback"
+        global_config["zone_id"] = zone_id
+        global_config["zone_name"] = zone.get("name")
+        global_config["message"] = "Using global split. Create zone-specific split to customize."
+        return global_config
+    
+    # Return default config
+    default = smart_delivery_service.DEFAULT_REVENUE_SPLIT_CONFIG.copy()
+    default["config_type"] = "default_fallback"
+    default["zone_id"] = zone_id
+    default["zone_name"] = zone.get("name")
+    default["message"] = "Using default split. Create zone-specific split to customize."
+    return default
+
+
+@api_router.put("/admin/zones/{zone_id}/revenue-split-config")
+async def admin_update_zone_revenue_split_config(zone_id: str, config: dict):
+    """
+    Update or create revenue split configuration for a specific zone.
+    Allows different driver/company splits per zone.
+    """
+    zone = await zone_service.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail=f"Zone {zone_id} not found")
+    
+    # Validate splits
+    splits = config.get("splits", {})
+    for component, split in splits.items():
+        driver_pct = split.get("driver_percent", 0)
+        company_pct = split.get("company_percent", 0)
+        total = driver_pct + company_pct
+        if abs(total - 100) > 0.01:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Split for '{component}' must total 100% (currently {total}%)"
+            )
+    
+    now = datetime.now(timezone.utc)
+    
+    config["zone_id"] = zone_id
+    config["vehicle_type"] = config.get("vehicle_type", "two_wheeler")
+    config["updated_at"] = now
+    config["is_active"] = config.get("is_active", True)
+    
+    result = await db.zone_revenue_split_config.update_one(
+        {"zone_id": zone_id, "vehicle_type": config["vehicle_type"]},
+        {"$set": config, "$setOnInsert": {"created_at": now}},
+        upsert=True
+    )
+    
+    await db.admin_audit_log.insert_one({
+        "action": "zone_revenue_split_config_updated",
+        "zone_id": zone_id,
+        "zone_name": zone.get("name"),
+        "vehicle_type": config["vehicle_type"],
+        "timestamp": now,
+        "changes": config
+    })
+    
+    return {
+        "message": f"Revenue split config for zone '{zone.get('name')}' updated",
+        "zone_id": zone_id,
+        "zone_name": zone.get("name"),
+        "upserted": result.upserted_id is not None
+    }
+
+
+@api_router.get("/admin/zones/revenue-split-configs")
+async def admin_get_all_zone_revenue_split_configs():
+    """
+    Get revenue split configurations for ALL zones.
+    """
+    zones = await zone_service.list_zones(active_only=False)
+    
+    zone_configs = await db.zone_revenue_split_config.find().to_list(500)
+    zone_config_map = {c["zone_id"]: c for c in zone_configs}
+    
+    global_config = await db.revenue_split_config.find_one(
+        {"vehicle_type": "two_wheeler", "is_active": True}
+    )
+    
+    result = []
+    for zone in zones:
+        zone_id = zone["zone_id"]
+        zone_cfg = zone_config_map.get(zone_id)
+        
+        if zone_cfg:
+            zone_cfg["_id"] = str(zone_cfg["_id"])
+            zone_cfg["zone_name"] = zone.get("name")
+            zone_cfg["config_type"] = "zone_specific"
+            result.append(zone_cfg)
+        else:
+            result.append({
+                "zone_id": zone_id,
+                "zone_name": zone.get("name"),
+                "config_type": "global",
+                "is_active": zone.get("is_active", True),
+                "message": "Using global split configuration"
+            })
+    
+    return {
+        "zones": result,
+        "total_zones": len(zones),
+        "zones_with_custom_split": len(zone_configs),
+        "global_config_exists": global_config is not None
     }
 
 
