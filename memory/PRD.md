@@ -7,8 +7,14 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
 
 ## Latest Updates (April 2026)
+- **[April 9] Zone Sync from Admin Panel** — Vendor App no longer creates zones. Zones are synced from Admin Panel:
+  - Removed `POST /api/admin/zones` (create)
+  - Removed `PUT /api/admin/zones/{id}` (update)
+  - Removed `DELETE /api/admin/zones/{id}` (delete)
+  - Added `POST /api/admin/zones/sync` to pull zones from Admin Panel
+  - Admin Panel needs to expose `GET /api/zones/public` endpoint
 - **[April 9] Weather Integration & Fee Toggles** — Vendor App now:
-  - Auto-fetches weather from Admin Panel's weather API
+  - Auto-fetches weather from Admin Panel's public weather API (`/api/weather/zone/{zone_id}/public`)
   - Shows weather warning when Wisher app opens (before checkout)
   - Supports fee toggles (enable/disable individual fees per zone or globally)
   - All config changes from Admin Panel reflect in real-time

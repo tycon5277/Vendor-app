@@ -15244,17 +15244,28 @@ class ZoneAssignmentRequest(BaseModel):
 class ZoneSwitchRequest(BaseModel):
     target_zone_id: str
 
-@api_router.post("/admin/zones")
-async def create_zone_endpoint(data: CreateZoneRequest):
-    """Create a new zone (circle or polygon)"""
-    result = await zone_service.create_zone(data.dict())
+
+# ===================== ZONE SYNC FROM ADMIN PANEL =====================
+
+@api_router.post("/admin/zones/sync")
+async def sync_zones_from_admin_endpoint():
+    """
+    Sync all zones from Admin Panel.
+    Admin Panel is the source of truth - Vendor App does NOT create zones.
+    Call this periodically or when zones change in Admin Panel.
+    """
+    result = await zone_service.sync_zones_from_admin()
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Sync failed"))
     return result
+
 
 @api_router.get("/admin/zones")
 async def list_zones_endpoint(district: str = None, active_only: bool = True):
-    """List all zones"""
+    """List all zones (from local cache, synced from Admin Panel)"""
     zones = await zone_service.list_zones(district, active_only)
-    return {"zones": zones, "total": len(zones)}
+    return {"zones": zones, "total": len(zones), "source": "local_cache"}
+
 
 @api_router.get("/admin/zones/find-for-point")
 async def find_zones_for_point_endpoint(lat: float, lng: float):
@@ -15262,48 +15273,44 @@ async def find_zones_for_point_endpoint(lat: float, lng: float):
     zones = await zone_service.find_zones_for_point(lat, lng)
     return {"zones": zones, "count": len(zones)}
 
+
 @api_router.get("/admin/zones/{zone_id}")
 async def get_zone_endpoint(zone_id: str):
-    """Get zone details"""
+    """Get zone details (fetches from Admin Panel if not in local cache)"""
     zone = await zone_service.get_zone(zone_id)
     if not zone:
-        raise HTTPException(status_code=404, detail="Zone not found")
+        raise HTTPException(status_code=404, detail="Zone not found. Try syncing zones from Admin Panel.")
     stats = await zone_service.get_zone_stats(zone_id)
     return {**zone, **stats}
 
-@api_router.put("/admin/zones/{zone_id}")
-async def update_zone_endpoint(zone_id: str, data: CreateZoneRequest):
-    """Update a zone"""
-    result = await zone_service.update_zone(zone_id, data.dict())
-    if not result:
-        raise HTTPException(status_code=404, detail="Zone not found")
-    return result
 
-@api_router.delete("/admin/zones/{zone_id}")
-async def delete_zone_endpoint(zone_id: str):
-    """Delete a zone"""
-    success = await zone_service.delete_zone(zone_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Zone not found")
-    return {"message": "Zone deleted"}
+# NOTE: Zone creation, update, and deletion are REMOVED
+# Zones are managed in Admin Panel only
+# Vendor App only reads/syncs zones
+
 
 @api_router.post("/admin/zones/assign")
 async def assign_to_zone_endpoint(data: ZoneAssignmentRequest):
-    """Assign a vendor or genie to a zone"""
-    result = await zone_service.assign_to_zone(data.entity_id, data.entity_type, data.zone_id)
+    """Assign a vendor or genie to a zone (zone must exist in Admin Panel)"""
+    result = await zone_service.assign_to_zone(data.zone_id, data.entity_id, data.entity_type)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
     return result
+
 
 @api_router.get("/admin/zones/{zone_id}/genies")
 async def get_zone_genies_endpoint(zone_id: str):
     """Get all genies assigned to a zone"""
-    genie_ids = await zone_service.get_zone_genies(zone_id)
-    return {"zone_id": zone_id, "genies": genie_ids, "count": len(genie_ids)}
+    genies = await zone_service.get_zone_genies(zone_id)
+    return {"zone_id": zone_id, "genies": genies, "count": len(genies)}
+
 
 @api_router.get("/admin/zones/{zone_id}/vendors")
 async def get_zone_vendors_endpoint(zone_id: str):
     """Get all vendors assigned to a zone"""
-    vendor_ids = await zone_service.get_zone_vendors(zone_id)
-    return {"zone_id": zone_id, "vendors": vendor_ids, "count": len(vendor_ids)}
+    vendors = await zone_service.get_zone_vendors(zone_id)
+    return {"zone_id": zone_id, "vendors": vendors, "count": len(vendors)}
+
 
 @api_router.get("/admin/zones/{zone_id}/stats")
 async def get_zone_stats_endpoint(zone_id: str):
