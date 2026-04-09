@@ -3751,13 +3751,15 @@ ADMIN_PANEL_URL = os.environ.get("ADMIN_PANEL_URL", "https://bad-weather-fees.pr
 
 async def fetch_weather_from_admin_panel(zone_id: str) -> dict:
     """
-    Fetch weather status from Admin Panel's weather API.
+    Fetch weather status from Admin Panel's PUBLIC weather API.
     Admin Panel is the source of truth for weather conditions.
+    Uses the public endpoint - no auth required.
     """
     try:
         async with httpx.AsyncClient() as client:
+            # Use the PUBLIC endpoint (no auth required)
             response = await client.get(
-                f"{ADMIN_PANEL_URL}/api/weather/zone/{zone_id}",
+                f"{ADMIN_PANEL_URL}/api/weather/zone/{zone_id}/public",
                 timeout=5.0
             )
             if response.status_code == 200:
@@ -3771,8 +3773,12 @@ async def fetch_weather_from_admin_panel(zone_id: str) -> dict:
                     "reasons": data.get("evaluation", {}).get("reasons", []),
                     "surge_recommended": data.get("evaluation", {}).get("surge_recommended", False),
                     "auto_surge_enabled": data.get("auto_surge_enabled", True),
+                    "thresholds": data.get("thresholds", {}),
+                    "zone_name": data.get("zone_name"),
                     "source": "admin_panel"
                 }
+            else:
+                logger.warning(f"Admin Panel weather API returned {response.status_code}")
     except Exception as e:
         logger.warning(f"Failed to fetch weather from Admin Panel: {e}")
     
@@ -3781,6 +3787,7 @@ async def fetch_weather_from_admin_panel(zone_id: str) -> dict:
         "is_bad_weather": False,
         "weather_type": "unknown",
         "reasons": [],
+        "auto_surge_enabled": True,
         "source": "fallback",
         "error": "Could not reach Admin Panel weather API"
     }
