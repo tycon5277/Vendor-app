@@ -241,14 +241,15 @@ def calculate_smart_delivery_fee(
     config: Optional[Dict] = None
 ) -> Dict[str, Any]:
     """
-    Calculate delivery fee with all factors
+    Calculate delivery fee with all factors.
+    Respects fee toggles set by Admin Panel.
     
     Args:
         distance_km: Road distance in kilometers
         vendor_type: "restaurant" or "grocery"
         order_value: Total order value in INR
         weight_kg: Total weight of order in kg (for grocery)
-        is_bad_weather: Whether there's bad weather
+        is_bad_weather: Whether there's bad weather (auto-fetched from Admin Panel)
         config: Fee configuration (from DB or default)
     
     Returns:
@@ -256,22 +257,37 @@ def calculate_smart_delivery_fee(
     """
     cfg = config or DEFAULT_DELIVERY_CONFIG
     
+    # Get toggles (all enabled by default if not specified)
+    toggles = cfg.get("toggles", {})
+    peak_surge_enabled = toggles.get("peak_surge_enabled", True)
+    weekend_surge_enabled = toggles.get("weekend_surge_enabled", True)
+    weather_surge_enabled = toggles.get("weather_surge_enabled", True)
+    small_order_fee_enabled = toggles.get("small_order_fee_enabled", True)
+    weight_surcharge_enabled = toggles.get("weight_surcharge_enabled", True)
+    
     # Initialize breakdown
     breakdown = {
         "components": [],
         "vendor_type": vendor_type,
-        "distance_km": distance_km
+        "distance_km": distance_km,
+        "toggles_applied": {
+            "peak_surge_enabled": peak_surge_enabled,
+            "weekend_surge_enabled": weekend_surge_enabled,
+            "weather_surge_enabled": weather_surge_enabled,
+            "small_order_fee_enabled": small_order_fee_enabled,
+            "weight_surcharge_enabled": weight_surcharge_enabled
+        }
     }
     
-    # 1. Base Fee
-    base_fee = cfg["base_fee"].get(vendor_type, 34.99)
+    # 1. Base Fee (always applied)
+    base_fee = cfg.get("base_fee", {}).get(vendor_type, 34.99)
+    base_distance = cfg.get("base_distance_km", 3)
     breakdown["components"].append({
-        "name": "Base Fee (first 3 km)",
+        "name": f"Base Fee (first {base_distance} km)",
         "amount": base_fee
     })
     
-    # 2. Distance Fee (after base distance)
-    base_distance = cfg.get("base_distance_km", 3)
+    # 2. Distance Fee (after base distance - always applied)
     per_km_rate = cfg.get("per_km_rate", 11)
     
     extra_distance = max(0, distance_km - base_distance)
@@ -283,68 +299,79 @@ def calculate_smart_delivery_fee(
             "amount": distance_fee
         })
     
-    # 3. Peak Hour Surge (on base fee)
+    # 3. Peak Hour Surge (on base fee) - RESPECTS TOGGLE
     peak_surge = 0
-    if is_peak_hour(vendor_type, cfg):
+    is_peak = is_peak_hour(vendor_type, cfg)
+    breakdown["is_peak_hour"] = is_peak
+    
+    if is_peak and peak_surge_enabled:
         peak_percent = cfg.get("peak_surge_percent", 25)
         peak_surge = round(base_fee * peak_percent / 100, 2)
         breakdown["components"].append({
             "name": f"Peak Hour Surge ({peak_percent}%)",
             "amount": peak_surge
         })
-        breakdown["is_peak_hour"] = True
-    else:
-        breakdown["is_peak_hour"] = False
+    elif is_peak and not peak_surge_enabled:
+        breakdown["peak_surge_disabled"] = True
     
-    # 4. Weekend Surge (on base fee)
+    # 4. Weekend Surge (on base fee) - RESPECTS TOGGLE
     weekend_surge = 0
-    if is_weekend(cfg):
+    is_wknd = is_weekend(cfg)
+    breakdown["is_weekend"] = is_wknd
+    
+    if is_wknd and weekend_surge_enabled:
         weekend_percent = cfg.get("weekend_surge_percent", 15)
         weekend_surge = round(base_fee * weekend_percent / 100, 2)
         breakdown["components"].append({
             "name": f"Weekend Surge ({weekend_percent}%)",
             "amount": weekend_surge
         })
-        breakdown["is_weekend"] = True
-    else:
-        breakdown["is_weekend"] = False
+    elif is_wknd and not weekend_surge_enabled:
+        breakdown["weekend_surge_disabled"] = True
     
-    # 5. Bad Weather Surge (on base fee)
+    # 5. Bad Weather Surge (on base fee) - RESPECTS TOGGLE
     weather_surge = 0
-    if is_bad_weather:
+    breakdown["is_bad_weather"] = is_bad_weather
+    
+    if is_bad_weather and weather_surge_enabled:
         weather_percent = cfg.get("bad_weather_surge_percent", 25)
         weather_surge = round(base_fee * weather_percent / 100, 2)
         breakdown["components"].append({
-            "name": f"Weather Surge ({weather_percent}%)",
+            "name": f"Bad Weather Surge ({weather_percent}%)",
             "amount": weather_surge
         })
-    breakdown["is_bad_weather"] = is_bad_weather
+    elif is_bad_weather and not weather_surge_enabled:
+        breakdown["weather_surge_disabled"] = True
     
-    # 6. Small Order Fee
+    # 6. Small Order Fee - RESPECTS TOGGLE
     small_order_fee = 0
     small_order_cfg = cfg.get("small_order", {}).get(vendor_type, {})
     threshold = small_order_cfg.get("threshold", 0)
+    is_small = threshold > 0 and order_value < threshold
+    breakdown["is_small_order"] = is_small
     
-    if threshold > 0 and order_value < threshold:
+    if is_small and small_order_fee_enabled:
         small_order_fee = small_order_cfg.get("fee", 0)
         breakdown["components"].append({
             "name": f"Small Order Fee (order < ₹{threshold})",
             "amount": small_order_fee
         })
-        breakdown["is_small_order"] = True
-    else:
-        breakdown["is_small_order"] = False
+    elif is_small and not small_order_fee_enabled:
+        breakdown["small_order_fee_disabled"] = True
     
-    # 7. Weight Surcharge (grocery only)
+    # 7. Weight Surcharge (grocery only) - RESPECTS TOGGLE
     weight_surcharge = 0
-    if weight_kg > 0:
+    breakdown["weight_kg"] = weight_kg
+    
+    if weight_kg > 0 and weight_surcharge_enabled:
         weight_surcharge = get_weight_surcharge(weight_kg, vendor_type, cfg)
         if weight_surcharge > 0:
             breakdown["components"].append({
                 "name": f"Weight Surcharge ({weight_kg:.1f} kg)",
                 "amount": weight_surcharge
             })
-    breakdown["weight_kg"] = weight_kg
+    elif weight_kg > 5 and not weight_surcharge_enabled:
+        breakdown["weight_surcharge_disabled"] = True
     
     # Calculate total
     total_fee = (

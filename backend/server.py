@@ -3742,7 +3742,126 @@ class DeliveryFeeRequest(BaseModel):
     vendor_type: str = "restaurant"  # "restaurant" or "grocery"
     order_value: float = 0  # Total order value in INR
     weight_kg: float = 0  # Total weight in kg (for grocery)
-    is_bad_weather: bool = False  # Weather condition
+    is_bad_weather: Optional[bool] = None  # Deprecated - now auto-fetched from Admin Panel
+
+
+# Admin Panel Weather API URL
+ADMIN_PANEL_URL = os.environ.get("ADMIN_PANEL_URL", "https://bad-weather-fees.preview.emergentagent.com")
+
+
+async def fetch_weather_from_admin_panel(zone_id: str) -> dict:
+    """
+    Fetch weather status from Admin Panel's weather API.
+    Admin Panel is the source of truth for weather conditions.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{ADMIN_PANEL_URL}/api/weather/zone/{zone_id}",
+                timeout=5.0
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    "is_bad_weather": data.get("evaluation", {}).get("is_bad_weather", False),
+                    "weather_type": data.get("weather", {}).get("weather_description", ""),
+                    "temperature": data.get("weather", {}).get("temperature"),
+                    "rain": data.get("weather", {}).get("rain", 0),
+                    "wind_speed": data.get("weather", {}).get("wind_speed", 0),
+                    "reasons": data.get("evaluation", {}).get("reasons", []),
+                    "surge_recommended": data.get("evaluation", {}).get("surge_recommended", False),
+                    "auto_surge_enabled": data.get("auto_surge_enabled", True),
+                    "source": "admin_panel"
+                }
+    except Exception as e:
+        logger.warning(f"Failed to fetch weather from Admin Panel: {e}")
+    
+    # Fallback - return no bad weather if Admin Panel unreachable
+    return {
+        "is_bad_weather": False,
+        "weather_type": "unknown",
+        "reasons": [],
+        "source": "fallback",
+        "error": "Could not reach Admin Panel weather API"
+    }
+
+
+async def fetch_weather_by_location(lat: float, lng: float) -> dict:
+    """
+    Fetch weather for a location by first finding the zone, then checking Admin Panel.
+    Used when Wisher App opens to show weather warning.
+    """
+    # Find which zone this location belongs to
+    zones = await zone_service.find_zones_for_point(lat, lng)
+    
+    if not zones:
+        # No zone found - check weather using coordinates directly
+        # For now, return no bad weather for unzoned areas
+        return {
+            "is_bad_weather": False,
+            "zone_id": None,
+            "zone_name": None,
+            "message": "Location not in any delivery zone",
+            "source": "no_zone"
+        }
+    
+    # Use the first matching zone
+    zone = zones[0]
+    zone_id = zone["zone_id"]
+    
+    # Fetch weather from Admin Panel for this zone
+    weather = await fetch_weather_from_admin_panel(zone_id)
+    
+    # Get zone's weather surge config
+    zone_config = await db.zone_delivery_fee_config.find_one(
+        {"zone_id": zone_id, "vehicle_type": "two_wheeler"}
+    )
+    if not zone_config:
+        zone_config = await db.delivery_fee_config.find_one(
+            {"vehicle_type": "two_wheeler", "is_active": True}
+        )
+    
+    surge_percent = 0
+    weather_surge_enabled = True
+    
+    if zone_config:
+        surge_percent = zone_config.get("bad_weather_surge_percent", 25)
+        toggles = zone_config.get("toggles", {})
+        weather_surge_enabled = toggles.get("weather_surge_enabled", True)
+    
+    return {
+        "is_bad_weather": weather.get("is_bad_weather", False) and weather_surge_enabled,
+        "zone_id": zone_id,
+        "zone_name": zone.get("name"),
+        "weather_type": weather.get("weather_type", ""),
+        "temperature": weather.get("temperature"),
+        "rain": weather.get("rain", 0),
+        "wind_speed": weather.get("wind_speed", 0),
+        "reasons": weather.get("reasons", []),
+        "surge_percent": surge_percent if weather.get("is_bad_weather") and weather_surge_enabled else 0,
+        "surge_enabled": weather_surge_enabled,
+        "message": _get_weather_message(weather, surge_percent, weather_surge_enabled),
+        "source": weather.get("source", "admin_panel")
+    }
+
+
+def _get_weather_message(weather: dict, surge_percent: float, enabled: bool) -> str:
+    """Generate user-friendly weather message"""
+    if not weather.get("is_bad_weather"):
+        return "Weather is good for delivery"
+    
+    if not enabled:
+        return "Weather surge is currently disabled"
+    
+    reasons = weather.get("reasons", [])
+    if "rain" in str(reasons).lower():
+        return f"🌧️ Rainy weather - delivery fees are {surge_percent}% higher"
+    elif "wind" in str(reasons).lower():
+        return f"💨 High winds - delivery fees are {surge_percent}% higher"
+    elif "temperature" in str(reasons).lower() or "heat" in str(reasons).lower():
+        return f"🌡️ Extreme temperature - delivery fees are {surge_percent}% higher"
+    else:
+        return f"⚠️ Bad weather - delivery fees are {surge_percent}% higher"
 
 
 @api_router.post("/calculate-delivery-fee")
@@ -3752,14 +3871,16 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
     Uses Google Maps Distance Matrix API for accurate road distance.
     Returns full fee breakdown AND driver/company revenue split.
     
+    AUTOMATICALLY fetches weather from Admin Panel - no need to pass is_bad_weather.
+    Respects all fee toggles set by Admin.
+    
     Request:
     {
         "vendor_id": "user_xxx",
         "delivery_location": {"lat": 11.85, "lng": 75.43},
         "vendor_type": "restaurant",  // or "grocery"
         "order_value": 350,
-        "weight_kg": 2.5,  // for grocery
-        "is_bad_weather": false
+        "weight_kg": 2.5  // for grocery
     }
     """
     # Get vendor's shop location
@@ -3819,14 +3940,31 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
         if split_config:
             split_config.pop("_id", None)
     
-    # Calculate delivery fee
+    # AUTO-FETCH WEATHER FROM ADMIN PANEL (not passed by client anymore)
+    weather_data = None
+    is_bad_weather = False
+    
+    if zone_id:
+        weather_data = await fetch_weather_from_admin_panel(zone_id)
+        # Check if weather surge is enabled in config
+        toggles = config.get("toggles", {}) if config else {}
+        weather_surge_enabled = toggles.get("weather_surge_enabled", True)
+        
+        if weather_data.get("is_bad_weather") and weather_surge_enabled:
+            is_bad_weather = True
+    
+    # Legacy support: if client explicitly passed is_bad_weather, respect it (for backward compatibility)
+    if data.is_bad_weather is not None:
+        is_bad_weather = data.is_bad_weather
+    
+    # Calculate delivery fee with toggles support
     result = await smart_delivery_service.calculate_full_delivery_fee(
         vendor_location=vendor_location,
         delivery_location=data.delivery_location,
         vendor_type=data.vendor_type,
         order_value=data.order_value,
         weight_kg=data.weight_kg,
-        is_bad_weather=data.is_bad_weather,
+        is_bad_weather=is_bad_weather,
         config=config
     )
     
@@ -3837,11 +3975,103 @@ async def calculate_delivery_fee_endpoint(data: DeliveryFeeRequest):
     result["vendor_name"] = vendor.get("vendor_shop_name")
     result["revenue_split"] = revenue_split
     result["config_source"] = config_source
+    
+    # Include weather info in response
+    if weather_data:
+        result["weather"] = {
+            "is_bad_weather": is_bad_weather,
+            "weather_type": weather_data.get("weather_type", ""),
+            "reasons": weather_data.get("reasons", []),
+            "source": weather_data.get("source", "admin_panel")
+        }
+    
     if zone_id:
         result["zone_id"] = zone_id
         result["zone_name"] = vendor_zone.get("name") if vendor_zone else None
     
     return result
+
+
+@api_router.get("/weather-status")
+async def get_weather_status(lat: float, lng: float):
+    """
+    Get weather status for a location.
+    Called when Wisher App opens to show weather warning banner.
+    
+    This is the FIRST API Wisher App should call on app open.
+    If bad weather, show warning banner throughout the app.
+    
+    Query params:
+    - lat: Wisher's latitude
+    - lng: Wisher's longitude
+    
+    Response:
+    {
+        "is_bad_weather": true,
+        "zone_id": "zone_xxx",
+        "zone_name": "Kowdiar Circle",
+        "weather_type": "Heavy rain",
+        "surge_percent": 25,
+        "message": "🌧️ Rainy weather - delivery fees are 25% higher"
+    }
+    """
+    weather = await fetch_weather_by_location(lat, lng)
+    return weather
+
+
+@api_router.get("/zone-weather-status/{zone_id}")
+async def get_zone_weather_status(zone_id: str):
+    """
+    Get weather status for a specific zone.
+    Used when viewing vendors in a specific zone.
+    
+    Response includes:
+    - Current weather conditions
+    - Whether weather surge is active
+    - Surge percentage if active
+    - User-friendly message
+    """
+    # Verify zone exists
+    zone = await zone_service.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail=f"Zone {zone_id} not found")
+    
+    # Fetch weather from Admin Panel
+    weather = await fetch_weather_from_admin_panel(zone_id)
+    
+    # Get zone's weather surge config
+    zone_config = await db.zone_delivery_fee_config.find_one(
+        {"zone_id": zone_id, "vehicle_type": "two_wheeler"}
+    )
+    if not zone_config:
+        zone_config = await db.delivery_fee_config.find_one(
+            {"vehicle_type": "two_wheeler", "is_active": True}
+        )
+    
+    surge_percent = 0
+    weather_surge_enabled = True
+    
+    if zone_config:
+        surge_percent = zone_config.get("bad_weather_surge_percent", 25)
+        toggles = zone_config.get("toggles", {})
+        weather_surge_enabled = toggles.get("weather_surge_enabled", True)
+    
+    is_bad_weather = weather.get("is_bad_weather", False) and weather_surge_enabled
+    
+    return {
+        "zone_id": zone_id,
+        "zone_name": zone.get("name"),
+        "is_bad_weather": is_bad_weather,
+        "weather_type": weather.get("weather_type", ""),
+        "temperature": weather.get("temperature"),
+        "rain": weather.get("rain", 0),
+        "wind_speed": weather.get("wind_speed", 0),
+        "reasons": weather.get("reasons", []),
+        "surge_percent": surge_percent if is_bad_weather else 0,
+        "surge_enabled": weather_surge_enabled,
+        "message": _get_weather_message(weather, surge_percent, weather_surge_enabled),
+        "source": weather.get("source", "admin_panel")
+    }
 
 
 @api_router.get("/delivery-fee-config")
@@ -3906,6 +4136,7 @@ async def admin_update_delivery_fee_config(vehicle_type: str, config: dict):
     Update or create delivery fee configuration for a vehicle type.
     
     Request body should contain the full configuration object.
+    Includes fee toggles to enable/disable specific fees.
     """
     now = datetime.now(timezone.utc)
     
@@ -3918,6 +4149,16 @@ async def admin_update_delivery_fee_config(vehicle_type: str, config: dict):
     # Ensure vehicle_type matches
     config["vehicle_type"] = vehicle_type
     config["updated_at"] = now
+    
+    # Ensure toggles exist with defaults
+    if "toggles" not in config:
+        config["toggles"] = {
+            "peak_surge_enabled": True,
+            "weekend_surge_enabled": True,
+            "weather_surge_enabled": True,
+            "small_order_fee_enabled": True,
+            "weight_surcharge_enabled": True
+        }
     
     # Upsert the config
     result = await db.delivery_fee_config.update_one(
@@ -3938,6 +4179,65 @@ async def admin_update_delivery_fee_config(vehicle_type: str, config: dict):
         "message": f"Delivery fee config for {vehicle_type} updated successfully",
         "vehicle_type": vehicle_type,
         "upserted": result.upserted_id is not None
+    }
+
+
+@api_router.put("/admin/delivery-fee-config/{vehicle_type}/toggles")
+async def admin_update_fee_toggles(vehicle_type: str, toggles: dict):
+    """
+    Update ONLY the fee toggles for a vehicle type.
+    This is a convenience endpoint for quickly enabling/disabling fees.
+    
+    Request body:
+    {
+        "peak_surge_enabled": true,
+        "weekend_surge_enabled": true,
+        "weather_surge_enabled": true,
+        "small_order_fee_enabled": true,
+        "weight_surcharge_enabled": true
+    }
+    """
+    now = datetime.now(timezone.utc)
+    
+    # Validate toggles
+    valid_toggles = [
+        "peak_surge_enabled",
+        "weekend_surge_enabled", 
+        "weather_surge_enabled",
+        "small_order_fee_enabled",
+        "weight_surcharge_enabled"
+    ]
+    
+    for key in toggles:
+        if key not in valid_toggles:
+            raise HTTPException(status_code=400, detail=f"Invalid toggle: {key}")
+        if not isinstance(toggles[key], bool):
+            raise HTTPException(status_code=400, detail=f"Toggle {key} must be boolean")
+    
+    result = await db.delivery_fee_config.update_one(
+        {"vehicle_type": vehicle_type},
+        {
+            "$set": {
+                f"toggles.{k}": v for k, v in toggles.items()
+            } | {"updated_at": now}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail=f"Config for {vehicle_type} not found")
+    
+    # Log the change
+    await db.admin_audit_log.insert_one({
+        "action": "fee_toggles_updated",
+        "vehicle_type": vehicle_type,
+        "timestamp": now,
+        "toggles": toggles
+    })
+    
+    return {
+        "message": f"Fee toggles for {vehicle_type} updated successfully",
+        "vehicle_type": vehicle_type,
+        "toggles": toggles
     }
 
 
@@ -4217,6 +4517,7 @@ async def admin_update_zone_delivery_fee_config(zone_id: str, config: dict):
     """
     Update or create delivery fee configuration for a specific zone.
     This allows different fees per zone (e.g., higher fees in remote areas).
+    Includes fee toggles to enable/disable specific fees for this zone.
     """
     # Verify zone exists
     zone = await zone_service.get_zone(zone_id)
@@ -4231,6 +4532,16 @@ async def admin_update_zone_delivery_fee_config(zone_id: str, config: dict):
     config["updated_at"] = now
     config["is_active"] = config.get("is_active", True)
     config["is_suspended"] = config.get("is_suspended", False)
+    
+    # Ensure toggles exist with defaults
+    if "toggles" not in config:
+        config["toggles"] = {
+            "peak_surge_enabled": True,
+            "weekend_surge_enabled": True,
+            "weather_surge_enabled": True,
+            "small_order_fee_enabled": True,
+            "weight_surcharge_enabled": True
+        }
     
     # Upsert the zone-specific config
     result = await db.zone_delivery_fee_config.update_one(
@@ -4254,6 +4565,71 @@ async def admin_update_zone_delivery_fee_config(zone_id: str, config: dict):
         "zone_id": zone_id,
         "zone_name": zone.get("name"),
         "upserted": result.upserted_id is not None
+    }
+
+
+@api_router.put("/admin/zones/{zone_id}/delivery-fee-config/toggles")
+async def admin_update_zone_fee_toggles(zone_id: str, toggles: dict):
+    """
+    Update ONLY the fee toggles for a specific zone.
+    Convenience endpoint for quickly enabling/disabling fees per zone.
+    
+    Request body:
+    {
+        "peak_surge_enabled": true,
+        "weekend_surge_enabled": true,
+        "weather_surge_enabled": false,  // Disable weather surge for this zone
+        "small_order_fee_enabled": true,
+        "weight_surcharge_enabled": true
+    }
+    """
+    zone = await zone_service.get_zone(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail=f"Zone {zone_id} not found")
+    
+    now = datetime.now(timezone.utc)
+    
+    # Validate toggles
+    valid_toggles = [
+        "peak_surge_enabled",
+        "weekend_surge_enabled",
+        "weather_surge_enabled",
+        "small_order_fee_enabled",
+        "weight_surcharge_enabled"
+    ]
+    
+    for key in toggles:
+        if key not in valid_toggles:
+            raise HTTPException(status_code=400, detail=f"Invalid toggle: {key}")
+        if not isinstance(toggles[key], bool):
+            raise HTTPException(status_code=400, detail=f"Toggle {key} must be boolean")
+    
+    result = await db.zone_delivery_fee_config.update_one(
+        {"zone_id": zone_id, "vehicle_type": "two_wheeler"},
+        {
+            "$set": {
+                f"toggles.{k}": v for k, v in toggles.items()
+            } | {"updated_at": now}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail=f"No config exists for zone {zone_id}. Create one first.")
+    
+    # Log the change
+    await db.admin_audit_log.insert_one({
+        "action": "zone_fee_toggles_updated",
+        "zone_id": zone_id,
+        "zone_name": zone.get("name"),
+        "timestamp": now,
+        "toggles": toggles
+    })
+    
+    return {
+        "message": f"Fee toggles for zone '{zone.get('name')}' updated",
+        "zone_id": zone_id,
+        "zone_name": zone.get("name"),
+        "toggles": toggles
     }
 
 

@@ -7,6 +7,11 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
 
 ## Latest Updates (April 2026)
+- **[April 9] Weather Integration & Fee Toggles** — Vendor App now:
+  - Auto-fetches weather from Admin Panel's weather API
+  - Shows weather warning when Wisher app opens (before checkout)
+  - Supports fee toggles (enable/disable individual fees per zone or globally)
+  - All config changes from Admin Panel reflect in real-time
 - **[April 9] Zone-by-Zone Delivery Fee Control** — Added complete zone-specific delivery fee and revenue split configuration APIs. Admin can now:
   - Set different fees per zone (higher fees for remote areas)
   - Configure different driver/company splits per zone

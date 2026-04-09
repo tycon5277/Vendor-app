@@ -1,31 +1,131 @@
-# Delivery Fee & Revenue Split APIs for Admin Panel
+# Complete Admin Panel API Reference - UPDATED
 
 **Base URL:** `https://smart-fee-calculator.preview.emergentagent.com`
+**Admin Panel URL:** `https://bad-weather-fees.preview.emergentagent.com`
 
 ---
 
-## API Overview
+## 🌤️ WEATHER STATUS APIs (NEW - For Wisher App)
 
-| Category | Scope | Description |
-|----------|-------|-------------|
-| Fee Configuration | Global | System-wide fee settings for all zones |
-| Fee Configuration | Zone | Zone-specific fee overrides |
-| Revenue Split | Global | System-wide driver/company split |
-| Revenue Split | Zone | Zone-specific split overrides |
-| Suspend/Activate | Both | Enable/disable fees globally or per-zone |
-| Analytics | Both | Revenue tracking and reports |
+### Get Weather Status (On App Open)
+```
+GET /api/weather-status?lat={lat}&lng={lng}
+```
+**Call this when Wisher App opens** to show weather warning banner.
+
+**Response (Bad Weather):**
+```json
+{
+  "is_bad_weather": true,
+  "zone_id": "zone_xxx",
+  "zone_name": "Kowdiar Circle",
+  "weather_type": "Heavy rain",
+  "temperature": 28,
+  "rain": 5.2,
+  "wind_speed": 25,
+  "reasons": ["rain > 2.5 mm/hour"],
+  "surge_percent": 25,
+  "surge_enabled": true,
+  "message": "🌧️ Rainy weather - delivery fees are 25% higher"
+}
+```
+
+### Get Zone Weather Status
+```
+GET /api/zone-weather-status/{zone_id}
+```
+Get weather for specific zone when viewing vendors in that zone.
 
 ---
 
-## 1. Fee Calculation API (Wisher App)
+## 🚚 DELIVERY FEE CONFIGURATION
+
+### Global Configuration
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/delivery-fee-config` | Get all configs |
+| `GET` | `/api/admin/delivery-fee-config/{vehicle_type}` | Get config for vehicle |
+| `PUT` | `/api/admin/delivery-fee-config/{vehicle_type}` | Update full config |
+| `PUT` | `/api/admin/delivery-fee-config/{vehicle_type}/toggles` | **Update only toggles** |
+| `POST` | `/api/admin/delivery-fee-config/initialize` | Initialize defaults |
+| `PUT` | `/api/admin/delivery-fee-config/{vehicle_type}/suspend` | Suspend globally |
+| `PUT` | `/api/admin/delivery-fee-config/{vehicle_type}/activate` | Activate globally |
+
+### Zone-Specific Configuration
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/zones/delivery-fee-configs` | All zones with config status |
+| `GET` | `/api/admin/zones/{zone_id}/delivery-fee-config` | Zone config |
+| `PUT` | `/api/admin/zones/{zone_id}/delivery-fee-config` | Update zone config |
+| `PUT` | `/api/admin/zones/{zone_id}/delivery-fee-config/toggles` | **Update zone toggles only** |
+| `PUT` | `/api/admin/zones/{zone_id}/delivery-fee-config/suspend` | Suspend zone |
+| `PUT` | `/api/admin/zones/{zone_id}/delivery-fee-config/activate` | Activate zone |
+
+---
+
+## 🔘 FEE TOGGLES (NEW)
+
+Admin can enable/disable specific fee types without changing amounts.
+
+### Update Global Toggles
+```
+PUT /api/admin/delivery-fee-config/{vehicle_type}/toggles
+```
+
+### Update Zone Toggles
+```
+PUT /api/admin/zones/{zone_id}/delivery-fee-config/toggles
+```
+
+**Request Body:**
+```json
+{
+  "peak_surge_enabled": true,
+  "weekend_surge_enabled": true,
+  "weather_surge_enabled": true,
+  "small_order_fee_enabled": true,
+  "weight_surcharge_enabled": true
+}
+```
+
+**Effect:**
+- `peak_surge_enabled: false` → Peak hour surge NOT applied even during peak hours
+- `weather_surge_enabled: false` → Weather surge NOT applied even in bad weather
+- etc.
+
+---
+
+## 💰 REVENUE SPLIT CONFIGURATION
+
+### Global Split
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/revenue-split-config` | Get all splits |
+| `GET` | `/api/admin/revenue-split-config/{vehicle_type}` | Get specific split |
+| `PUT` | `/api/admin/revenue-split-config/{vehicle_type}` | Update splits |
+| `POST` | `/api/admin/revenue-split-config/initialize` | Initialize defaults |
+
+### Zone-Specific Split
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/zones/revenue-split-configs` | All zones with split status |
+| `GET` | `/api/admin/zones/{zone_id}/revenue-split-config` | Zone split config |
+| `PUT` | `/api/admin/zones/{zone_id}/revenue-split-config` | Update zone split |
+
+---
+
+## 🧮 FEE CALCULATION (Auto Weather)
 
 ### Calculate Delivery Fee
 ```
 POST /api/calculate-delivery-fee
 ```
 
-Calculates delivery fee with full breakdown and driver/company revenue split.
-**Automatically uses zone-specific config if vendor belongs to a zone with custom config.**
+**Now auto-fetches weather from Admin Panel** - no need to pass `is_bad_weather`.
 
 **Request:**
 ```json
@@ -34,60 +134,104 @@ Calculates delivery fee with full breakdown and driver/company revenue split.
   "delivery_location": {"lat": 11.85, "lng": 75.43},
   "vendor_type": "restaurant",
   "order_value": 350,
-  "weight_kg": 2.5,
-  "is_bad_weather": false
+  "weight_kg": 2.5
 }
 ```
 
-**Response:**
-```json
-{
-  "delivery_fee": 78.22,
-  "base_fee": 34.99,
-  "distance_fee": 8.25,
-  "peak_surge": 0,
-  "weekend_surge": 0,
-  "weather_surge": 0,
-  "small_order_fee": 14.99,
-  "weight_surcharge": 19.99,
-  "distance_km": 3.75,
-  "distance_text": "3.8 km",
-  "duration_mins": 10,
-  "estimated_delivery_time": "25-35 mins",
-  "config_source": "zone",
-  "zone_id": "zone_xxx",
-  "zone_name": "Kowdiar Circle",
-  "breakdown": {...},
-  "revenue_split": {
-    "driver_earnings": {"total": 50.97, "breakdown": [...]},
-    "company_revenue": {"total": 27.25, "breakdown": [...]}
-  }
-}
-```
+**Response includes:**
+- All fee components with amounts
+- Revenue split (driver/company breakdown)
+- Weather info from Admin Panel
+- Which toggles are applied
+- Zone info if applicable
 
 ---
 
-## 2. GLOBAL Delivery Fee Configuration APIs
+## 📊 ANALYTICS
 
-### Get All Global Configurations
-```
-GET /api/admin/delivery-fee-config
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/delivery-analytics` | Revenue analytics |
+| `GET` | `/api/admin/driver-earnings` | Driver earnings report |
+| `GET` | `/api/admin/platform-revenue` | Platform revenue |
+| `GET` | `/api/admin/analytics/vendors/overview` | Vendor counts |
+| `GET` | `/api/admin/analytics/vendors/revenue` | Vendor revenue |
+| `GET` | `/api/admin/analytics/vendors/performance` | Vendor performance |
+| `GET` | `/api/admin/analytics/orders/by-zone` | Orders per zone |
+| `GET` | `/api/admin/analytics/orders/hourly` | Peak hours |
 
-### Get Configuration by Vehicle Type
-```
-GET /api/admin/delivery-fee-config/{vehicle_type}
-```
-Example: `GET /api/admin/delivery-fee-config/two_wheeler`
+---
 
-### Update Global Configuration
-```
-PUT /api/admin/delivery-fee-config/{vehicle_type}
-```
+## 💵 REVENUE POOL
 
-**Request Body:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/revenue-pool` | Pool balance & history |
+| `POST` | `/api/admin/revenue-pool/allocate` | Allocate funds |
+
+---
+
+## 🏪 VENDOR MANAGEMENT
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/vendors` | List vendors |
+| `GET` | `/api/admin/vendors/{id}` | Vendor details |
+| `PUT` | `/api/admin/vendors/{id}/status` | Update status |
+| `GET` | `/api/admin/vendors/{id}/orders` | Vendor orders |
+| `GET` | `/api/admin/vendors/{id}/products` | Vendor products |
+| `GET` | `/api/admin/vendors/{id}/device-info` | Device info |
+| `GET` | `/api/admin/vendors/{id}/health-score` | Health score |
+| `GET` | `/api/admin/vendors/{id}/documents` | Documents |
+| `PUT` | `/api/admin/vendors/{id}/documents/{type}/verify` | Verify document |
+| `GET` | `/api/admin/vendors/{id}/financials` | Financials |
+
+---
+
+## 🗺️ ZONE MANAGEMENT
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/zones` | List zones |
+| `GET` | `/api/admin/zones/{id}` | Zone details |
+| `POST` | `/api/admin/zones` | Create zone |
+| `PUT` | `/api/admin/zones/{id}` | Update zone |
+| `DELETE` | `/api/admin/zones/{id}` | Delete zone |
+| `POST` | `/api/admin/zones/{id}/assign-vendor` | Assign vendor |
+| `DELETE` | `/api/admin/zones/{id}/unassign-vendor` | Unassign vendor |
+| `GET` | `/api/admin/zones/{id}/vendors` | Zone vendors |
+| `GET` | `/api/admin/zones/{id}/genies` | Zone genies |
+| `GET` | `/api/admin/zones/{id}/stats` | Zone stats |
+
+---
+
+## 📡 MONITORING
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/admin/monitoring/online-vendors` | Online vendors |
+| `GET` | `/api/admin/monitoring/online-genies` | Online genies |
+| `GET` | `/api/admin/monitoring/low-battery` | Low battery alerts |
+| `GET` | `/api/admin/monitoring/outdated-apps` | Outdated apps |
+
+---
+
+## 🔔 WEBHOOKS
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/webhooks/admin` | Receive admin events |
+
+**Events:** `vendor.suspended`, `vendor.approved`, `vendor.rejected`, `vendor.activated`, `zone.deleted`
+
+---
+
+## 📋 CONFIGURATION SCHEMA
+
+### Full Fee Config
 ```json
 {
+  "vehicle_type": "two_wheeler",
   "base_fee": {
     "restaurant": 34.99,
     "grocery": 34.99
@@ -120,117 +264,18 @@ PUT /api/admin/delivery-fee-config/{vehicle_type}
       {"min_kg": 20, "max_kg": 999, "fee": 49.99}
     ]
   },
-  "max_distance_km": 15
+  "max_distance_km": 15,
+  "toggles": {
+    "peak_surge_enabled": true,
+    "weekend_surge_enabled": true,
+    "weather_surge_enabled": true,
+    "small_order_fee_enabled": true,
+    "weight_surcharge_enabled": true
+  }
 }
 ```
 
-### Initialize Default Configuration
-```
-POST /api/admin/delivery-fee-config/initialize
-```
-
-### Suspend Global Delivery Fees
-```
-PUT /api/admin/delivery-fee-config/{vehicle_type}/suspend
-```
-
-### Activate Global Delivery Fees
-```
-PUT /api/admin/delivery-fee-config/{vehicle_type}/activate
-```
-
----
-
-## 3. ZONE-SPECIFIC Delivery Fee Configuration APIs
-
-### Get All Zones with Fee Config Status
-```
-GET /api/admin/zones/delivery-fee-configs
-```
-
-**Response:**
-```json
-{
-  "zones": [
-    {
-      "zone_id": "zone_xxx",
-      "zone_name": "Kowdiar Circle",
-      "config_type": "zone_specific",
-      "is_suspended": false,
-      "is_active": true,
-      "base_fee": {...},
-      "per_km_rate": 14
-    },
-    {
-      "zone_id": "zone_yyy",
-      "zone_name": "Edappally Zone",
-      "config_type": "global",
-      "is_suspended": false,
-      "is_active": true,
-      "message": "Using global configuration"
-    }
-  ],
-  "total_zones": 2,
-  "zones_with_custom_config": 1,
-  "global_config_exists": true
-}
-```
-
-### Get Zone-Specific Fee Config
-```
-GET /api/admin/zones/{zone_id}/delivery-fee-config
-```
-
-Returns zone-specific config if exists, otherwise falls back to global config with `config_type: "global_fallback"`.
-
-### Create/Update Zone-Specific Fee Config
-```
-PUT /api/admin/zones/{zone_id}/delivery-fee-config
-```
-
-**Request Body:** (Same structure as global config)
-```json
-{
-  "base_fee": {"restaurant": 39.99, "grocery": 39.99},
-  "base_distance_km": 2,
-  "per_km_rate": 14,
-  "peak_surge_percent": 30,
-  ...
-}
-```
-
-### Suspend Zone Delivery Fees
-```
-PUT /api/admin/zones/{zone_id}/delivery-fee-config/suspend
-```
-
-When suspended, zone will fall back to global config.
-
-### Activate Zone Delivery Fees
-```
-PUT /api/admin/zones/{zone_id}/delivery-fee-config/activate
-```
-
----
-
-## 4. GLOBAL Revenue Split Configuration APIs
-
-### Get All Split Configurations
-```
-GET /api/admin/revenue-split-config
-```
-
-### Get Split Configuration by Vehicle Type
-```
-GET /api/admin/revenue-split-config/{vehicle_type}
-```
-
-### Update Global Split Configuration
-```
-PUT /api/admin/revenue-split-config/{vehicle_type}
-```
-
-**Request Body:**
+### Revenue Split Config
 ```json
 {
   "splits": {
@@ -245,195 +290,65 @@ PUT /api/admin/revenue-split-config/{vehicle_type}
 }
 ```
 
-**Note:** Each split must total 100% (driver_percent + company_percent = 100)
+---
 
-### Initialize Default Split Configuration
+## 🔄 DATA FLOW
+
+### Weather Flow
 ```
-POST /api/admin/revenue-split-config/initialize
+Wisher Opens App
+    ↓
+GET /api/weather-status?lat=X&lng=Y
+    ↓
+Vendor App → Admin Panel /api/weather/zone/{zone_id}
+    ↓
+If is_bad_weather: true → Show warning banner
+    ↓
+User browses (already knows about higher fees)
+    ↓
+At checkout → Weather surge auto-applied
+```
+
+### Config Change Flow
+```
+Admin changes fee in Admin Panel
+    ↓
+PUT /api/admin/delivery-fee-config/two_wheeler (or zone endpoint)
+    ↓
+Config saved to Vendor App DB
+    ↓
+Next fee calculation uses NEW config immediately
+    ↓
+Real-time effect on all apps
+```
+
+### Zone Priority
+```
+Fee Calculation
+    ↓
+Check vendor's zone
+    ↓
+Zone has custom config? → Use zone config
+    ↓
+No zone config? → Use global config
+    ↓
+No global config? → Use defaults
 ```
 
 ---
 
-## 5. ZONE-SPECIFIC Revenue Split Configuration APIs
-
-### Get All Zones with Split Config Status
-```
-GET /api/admin/zones/revenue-split-configs
-```
-
-**Response:**
-```json
-{
-  "zones": [
-    {
-      "zone_id": "zone_xxx",
-      "zone_name": "Kowdiar Circle",
-      "config_type": "zone_specific",
-      "splits": {
-        "base_fee": {"driver_percent": 80, "company_percent": 20},
-        ...
-      }
-    },
-    {
-      "zone_id": "zone_yyy",
-      "zone_name": "Edappally Zone",
-      "config_type": "global",
-      "message": "Using global split configuration"
-    }
-  ],
-  "total_zones": 2,
-  "zones_with_custom_split": 1
-}
-```
-
-### Get Zone-Specific Split Config
-```
-GET /api/admin/zones/{zone_id}/revenue-split-config
-```
-
-### Create/Update Zone-Specific Split Config
-```
-PUT /api/admin/zones/{zone_id}/revenue-split-config
-```
-
-**Request Body:**
-```json
-{
-  "splits": {
-    "base_fee": {"driver_percent": 80, "company_percent": 20},
-    "distance_fee": {"driver_percent": 85, "company_percent": 15},
-    "peak_surge": {"driver_percent": 10, "company_percent": 90},
-    "weekend_surge": {"driver_percent": 10, "company_percent": 90},
-    "weather_surge": {"driver_percent": 15, "company_percent": 85},
-    "small_order_fee": {"driver_percent": 0, "company_percent": 100},
-    "weight_surcharge": {"driver_percent": 100, "company_percent": 0}
-  }
-}
-```
-
----
-
-## 6. Analytics APIs
-
-### Get Delivery Analytics
-```
-GET /api/admin/delivery-analytics?start_date=2026-03-01&end_date=2026-03-31&period=daily
-```
-
-### Get Driver Earnings Report
-```
-GET /api/admin/driver-earnings?driver_id=user_xxx&start_date=2026-03-01&end_date=2026-03-31
-```
-
----
-
-## 7. Revenue Pool APIs
-
-### Get Revenue Pool Status
-```
-GET /api/admin/revenue-pool
-```
-
-### Allocate Funds from Pool
-```
-POST /api/admin/revenue-pool/allocate
-```
-
-**Request Body:**
-```json
-{
-  "type": "driver_bonus",
-  "amount": 1000,
-  "description": "Rain day bonus for top drivers",
-  "recipient_ids": ["user_xxx", "user_yyy"]
-}
-```
-
-**Valid Types:** `driver_bonus`, `customer_discount`, `operational`, `marketing`, `refund`
-
----
-
-## 8. Public Configuration API (Read-Only)
-
-### Get Current Delivery Fee Config
-```
-GET /api/delivery-fee-config
-```
-
----
-
-## Configuration Hierarchy
-
-```
-Zone-Specific Config (if exists & not suspended)
-         ↓ (fallback)
-    Global Config
-         ↓ (fallback)
-    Default Values
-```
-
-When calculating delivery fee:
-1. System checks if vendor belongs to a zone
-2. If zone has custom config AND is not suspended → use zone config
-3. Otherwise → use global config
-4. If no global config → use hardcoded defaults
-
----
-
-## Admin Actions Summary
-
-| Action | Global API | Zone API |
-|--------|------------|----------|
-| **View config** | `GET /api/admin/delivery-fee-config` | `GET /api/admin/zones/{zone_id}/delivery-fee-config` |
-| **Update config** | `PUT /api/admin/delivery-fee-config/{vehicle}` | `PUT /api/admin/zones/{zone_id}/delivery-fee-config` |
-| **Suspend fees** | `PUT /api/admin/delivery-fee-config/{vehicle}/suspend` | `PUT /api/admin/zones/{zone_id}/delivery-fee-config/suspend` |
-| **Activate fees** | `PUT /api/admin/delivery-fee-config/{vehicle}/activate` | `PUT /api/admin/zones/{zone_id}/delivery-fee-config/activate` |
-| **View all zones** | - | `GET /api/admin/zones/delivery-fee-configs` |
-| **View splits** | `GET /api/admin/revenue-split-config` | `GET /api/admin/zones/{zone_id}/revenue-split-config` |
-| **Update splits** | `PUT /api/admin/revenue-split-config/{vehicle}` | `PUT /api/admin/zones/{zone_id}/revenue-split-config` |
-
----
-
-## Default Values Summary
-
-| Component | Default Value |
-|-----------|---------------|
-| Base Fee (Restaurant/Grocery) | ₹34.99 |
-| Base Distance | 3 km |
-| Per KM Rate | ₹11 |
-| Peak Surge | 25% |
-| Weekend Surge | 15% |
-| Weather Surge | 25% |
-| Small Order (Restaurant) | ₹19.99 (< ₹200) |
-| Small Order (Grocery) | ₹14.99 (< ₹220) |
-| Weight 5-10kg | ₹19.99 |
-| Weight 10-20kg | ₹29.99 |
-| Weight 20kg+ | ₹49.99 |
-| Max Distance | 15 km |
-
-## Default Revenue Split
-
-| Component | Driver % | Company % |
-|-----------|----------|-----------|
-| Base Fee | 71.4% | 28.6% |
-| Distance Fee | 72.7% | 27.3% |
-| Peak Surge | 0% | 100% |
-| Weekend Surge | 0% | 100% |
-| Weather Surge | 0% | 100% |
-| Small Order Fee | 0% | 100% |
-| Weight Surcharge | 100% | 0% |
-
----
-
-## Database Collections
+## 📝 Database Collections
 
 | Collection | Purpose |
 |------------|---------|
-| `delivery_fee_config` | Global fee configurations |
-| `zone_delivery_fee_config` | Zone-specific fee configurations |
-| `revenue_split_config` | Global revenue split configurations |
-| `zone_revenue_split_config` | Zone-specific split configurations |
-| `delivery_transactions` | Individual delivery records with fee breakdown |
-| `revenue_pool` | Company revenue pool balance and allocations |
-| `driver_earnings` | Aggregated driver earnings |
-| `admin_audit_log` | Tracks all admin config changes |
+| `delivery_fee_config` | Global fee configs |
+| `zone_delivery_fee_config` | Zone-specific fee configs |
+| `revenue_split_config` | Global revenue splits |
+| `zone_revenue_split_config` | Zone-specific splits |
+| `admin_audit_log` | All admin config changes |
+| `delivery_transactions` | Delivery records |
+| `revenue_pool` | Company revenue pool |
+
+---
+
+**Total APIs: 90+**
