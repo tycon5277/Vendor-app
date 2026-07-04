@@ -7,7 +7,7 @@ import requests
 import os
 import base64
 
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://smart-fee-calculator.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://vendor-dashboard-app-2.preview.emergentagent.com')
 
 # Test credentials
 TEST_PHONE = "1212121212"

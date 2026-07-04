@@ -3746,7 +3746,7 @@ class DeliveryFeeRequest(BaseModel):
 
 
 # Admin Panel Weather API URL
-ADMIN_PANEL_URL = os.environ.get("ADMIN_PANEL_URL", "https://zone-config-api.preview.emergentagent.com")
+ADMIN_PANEL_URL = os.environ.get("ADMIN_PANEL_URL", "https://vendor-dashboard-app-2.preview.emergentagent.com")
 
 
 async def fetch_weather_from_admin_panel(zone_id: str) -> dict:

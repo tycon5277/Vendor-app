@@ -16,7 +16,7 @@ The Vendor App now supports:
 
 ### 1. Backend API Endpoints (Already Available)
 
-The shared backend at `https://smart-fee-calculator.preview.emergentagent.com` provides these endpoints:
+The shared backend at `https://vendor-dashboard-app-2.preview.emergentagent.com` provides these endpoints:
 
 ```
 GET /api/wisher/home/banners        - Get active banners for Home carousel

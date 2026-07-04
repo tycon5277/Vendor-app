@@ -1,6 +1,6 @@
 # Wisher App - API Documentation
 
-**Base URL:** `https://smart-fee-calculator.preview.emergentagent.com/api`
+**Base URL:** `https://vendor-dashboard-app-2.preview.emergentagent.com/api`
 
 ---
 

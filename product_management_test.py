@@ -10,7 +10,7 @@ import sys
 from datetime import datetime
 
 # Backend URL from frontend/.env
-BACKEND_URL = "https://smart-fee-calculator.preview.emergentagent.com/api"
+BACKEND_URL = "https://vendor-dashboard-app-2.preview.emergentagent.com/api"
 
 # Test credentials
 TEST_PHONE = "9876543210"

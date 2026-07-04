@@ -1,7 +1,7 @@
 # Complete Admin Panel API Reference - UPDATED
 
-**Base URL:** `https://smart-fee-calculator.preview.emergentagent.com`
-**Admin Panel URL:** `https://bad-weather-fees.preview.emergentagent.com`
+**Base URL:** `https://vendor-dashboard-app-2.preview.emergentagent.com`
+**Admin Panel URL:** `https://vendor-dashboard-app-2.preview.emergentagent.com`
 
 ---
 

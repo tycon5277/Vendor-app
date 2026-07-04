@@ -2,7 +2,7 @@
 
 ## API Base URL
 ```
-https://smart-fee-calculator.preview.emergentagent.com
+https://vendor-dashboard-app-2.preview.emergentagent.com
 ```
 
 ## Available Endpoints
@@ -147,7 +147,7 @@ GET /api/localhub/products
 
 ```typescript
 // src/utils/vendorApi.ts
-const VENDOR_API_URL = 'https://smart-fee-calculator.preview.emergentagent.com';
+const VENDOR_API_URL = 'https://vendor-dashboard-app-2.preview.emergentagent.com';
 
 export const vendorApi = {
   // Get all vendors

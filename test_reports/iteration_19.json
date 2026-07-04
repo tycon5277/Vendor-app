@@ -1,0 +1,93 @@
+{
+  "summary": "First E2E test of the new Vendor PWA (Vite + React) replacing the deprecated Expo app. Backend API tests 10/10 passed (auth, orders list, products CRUD, profile update, status toggle). Frontend E2E on desktop (1920x1080) and mobile (390x844): login (valid + invalid OTP error), dashboard stat cards + shop-closed alert + quick actions, orders page filters + empty state + refresh, products full CRUD (add/search/toggle-stock/edit/delete with confirm), profile shop toggle Open<->Closed + profile save, sidebar navigation, mobile hamburger menu + sidebar overlay, logout, protected-route redirect, and zustand-persist auth persistence on reload. One critical CSS bug found and fixed: on desktop viewport, the sidebar was translated offscreen (x=-260) because `.sidebar-hidden { transform: translateX(-100%) }` overrode the intended `lg:translate-x-0` Tailwind utility, leaving desktop users with no way to click nav-* links (fell back to URL navigation until fix). Applied minimal CSS override to force translate(0) at min-width:1024px and re-verified all sidebar nav clicks work.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Sidebar",
+        "issue": "On desktop (>=1024px), sidebar was rendered offscreen (translateX(-100%)) because the .sidebar-hidden class overrode lg:translate-x-0. All nav-dashboard/nav-orders/nav-products/nav-profile links were not clickable (outside viewport). Fixed in this iteration by adding a min-width:1024px media query in /app/vendor-pwa/src/index.css to force transform: translateX(0) !important on .sidebar and .sidebar.sidebar-hidden.",
+        "selector": "aside.sidebar",
+        "priority": "HIGH",
+        "status": "FIXED (verified sidebar x=0 after fix, all nav clicks work)"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "LoginPage (mobile)",
+        "issues": ["Login form is vertically centered which leaves ~40% empty space above the QuickWish header on 390x844 viewport; consider top-aligning the form on small screens for better first impression."]
+      }
+    ]
+  },
+  "test_results": {
+    "backend": {
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "file": "/app/backend/tests/test_vendor_pwa.py",
+      "tests": [
+        "TestAuth::test_send_otp - PASSED (debug_otp=123456)",
+        "TestAuth::test_verify_invalid_otp - PASSED (returns 4xx)",
+        "TestAuth::test_auth_me - PASSED (partner_type=vendor)",
+        "TestOrders::test_get_orders - PASSED (returns list)",
+        "TestOrders::test_get_orders_unauth - PASSED (401/403)",
+        "TestProducts::test_list_products - PASSED",
+        "TestProducts::test_create_update_delete_product - PASSED (POST/GET-verify/PUT/stock-toggle/DELETE/GET-verify-gone)",
+        "TestProfile::test_update_profile - PASSED",
+        "TestProfile::test_toggle_status_available - PASSED (persisted, /auth/me confirms)",
+        "TestProfile::test_toggle_status_offline - PASSED (persisted, /auth/me confirms)"
+      ]
+    },
+    "frontend": {
+      "flows_verified": [
+        "Phone OTP login happy path (9999999999 / 123456) -> Dashboard",
+        "Invalid OTP (000000) shows login-error-message with text 'Invalid OTP'",
+        "Dashboard: stat-today-orders, stat-pending-orders, stat-today-earnings, stat-total-products, recent-orders-card, shop-closed-alert + open-shop-button all render",
+        "Sidebar nav (post-fix): nav-dashboard, nav-orders, nav-products, nav-profile all navigate correctly",
+        "sidebar-shop-status badge shows Open/Closed reflecting user.partner_status",
+        "Orders page: all 6 filter tabs (all/new/confirmed/preparing/ready/delivered) clickable, orders-empty-state renders (no orders in DB for this vendor), refresh-orders-button works",
+        "Products CRUD end-to-end via UI: add-product-button -> product-modal -> save-product-button; product-search-input filters; toggle-stock-button; edit-product-button (name updated); delete-product-button with window.confirm accept -> product removed from grid",
+        "Profile: shop-status-badge toggles Open<->Closed via toggle-shop-status-button (PUT /api/vendor/status), save-profile-button persists description via PUT /api/vendor/profile",
+        "Mobile (390x844): mobile-menu-button opens sidebar overlay (x transitions from -260 to 0), nav clicks work, overlay closes on nav",
+        "Logout via logout-button returns to /login and clears state",
+        "Protected route redirect: after logout, /orders redirects to /login",
+        "Auth persistence: page reload preserves session via zustand persist (localStorage key 'vendor-auth')"
+      ]
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_vendor_pwa.py",
+    "/app/test_reports/pytest/vendor_pwa_results.xml"
+  ],
+  "action_items": [
+    "Sidebar CSS fix already applied by testing agent - main agent should review the change in /app/vendor-pwa/src/index.css (added @media min-width:1024px block forcing translate(0) on .sidebar). Consider refactoring the Sidebar JSX to conditionally omit 'sidebar-hidden' when on lg screens instead of relying on the CSS override, for cleaner separation of concerns.",
+    "Optional: top-align login form on mobile viewport for better UX (currently vertically centered, wastes upper space).",
+    "No test orders exist for phone 9999999999 - to fully test order status progression (accept/reject/preparing/ready/delivered), seed orders via wisher app or admin API."
+  ],
+  "critical_code_review_comments": [
+    "authStore.js correctly guards partner_type !== 'vendor' preventing non-vendors from logging in.",
+    "api/index.js interceptor triggers logout() on any 401 - good, but consider not logging out on 401 from /auth/me during background fetch (fetchUser already handles this).",
+    "ProductsPage delete uses window.confirm() which is acceptable for MVP but not accessible; consider replacing with a shadcn-style AlertDialog.",
+    "OrdersPage polls every 30s via setInterval - fine, but no visible indicator that background refresh is happening.",
+    "index.css sidebar-hidden vs lg:translate-x-0 conflict was a genuine bug because CSS `transform` property assignment overrides Tailwind's `--tw-translate-x` custom-property based transform. Fix applied.",
+    "No global error boundary in App.jsx - a component throw would blank the app.",
+    "profileApi.updateStatus payload uses {status: 'available'|'offline'} - matches backend expectation."
+  ],
+  "updated_files": [
+    "/app/vendor-pwa/src/index.css - added @media (min-width:1024px) block to fix desktop sidebar visibility",
+    "/app/backend/tests/test_vendor_pwa.py - new pytest suite (10 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10)",
+    "frontend": "100% after sidebar CSS fix (was ~90% before - sidebar nav clicks failed on desktop)"
+  },
+  "test_credentials": "phone 9999999999 / OTP 123456 (mocked)",
+  "seed_data_creation": "None. Created and deleted transient TEST_E2E_* products during testing; no residual test data left behind.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Vendor PWA is at https://vendor-dashboard-app-2.preview.emergentagent.com (Vite dev server on port 3000, supervisor program 'vendor-pwa'). Login with 9999999999 / 123456. Backend regression suite: pytest /app/backend/tests/test_vendor_pwa.py -v. Sidebar desktop visibility fix is in /app/vendor-pwa/src/index.css (media query block around line 237-245). To test order status flows end-to-end you need seeded orders for this vendor - none currently exist in the DB.",
+  "rca_of_the_issue": "Sidebar hidden on desktop: JSX applied class `sidebar sidebar-hidden lg:translate-x-0` when sidebar closed. `.sidebar-hidden { transform: translateX(-100%) }` in index.css directly sets the `transform` property. Tailwind v4's `.lg\\:translate-x-0` utility only updates the `--tw-translate-x` custom property (used via `transform: translate(var(--tw-translate-x), var(--tw-translate-y))`). Because `.sidebar-hidden`'s direct `transform` assignment appeared later in the cascade (or with equal specificity), it won over the utility, keeping the sidebar at x=-260 on all viewports. Reproduction: login, set viewport 1920x1080, inspect aside.sidebar getBoundingClientRect -> x=-260. Mitigation applied: added `@media (min-width:1024px) { .sidebar, .sidebar.sidebar-hidden { transform: translateX(0) !important; } }` in /app/vendor-pwa/src/index.css. Verified: post-fix aside.sidebar x=0 and all nav-* clicks navigate."
+}
