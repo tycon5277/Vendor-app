@@ -22,6 +22,7 @@ const STATUS_BADGES = {
   active: 'badge-ready',
   scheduled: 'badge-accepted',
   paused: 'badge-pending',
+  disabled: 'badge-cancelled',
   expired: 'badge-cancelled',
 };
 
@@ -252,7 +253,7 @@ export default function DiscountsPage() {
                 <p>Used: {discount.usage_count || 0}{discount.usage_limit ? ` / ${discount.usage_limit}` : ''}</p>
               </div>
               <div className="flex gap-2">
-                {['active', 'paused'].includes(discount.status) && (
+                {['active', 'paused', 'disabled'].includes(discount.status) && (
                   <button
                     onClick={() => handleToggle(discount)}
                     className={`btn flex-1 text-xs ${discount.status === 'active' ? 'btn-outline' : 'btn-success'}`}

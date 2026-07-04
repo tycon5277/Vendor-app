@@ -318,3 +318,20 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 
 ### Backlog (P2)
 - Pre-ordering from closed shops; chat migration; Twilio masked calls; payment gateway; split 16k-line server.py into route modules; delete /app/frontend after verification
+
+## P1 Features Complete (June 2026) — Existing APIs only, Carpet Genie delivery (no auto rickshaw per user)
+- **Order notifications**: NotificationBell (src/components/Notifications.jsx) — unread badge, slide-over panel, mark read/all-read via existing GET/PATCH /vendor/notifications APIs; useNewOrderAlert polls GET /vendor/orders/pending every 20s → sound (WebAudio) + sonner toast + browser Notification API on new orders
+- **Carpet Genie assignment**: Orders page ready-state now delivery-aware — Assign Carpet Genie (POST /vendor/orders/{id}/assign-delivery {delivery_type:'carpet_genie'}), Own Delivery (if vendor_can_deliver), Customer Picked Up (self_pickup); GenieInfo card shows agent/finding state; genie-assigned orders show no vendor delivery buttons (agent updates via Genie app). Statuses awaiting_pickup/picked_up added
+- **Product photos**: camera/upload in ProductModal (capture=environment, canvas resize to 800px JPEG base64) — syncs to hub_products for Wisher app via existing endpoints
+- **Shop geolocation**: Profile "Use Current Location" → navigator.geolocation → PUT /vendor/profile {shop_location} (required for genie pickup distance)
+- **Discounts page** (/discounts): create percentage/flat discounts, coupon codes, min order, max cap, date-range validity, usage limits, pause/activate/delete — existing /vendor/discounts APIs
+- **Backend bug fix**: server.py ~2701 assign-delivery now falls back to vendor_shop_location (was reading only shop_location → assignment always failed)
+- **Bug fixes post-testing**: discount status 'disabled' handled in UI (badge + Activate button); Toaster moved to bottom-right (was covering bell)
+- Testing: iteration_20.json — backend 15/15 pass (tests/test_vendor_pwa_p1.py), frontend flows verified; both reported issues fixed & re-verified via screenshot E2E
+- Deferred: BOGO + category/product-targeted discounts UI (backend supports); real-image e2e for photo capture; SSE instead of polling at scale
+
+### Next (P1 remaining) 
+- None — P1 batch done. User still to verify PWA before deleting /app/frontend
+
+### Backlog (P2)
+- Pre-ordering from closed shops; chat migration; Twilio masked calls; payment gateway; server.py modular refactor; delete /app/frontend after user verification; BOGO discount UI
