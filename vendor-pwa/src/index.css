@@ -15,12 +15,6 @@
   --color-destructive: #DC2626;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
 body {
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
   background-color: var(--color-background);

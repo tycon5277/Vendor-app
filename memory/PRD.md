@@ -291,3 +291,30 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 - ✅ Edit Product with Variations — Complete rewrite with variation type selection, adding/removing variations, category/subcategory selection
 - ✅ Wisher App Variation UI Guide — Comprehensive implementation guide created at `/app/documents/WISHER_VARIATION_UI_GUIDE.md`
 - ✅ Old product-add.tsx removed — Cleaned up deprecated file and updated _layout.tsx
+
+## PWA Transition — Completed (June 2026)
+**Vendor App converted from React Native/Expo to a React PWA (Vite + Tailwind). Backend 100% untouched (Redis sync, Genie notifications, webhooks, order routing all intact).**
+
+### What was built
+- New frontend at `/app/vendor-pwa` (Vite + React 19 + Tailwind v4 + Zustand + react-router-dom), served on port 3000 via supervisor program `vendor-pwa` (old `expo` program stopped; `/app/frontend` kept until user verifies)
+- Pages: LoginPage (phone + OTP, single-input OTP fixes old flakiness), DashboardPage (stats, recent orders, quick actions, open-shop alert), OrdersPage (filter tabs, accept/reject, status progression pending→confirmed→preparing→ready→out_for_delivery→delivered, 30s auto-refresh, auto-accept countdown), ProductsPage (full CRUD + search + stock toggle), ProfilePage (shop open/close toggle via PUT /vendor/status, shop details editing)
+- API layer (`src/api/index.js`) aligned to real backend contracts: POST /auth/send-otp, POST /auth/verify-otp (Bearer session_token), raw-array orders/products responses, `total_amount` field, POST accept/reject, query-param stock updates
+- PWA: manifest via vite-plugin-pwa, icons (icon-192/512.png), theme color #002FA7
+- Env: `/app/vendor-pwa/.env` → VITE_BACKEND_URL
+- Testing: iteration_19.json — backend 10/10 pass, frontend 100% (all flows incl. mobile 390x844). Regression suite: `pytest /app/backend/tests/test_vendor_pwa.py -v`
+
+### Fixes during session
+- Desktop sidebar hidden bug (unlayered `transform` overrode Tailwind utility) — fixed with lg media query in index.css
+- Removed `* { margin:0; padding:0 }` reset that killed all Tailwind spacing utilities (Tailwind v4 layered CSS loses to unlayered rules)
+
+### Pending user verification
+- User to verify PWA functionality before deleting `/app/frontend` (Expo app)
+
+### Next (P1)
+- Web Push notifications in PWA
+- Camera (MediaDevices) + Geolocation in PWA (product images, shop location)
+- Auto rickshaw delivery fee pricing
+- Discounts feature UI in PWA (backend endpoints /vendor/discounts already exist)
+
+### Backlog (P2)
+- Pre-ordering from closed shops; chat migration; Twilio masked calls; payment gateway; split 16k-line server.py into route modules; delete /app/frontend after verification
