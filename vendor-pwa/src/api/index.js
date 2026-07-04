@@ -32,9 +32,26 @@ export default api;
 export const orderApi = {
   getOrders: (params) => api.get('/vendor/orders', { params }),
   getOrder: (orderId) => api.get(`/vendor/orders/${orderId}`),
+  getPendingOrders: () => api.get('/vendor/orders/pending'),
   acceptOrder: (orderId) => api.post(`/vendor/orders/${orderId}/accept`),
   rejectOrder: (orderId, reason) => api.post(`/vendor/orders/${orderId}/reject`, null, { params: { reason } }),
   updateOrderStatus: (orderId, status) => api.put(`/vendor/orders/${orderId}/status`, { status }),
+  assignDelivery: (orderId, deliveryType) => api.post(`/vendor/orders/${orderId}/assign-delivery`, { delivery_type: deliveryType }),
+};
+
+export const notificationApi = {
+  getNotifications: (params) => api.get('/vendor/notifications', { params }),
+  getUnreadCount: () => api.get('/vendor/notifications/unread-count'),
+  markRead: (notificationId) => api.patch(`/vendor/notifications/${notificationId}/read`),
+  markAllRead: () => api.patch('/vendor/notifications/read-all'),
+};
+
+export const discountApi = {
+  getDiscounts: () => api.get('/vendor/discounts'),
+  createDiscount: (data) => api.post('/vendor/discounts', data),
+  updateDiscount: (discountId, data) => api.put(`/vendor/discounts/${discountId}`, data),
+  deleteDiscount: (discountId) => api.delete(`/vendor/discounts/${discountId}`),
+  toggleDiscount: (discountId) => api.put(`/vendor/discounts/${discountId}/toggle`),
 };
 
 export const productApi = {

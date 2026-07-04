@@ -1,0 +1,107 @@
+{
+  "summary": "P1 iteration testing (Notifications, Discounts CRUD, Product Photo, Shop Geolocation, Carpet Genie assignment). Backend: 15/15 pytest tests PASS (test_vendor_pwa_p1.py) — notifications list/unread/mark-all-read, discounts full CRUD + toggle (uses status='disabled'), profile shop_location persistence via /auth/me, product creation with base64 image, pending orders endpoint, carpet-genie assignment on seeded ready order (verified status→awaiting_pickup, delivery_method=carpet_genie, delivery_type=agent_delivery, delivery_status=finding_agent), and vendor_shop_location fallback (line ~2701 fix confirmed working). Frontend Playwright E2E: login OK, notification bell renders and panel opens (flaky on 1 of 2 attempts), Discounts create/list/toggle/delete work, Profile geolocation button updates coords (verified 8.52410, 76.93660 shown), Carpet Genie assignment button appears on ready order and after click order shows 'Finding Carpet Genie…' GenieInfo card correctly, Products modal renders with add-photo-button + hidden file input and product can be created. Regression: nav-discounts in sidebar, logout redirect to /login all OK.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "PUT /api/vendor/discounts/{id}/toggle",
+        "issue": "Backend sets status='disabled' but frontend DiscountsPage STATUS_BADGES map only knows 'active/scheduled/paused/expired' and toggle button is only rendered for status in ['active','paused']. Result: after pause, badge falls back to badge-pending, and toggle button DISAPPEARS so vendor cannot re-activate from UI. Fix either backend (change 'disabled'→'paused') or frontend (accept 'disabled' as paused synonym)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "DiscountsPage",
+        "issue": "After pausing a discount, the 'Pause/Activate' toggle button disappears because status becomes 'disabled' (backend) while frontend only shows toggle for status in ['active','paused']. Status badge also renders with wrong color (badge-pending fallback) and shows raw text 'DISABLED'. Vendor cannot re-activate a paused discount without deleting and recreating.",
+        "selector": "[data-testid=\"toggle-discount-button-{id}\"]",
+        "priority": "HIGH"
+      },
+      {
+        "component": "NotificationBell",
+        "issue": "Bell click occasionally does not open the panel (1 of 2 attempts in this run). data-testid 'notifications-panel' timeout after 5s, but on retry it works. May be a React state race or the fixed-positioned bell being covered by another element momentarily. Manual reproduction: click bell right after page load.",
+        "selector": "[data-testid=\"notification-bell-button\"] -> [data-testid=\"notifications-panel\"]",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "backend": {
+      "passed": 15,
+      "failed": 0,
+      "file": "/app/backend/tests/test_vendor_pwa_p1.py",
+      "junit_xml": "/app/test_reports/pytest/vendor_pwa_p1.xml",
+      "tests": [
+        "TestNotifications::test_get_notifications_list PASSED",
+        "TestNotifications::test_unread_count PASSED",
+        "TestNotifications::test_seed_notification_and_mark_all_read PASSED",
+        "TestDiscounts::test_create_percentage_discount PASSED",
+        "TestDiscounts::test_create_flat_discount PASSED",
+        "TestDiscounts::test_create_date_range_discount PASSED",
+        "TestDiscounts::test_list_discounts_contains_created PASSED",
+        "TestDiscounts::test_toggle_discount PASSED (status becomes 'disabled')",
+        "TestDiscounts::test_delete_all_created_discounts PASSED",
+        "TestProfileLocation::test_update_shop_location_persists PASSED (vendor_shop_location.lat/lng saved)",
+        "TestProductImage::test_create_product_with_base64_image PASSED (image stored in DB)",
+        "TestPendingOrders::test_pending_orders_endpoint PASSED",
+        "TestCarpetGenieAssignment::test_ensure_shop_location PASSED",
+        "TestCarpetGenieAssignment::test_seed_ready_order_and_assign_carpet_genie PASSED (status→awaiting_pickup, delivery_method=carpet_genie, agent_delivery type; finding_agent status since no genies)",
+        "TestCarpetGenieAssignment::test_vendor_location_fallback PASSED (server.py:2701 vendor_shop_location fallback works)"
+      ]
+    },
+    "frontend": {
+      "flows_verified": [
+        "Login 9999999999/123456 -> dashboard",
+        "notification-bell-button visible top-right on dashboard",
+        "notifications-panel opens on bell click (flaky - see UI bug)",
+        "mark-all-read-button clears unread badge when clicked",
+        "Discounts nav (nav-discounts) navigates to /discounts",
+        "add-discount-button opens discount-modal",
+        "Create % discount: name/value/coupon/min_order fields, save-discount-button creates card showing '15% OFF' + coupon 'UITEST15B'",
+        "toggle-discount-button-{id} click sets status to 'disabled' (BUG: badge falls back + toggle disappears)",
+        "delete-discount-button-{id} + window.confirm removes card from grid",
+        "Profile: shop-location-coords shows initial coords; use-current-location-button + granted permission (lat 8.5241, lng 76.9366) updates displayed coords",
+        "Orders /ready filter shows seeded UITEST order; assign-genie-button-{id} visible",
+        "After click, order becomes awaiting_pickup and genie-assigned-info-{id} shows 'Finding Carpet Genie…' (no available genies)",
+        "Products: add-product-button -> product-modal with add-photo-button + product-image-input rendered; product can be created + deleted",
+        "Regression: nav-discounts present in sidebar; logout-button -> /login"
+      ],
+      "not_fully_verified": [
+        "product-image-preview via Playwright: set_input_files with a minimal PNG did not trigger canvas.drawImage success (likely because 1x1 PNG hex bytes were malformed). The photo capture UI (button + input + preview element + resizeImageToBase64) is all correctly wired — backend test confirms base64 image persists via API. Recommend real-image manual/e2e test.",
+        "New order alert polling toast: not directly asserted (would need insert-and-wait 25s during dashboard); GET /vendor/orders/pending endpoint verified working."
+      ]
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_vendor_pwa_p1.py",
+    "/app/test_reports/pytest/vendor_pwa_p1.xml"
+  ],
+  "action_items": [
+    "FIX (HIGH): Reconcile discount status vocabulary. Either backend server.py:7616 change 'disabled' to 'paused' OR frontend DiscountsPage.jsx add 'disabled' to STATUS_BADGES map ({disabled:'badge-cancelled'}) AND to the toggle-button condition ['active','paused','disabled']. Otherwise vendors cannot re-activate a paused discount from the UI.",
+    "MEDIUM: Investigate NotificationBell click race — panel didn't open on first attempt in one run. Consider explicitly setting open state synchronously and adding a small e2e-visible transition class instead of relying on immediate conditional render.",
+    "LOW: Consider making product photo capture unit-test friendly by exposing setImage via a debug hook, since Playwright file-input with programmatic PNG bytes is tricky (image.onload path).",
+    "LOW: Backend DeliveryAssignment endpoint returns HTTP 400 'Vendor or customer location is missing' if either is absent — main agent may want to add a specific FE UX message when this occurs."
+  ],
+  "critical_code_review_comments": [
+    "server.py:7616 uses hardcoded status='disabled' while server.py:7482-7495 (status auto-updates for scheduled/expired) use 'active/paused/expired/scheduled'. Vocabulary inconsistency — pick one.",
+    "vendor_shop_location fallback at server.py:2701 (shop_location OR vendor_shop_location) is fine but the ambiguity indicates two different code paths write different keys. Standardize on vendor_shop_location.",
+    "Notifications.jsx useNewOrderAlert polls /vendor/orders/pending every 20s and orderApi.getOrders every 30s — that's 5 pending polls + 2 order polls per minute. Consider WebSocket/SSE for scale.",
+    "DiscountsPage.jsx handleDelete uses window.confirm() — matches pattern from ProductsPage but not accessible.",
+    "ProductsPage.jsx resizeImageToBase64 does not catch canvas.toDataURL() errors (tainted canvas). Not a blocker for base64 photo capture."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_vendor_pwa_p1.py - NEW pytest suite covering notifications, discounts, profile location, product image, pending orders, carpet genie assignment + fallback (15 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15)",
+    "frontend": "~88% - discount toggle status vocabulary bug + notification bell open flakiness"
+  },
+  "test_credentials": "vendor phone 9999999999 / OTP 123456 (mocked)",
+  "seed_data_creation": "Created transient shop_orders (UITEST/TEST prefix), discounts (TEST_ prefix), and vendor_notifications (notif_TEST_ prefix) during testing — all cleaned up. Confirmed no residual TEST data in DB.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend: pytest /app/backend/tests/test_vendor_pwa_p1.py -v (session-scoped vendor token from 9999999999). Shop location is persisted to key vendor_shop_location in users doc (not top-level shop_location). Order seeding pattern: db.shop_orders.insert_one({order_id, vendor_id=vendor.user_id, user_id, status:'ready', delivery_type:'delivery', delivery_address:{lat,lng,address}, items, total_amount, created_at, status_history:[]}). Assign-delivery endpoint returns 200 with delivery_type='carpet_genie' regardless of whether a genie was matched; check DB for delivery_status='finding_agent' vs assigned_agent_id. Frontend Discounts page has vocabulary bug: backend status 'disabled' vs frontend expected 'paused' — after main-agent fix, retest DISC2 toggle button re-appearance.",
+  "rca_of_the_issue": "Discount toggle bug RCA: backend server.py toggle_discount() at line 7616 sets new_status = 'disabled' if current is 'active'. However, DiscountsPage.jsx defines STATUS_BADGES with {active, scheduled, paused, expired} and renders toggle button only when discount.status in ['active','paused']. Reproduction: (1) create any percentage discount, (2) click toggle-discount-button-{id}, (3) card badge now shows 'DISABLED' (fallback badge-pending yellow) and the Pause/Activate button is gone — only Delete remains. Mitigation options: (a) backend line 7616 change 'disabled' → 'paused' and line 7623 accordingly, OR (b) frontend: add 'disabled': 'badge-cancelled' in STATUS_BADGES and change condition to ['active','paused','disabled'].includes(discount.status)."
+}

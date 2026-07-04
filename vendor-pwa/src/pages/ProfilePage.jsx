@@ -6,6 +6,7 @@ import {
   SealCheck,
   Warning,
   Power,
+  Crosshair,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../store/authStore';
@@ -16,6 +17,34 @@ export default function ProfilePage() {
   const [form, setForm] = useState({ name: '', shop_name: '', shop_address: '', description: '' });
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [locating, setLocating] = useState(false);
+
+  const handleUseCurrentLocation = () => {
+    if (!('geolocation' in navigator)) {
+      toast.error('Geolocation is not supported by this browser');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        try {
+          const res = await profileApi.updateProfile({ shop_location: location });
+          if (res.data?.user) setUser(res.data.user);
+          toast.success(`Shop location saved (${location.lat.toFixed(5)}, ${location.lng.toFixed(5)})`);
+        } catch (error) {
+          toast.error(error.response?.data?.detail || 'Failed to save location');
+        } finally {
+          setLocating(false);
+        }
+      },
+      (err) => {
+        setLocating(false);
+        toast.error(err.code === 1 ? 'Location permission denied' : 'Could not get your location');
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  };
 
   useEffect(() => {
     if (user) {
@@ -136,6 +165,24 @@ export default function ProfilePage() {
               <span>Zone: {user.assigned_zone_name}</span>
             </div>
           )}
+        </div>
+        <div className="mt-4 pt-4 border-t border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="text-sm">
+            <p className="font-medium mb-0.5">Shop Location (used for Carpet Genie pickup)</p>
+            <p className="text-[#52525B]" data-testid="shop-location-coords">
+              {user.vendor_shop_location?.lat
+                ? `${Number(user.vendor_shop_location.lat).toFixed(5)}, ${Number(user.vendor_shop_location.lng).toFixed(5)}`
+                : 'Not set — Carpet Genie assignment needs this'}
+            </p>
+          </div>
+          <button
+            onClick={handleUseCurrentLocation}
+            disabled={locating}
+            className="btn btn-outline h-10 disabled:opacity-50"
+            data-testid="use-current-location-button"
+          >
+            {locating ? <span className="spinner" /> : (<><Crosshair size={16} weight="bold" /> Use Current Location</>)}
+          </button>
         </div>
       </div>
 

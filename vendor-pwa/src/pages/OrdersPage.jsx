@@ -9,15 +9,34 @@ import {
   Phone,
   User,
   ArrowsClockwise,
+  Bicycle,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { orderApi } from '../api';
-import { getStatusBadge, formatStatus } from '../utils/orders';
+import { useAuthStore } from '../store/authStore';
+import { getStatusBadge, formatStatus, isCarpetGenieOrder, isSelfPickupOrder, isSelfDeliveryOrder } from '../utils/orders';
 import { format } from 'date-fns';
 
 const NEW_STATUSES = ['pending', 'placed'];
 
+function GenieInfo({ order }) {
+  const finding = order.delivery_status === 'finding_agent' && !order.assigned_agent_id;
+  return (
+    <div className="p-3 bg-green-50 border border-green-200 rounded text-sm" data-testid={`genie-assigned-info-${order.order_id}`}>
+      <p className="font-medium text-green-800 flex items-center gap-2">
+        <Bicycle size={16} weight="bold" />
+        {finding ? 'Finding Carpet Genie…' : `Carpet Genie${order.agent_name ? ` — ${order.agent_name}` : ' assigned'}`}
+      </p>
+      {order.agent_phone && <p className="text-green-700 text-xs mt-0.5">{order.agent_phone}</p>}
+      <p className="text-green-700 text-xs mt-0.5">
+        {finding ? 'Looking for a nearby delivery partner' : 'Genie will handle pickup & delivery updates'}
+      </p>
+    </div>
+  );
+}
+
 export default function OrdersPage() {
+  const { user } = useAuthStore();
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -61,6 +80,12 @@ export default function OrdersPage() {
     runAction(orderId, () => orderApi.rejectOrder(orderId, 'Vendor rejected'), 'Order rejected');
   const handleUpdateStatus = (orderId, status) =>
     runAction(orderId, () => orderApi.updateOrderStatus(orderId, status), `Order marked as ${formatStatus(status)}`);
+  const handleAssignDelivery = (orderId, deliveryType) =>
+    runAction(
+      orderId,
+      () => orderApi.assignDelivery(orderId, deliveryType),
+      deliveryType === 'carpet_genie' ? 'Carpet Genie assignment started' : 'Assigned to your own delivery'
+    );
 
   const filteredOrders = orders.filter((order) => {
     if (filter === 'all') return true;
@@ -218,34 +243,77 @@ export default function OrdersPage() {
                     </button>
                   )}
                   {order.status === 'ready' && (
-                    <div className="flex gap-2">
+                    isSelfPickupOrder(order) ? (
+                      <button
+                        onClick={() => handleUpdateStatus(order.order_id, 'delivered')}
+                        disabled={busy}
+                        className="btn btn-success w-full disabled:opacity-50"
+                        data-testid={`customer-picked-up-button-${order.order_id}`}
+                      >
+                        Customer Picked Up
+                      </button>
+                    ) : isCarpetGenieOrder(order) ? (
+                      <GenieInfo order={order} />
+                    ) : isSelfDeliveryOrder(order) ? (
                       <button
                         onClick={() => handleUpdateStatus(order.order_id, 'out_for_delivery')}
                         disabled={busy}
-                        className="btn btn-primary flex-1 disabled:opacity-50"
+                        className="btn btn-primary w-full disabled:opacity-50"
                         data-testid={`out-for-delivery-button-${order.order_id}`}
                       >
                         Out for Delivery
                       </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => handleAssignDelivery(order.order_id, 'carpet_genie')}
+                          disabled={busy}
+                          className="btn btn-primary w-full disabled:opacity-50"
+                          data-testid={`assign-genie-button-${order.order_id}`}
+                        >
+                          <Bicycle size={18} weight="bold" />
+                          Assign Carpet Genie
+                        </button>
+                        {user?.vendor_can_deliver && (
+                          <button
+                            onClick={() => handleAssignDelivery(order.order_id, 'self_delivery')}
+                            disabled={busy}
+                            className="btn btn-outline w-full disabled:opacity-50"
+                            data-testid={`self-delivery-button-${order.order_id}`}
+                          >
+                            Use Own Delivery
+                          </button>
+                        )}
+                      </div>
+                    )
+                  )}
+                  {order.status === 'awaiting_pickup' && (
+                    isCarpetGenieOrder(order) ? (
+                      <GenieInfo order={order} />
+                    ) : (
+                      <button
+                        onClick={() => handleUpdateStatus(order.order_id, 'out_for_delivery')}
+                        disabled={busy}
+                        className="btn btn-primary w-full disabled:opacity-50"
+                        data-testid={`out-for-delivery-button-${order.order_id}`}
+                      >
+                        Out for Delivery
+                      </button>
+                    )
+                  )}
+                  {['picked_up', 'out_for_delivery'].includes(order.status) && (
+                    isCarpetGenieOrder(order) ? (
+                      <GenieInfo order={order} />
+                    ) : (
                       <button
                         onClick={() => handleUpdateStatus(order.order_id, 'delivered')}
                         disabled={busy}
-                        className="btn btn-success flex-1 disabled:opacity-50"
+                        className="btn btn-success w-full disabled:opacity-50"
                         data-testid={`mark-delivered-button-${order.order_id}`}
                       >
-                        Delivered
+                        Mark as Delivered
                       </button>
-                    </div>
-                  )}
-                  {order.status === 'out_for_delivery' && (
-                    <button
-                      onClick={() => handleUpdateStatus(order.order_id, 'delivered')}
-                      disabled={busy}
-                      className="btn btn-success w-full disabled:opacity-50"
-                      data-testid={`mark-delivered-button-${order.order_id}`}
-                    >
-                      Mark as Delivered
-                    </button>
+                    )
                   )}
                   {['delivered', 'rejected', 'cancelled'].includes(order.status) && (
                     <button

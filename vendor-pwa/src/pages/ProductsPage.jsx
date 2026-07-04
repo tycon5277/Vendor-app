@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Package,
   Plus,
@@ -6,9 +6,31 @@ import {
   PencilSimple,
   Trash,
   X,
+  Camera,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { productApi } from '../api';
+
+function resizeImageToBase64(file, maxSize = 800) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Invalid image'));
+    };
+    img.src = url;
+  });
+}
 
 const emptyForm = {
   name: '',
@@ -38,6 +60,20 @@ function ProductModal({ product, onClose, onSaved }) {
       : emptyForm
   );
   const [saving, setSaving] = useState(false);
+  const [image, setImage] = useState(product?.image || null);
+  const fileInputRef = useRef(null);
+
+  const handleImageSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await resizeImageToBase64(file);
+      setImage(base64);
+    } catch {
+      toast.error('Could not read image');
+    }
+    e.target.value = '';
+  };
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
@@ -56,6 +92,7 @@ function ProductModal({ product, onClose, onSaved }) {
       discounted_price: form.discounted_price !== '' ? parseFloat(form.discounted_price) : null,
       stock_quantity: form.stock_quantity !== '' ? parseInt(form.stock_quantity, 10) : 100,
       unit: form.unit,
+      image,
     };
     try {
       if (isEdit) {
@@ -86,6 +123,38 @@ function ProductModal({ product, onClose, onSaved }) {
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          <div>
+            <label className="label">Product Photo</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleImageSelect}
+              className="hidden"
+              data-testid="product-image-input"
+            />
+            <div className="flex items-center gap-3">
+              <div className="w-20 h-20 bg-[#F4F4F5] border border-[#E4E4E7] rounded flex items-center justify-center overflow-hidden flex-shrink-0">
+                {image ? (
+                  <img src={image} alt="Product" className="w-full h-full object-cover" data-testid="product-image-preview" />
+                ) : (
+                  <Package size={28} className="text-[#E4E4E7]" />
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="btn btn-outline text-xs" data-testid="add-photo-button">
+                  <Camera size={16} weight="bold" />
+                  {image ? 'Change Photo' : 'Take / Upload Photo'}
+                </button>
+                {image && (
+                  <button type="button" onClick={() => setImage(null)} className="text-xs text-[#DC2626] text-left hover:underline" data-testid="remove-photo-button">
+                    Remove photo
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
           <div>
             <label className="label">Product Name *</label>
             <input className="input" value={form.name} onChange={set('name')} placeholder="e.g., Fresh Apples" data-testid="product-name-input" />

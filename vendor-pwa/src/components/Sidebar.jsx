@@ -9,8 +9,7 @@ import {
   List,
   X,
   Storefront,
-  ChartBar,
-  Bell
+  Tag
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/authStore';
 
@@ -18,6 +17,7 @@ const navItems = [
   { path: '/', icon: House, label: 'Dashboard' },
   { path: '/orders', icon: ShoppingCart, label: 'Orders' },
   { path: '/products', icon: Package, label: 'Products' },
+  { path: '/discounts', icon: Tag, label: 'Discounts' },
   { path: '/profile', icon: User, label: 'Profile' },
 ];
 
@@ -139,10 +139,7 @@ export function MobileHeader({ onMenuClick, title }) {
       <h1 className="font-bold text-lg" style={{ fontFamily: 'Cabinet Grotesk, system-ui' }}>
         {title}
       </h1>
-      <button className="p-2 -mr-2 hover:bg-[#F4F4F5] rounded relative">
-        <Bell size={24} />
-        <span className="absolute top-1 right-1 w-2 h-2 bg-[#DC2626] rounded-full" />
-      </button>
+      <div className="w-10" />
     </header>
   );
 }

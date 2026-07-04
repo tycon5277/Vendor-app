@@ -4,6 +4,8 @@ export const ORDER_STATUS_BADGES = {
   confirmed: 'badge-accepted',
   preparing: 'badge-preparing',
   ready: 'badge-ready',
+  awaiting_pickup: 'badge-preparing',
+  picked_up: 'badge-accepted',
   out_for_delivery: 'badge-accepted',
   delivered: 'badge-delivered',
   rejected: 'badge-cancelled',
@@ -20,3 +22,12 @@ export const isToday = (dateStr) => {
   const now = new Date();
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 };
+
+export const isCarpetGenieOrder = (order) =>
+  order.delivery_method === 'carpet_genie' ||
+  (order.delivery_type === 'agent_delivery' && !!order.assigned_agent_id) ||
+  order.delivery_type === 'agent_delivery';
+
+export const isSelfPickupOrder = (order) => order.delivery_type === 'self_pickup';
+export const isSelfDeliveryOrder = (order) =>
+  order.delivery_method === 'self' || order.delivery_type === 'vendor_delivery';

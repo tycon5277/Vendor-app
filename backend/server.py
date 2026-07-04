@@ -2698,7 +2698,7 @@ async def assign_delivery_partner(
     
     # Get vendor and customer locations for distance calculations
     vendor = await db.users.find_one({"user_id": current_user.user_id})
-    vendor_location = vendor.get("shop_location", {}) if vendor else {}
+    vendor_location = (vendor.get("shop_location") or vendor.get("vendor_shop_location") or {}) if vendor else {}
     customer_location = order.get("delivery_address", {})
     
     if data.delivery_type == "self_delivery":
