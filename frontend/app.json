@@ -8,13 +8,15 @@
     "scheme": "quickwish-vendor",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.emergent.smartfeecalculator.jmft35"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#6366F1"
-      }
+      },
+      "package": "com.emergent.smartfeecalculator.jmft35"
     },
     "web": {
       "bundler": "metro",
