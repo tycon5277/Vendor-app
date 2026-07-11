@@ -9,7 +9,7 @@ import {
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { productApi } from '../api';
-import { findCategory, findSubcategoryLabel, PRODUCT_CATEGORIES } from '../constants/productCategories';
+import { findCategory, findSubcategoryLabel, PRODUCT_CATEGORIES, resolveCategoryId } from '../constants/productCategories';
 
 export default function ProductsPage() {
   const navigate = useNavigate();
@@ -55,10 +55,11 @@ export default function ProductsPage() {
   };
 
   const filtered = products.filter((p) => {
+    const catId = resolveCategoryId(p.category);
     const matchesSearch =
       p.name?.toLowerCase().includes(search.toLowerCase()) ||
       (findCategory(p.category)?.label || p.category || '').toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
+    const matchesCategory = categoryFilter === 'all' || catId === categoryFilter;
     return matchesSearch && matchesCategory;
   });
 
@@ -115,7 +116,7 @@ export default function ProductsPage() {
           All ({products.length})
         </button>
         {PRODUCT_CATEGORIES.map((cat) => {
-          const count = products.filter((p) => p.category === cat.id).length;
+          const count = products.filter((p) => resolveCategoryId(p.category) === cat.id).length;
           if (count === 0) return null;
           return (
             <button

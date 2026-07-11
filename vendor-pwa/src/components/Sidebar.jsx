@@ -96,7 +96,7 @@ export function Sidebar({ isOpen, onClose }) {
                 key={item.path}
                 to={item.path}
                 onClick={onClose}
-                data-testid={`nav-${item.label.toLowerCase()}`}
+                data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${
                     isActive

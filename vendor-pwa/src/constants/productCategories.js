@@ -208,6 +208,17 @@ export const PRODUCT_CATEGORIES = [
     ],
   },
   {
+    id: 'pharma_health',
+    icon: 'FirstAid',
+    label: 'Pharma & Health',
+    subcategories: [
+      { id: 'otc_medicines', label: 'OTC Medicines' },
+      { id: 'supplements', label: 'Supplements & Vitamins' },
+      { id: 'first_aid', label: 'First Aid' },
+      { id: 'health_devices', label: 'Health Devices' },
+    ],
+  },
+  {
     id: 'other',
     icon: 'GridFour',
     label: 'Other',
@@ -222,8 +233,70 @@ export const VARIATION_TYPES = [
   { id: 'pack', label: 'Pack/Quantity', units: ['pieces', 'pack'] },
 ];
 
+// Aliases so legacy products (stored with older category strings) still map to
+// the new category ids. Add more entries here as the seed data is discovered.
+const CATEGORY_ALIASES = {
+  grocery: 'groceries',
+  groceries: 'groceries',
+  'fresh produce': 'vegetables',
+  produce: 'vegetables',
+  farm_produce: 'vegetables',
+  'farm produce': 'vegetables',
+  vegetable: 'vegetables',
+  vegetables: 'vegetables',
+  fruit: 'fruits',
+  fruits: 'fruits',
+  fresh_fruits: 'fruits',
+  meat: 'meat',
+  'meat shop': 'meat',
+  meat_shop: 'meat',
+  meat_poultry: 'meat',
+  poultry: 'meat',
+  chicken: 'meat',
+  fish: 'seafood',
+  seafood: 'seafood',
+  bakery: 'bakery',
+  bread: 'bakery',
+  dairy: 'dairy',
+  'dairy & eggs': 'dairy',
+  eggs: 'dairy',
+  beverage: 'beverages',
+  beverages: 'beverages',
+  snacks: 'snacks',
+  snack: 'snacks',
+  sweets: 'sweets',
+  chocolate: 'sweets',
+  frozen: 'frozen',
+  bakery_breads: 'bakery',
+  baby: 'baby_care',
+  baby_care: 'baby_care',
+  household: 'household',
+  cleaning: 'household',
+  personal_care: 'personal_care',
+  pet: 'pet_supplies',
+  pet_supplies: 'pet_supplies',
+  pharma: 'pharma_health',
+  health: 'pharma_health',
+};
+
+/**
+ * Normalises any legacy category string to a canonical PRODUCT_CATEGORIES id.
+ * Falls back to `other` for unknown strings so nothing drops off the UI.
+ */
+export function resolveCategoryId(raw) {
+  if (!raw) return 'other';
+  const key = String(raw).trim().toLowerCase();
+  if (CATEGORY_ALIASES[key]) return CATEGORY_ALIASES[key];
+  // Try to match against known ids and labels directly.
+  const direct = PRODUCT_CATEGORIES.find(
+    (c) => c.id === key || c.label.toLowerCase() === key
+  );
+  if (direct) return direct.id;
+  return 'other';
+}
+
 export function findCategory(id) {
-  return PRODUCT_CATEGORIES.find((c) => c.id === id);
+  return PRODUCT_CATEGORIES.find((c) => c.id === resolveCategoryId(id));
 }
 
 export function findSubcategoryLabel(categoryId, subcategoryId) {

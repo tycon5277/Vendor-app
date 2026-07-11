@@ -6,6 +6,18 @@ Build a delivery ecosystem (Vendor App, Wisher App, Genie App) mimicking Zomato/
 ## Scale Target
 - 25,000 vendors, 100,000 Carpet Genies, 1,500,000 Wishers
 
+## Latest Updates (February 2026)
+- **[Feb 11] Vendor PWA Feature Parity Restored** — Brought the previous React-Native Vendor app's rich UX into the Vite+React PWA (`/app/vendor-pwa`). All P0 + P1 items delivered, tested end-to-end by testing agent (iteration_22.json: 100% pass).
+  - `Product Add/Edit` dedicated routes (`/products/new`, `/products/:id/edit`) with progress bar, multi-image upload (up to 5) + client-side compression (~100KB target) + "Main" image tagging + "Set main" swap
+  - 17-category catalog (Groceries, Beverages, Dairy & Eggs, Fruits, Vegetables, Meat & Poultry, Seafood, Frozen Foods, Bakery & Breads, Snacks & Chips, Sweets & Chocolates, Baby Food & Care, Household & Cleaning, Personal Care, Pet Supplies, Pharma & Health, Other) with 105 subcategories in `productCategories.js`
+  - `Simple` vs `Variable` product toggle with variation builder (weight / volume / size / pack, per-variation price/discount/stock/in-stock, optional shared_stock)
+  - Legacy-category alias mapper (`resolveCategoryId`) so previously created products still surface under new category-filter chips
+  - `Warehouse` page (`/warehouse`) with 4 stat cards + 5-filter chips + per-row Update Stock / Mark Out / Edit
+  - `Stock Verification` page (`/stock-verification`) morning verify + per-item verified stock + Quick Mark Out
+  - `Timings` page (`/timings`) weekly schedule + per-day breaks + Apply-to-weekdays + Holidays CRUD + Close-early-today modal + delivery cutoff
+  - Dedicated `Notifications` page (`/notifications`) with mark-all-read
+  - Sidebar reorganised: Dashboard, Orders, Products, Warehouse, Stock Verify, Timings, Discounts, Notifications, Profile
+
 ## Latest Updates (April 2026)
 - **[April 9] Zone Sync from Admin Panel** — Vendor App no longer creates zones. Zones are synced from Admin Panel:
   - Removed `POST /api/admin/zones` (create)
