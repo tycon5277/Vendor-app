@@ -17,7 +17,7 @@ logger = logging.getLogger("zone_service")
 db = None
 
 # Admin Panel URL - Source of truth for zones, fees, and weather
-ADMIN_PANEL_URL = os.environ.get("ADMIN_PANEL_URL", "https://vendor-dashboard-app-2.preview.emergentagent.com")
+ADMIN_PANEL_URL = os.environ.get("ADMIN_PANEL_URL")
 
 def set_db(database):
     global db

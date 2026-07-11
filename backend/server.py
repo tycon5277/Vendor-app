@@ -3746,7 +3746,7 @@ class DeliveryFeeRequest(BaseModel):
 
 
 # Admin Panel Weather API URL
-ADMIN_PANEL_URL = os.environ.get("ADMIN_PANEL_URL", "https://vendor-dashboard-app-2.preview.emergentagent.com")
+ADMIN_PANEL_URL = os.environ.get("ADMIN_PANEL_URL")
 
 
 async def fetch_weather_from_admin_panel(zone_id: str) -> dict:
@@ -3760,7 +3760,7 @@ async def fetch_weather_from_admin_panel(zone_id: str) -> dict:
             # Use the PUBLIC endpoint (no auth required)
             response = await client.get(
                 f"{ADMIN_PANEL_URL}/api/weather/zone/{zone_id}/public",
-                timeout=5.0
+                timeout=10.0
             )
             if response.status_code == 200:
                 data = response.json()
@@ -3872,13 +3872,13 @@ async def fetch_fee_config_from_admin(zone_id: str = None) -> dict:
                 # Try zone-specific config first
                 response = await client.get(
                     f"{ADMIN_PANEL_URL}/api/fees/public/zone/{zone_id}",
-                    timeout=5.0
+                    timeout=10.0
                 )
             else:
                 # Get global config
                 response = await client.get(
                     f"{ADMIN_PANEL_URL}/api/fees/public/global",
-                    timeout=5.0
+                    timeout=10.0
                 )
             
             if response.status_code == 200:
@@ -3907,12 +3907,12 @@ async def fetch_revenue_split_from_admin(zone_id: str = None) -> dict:
             if zone_id:
                 response = await client.get(
                     f"{ADMIN_PANEL_URL}/api/revenue-split/public/zone/{zone_id}",
-                    timeout=5.0
+                    timeout=10.0
                 )
             else:
                 response = await client.get(
                     f"{ADMIN_PANEL_URL}/api/revenue-split/public/global",
-                    timeout=5.0
+                    timeout=10.0
                 )
             
             if response.status_code == 200:
@@ -3939,7 +3939,7 @@ async def find_zone_for_point_from_admin(lat: float, lng: float) -> dict:
             response = await client.post(
                 f"{ADMIN_PANEL_URL}/api/zones/public/find-for-point",
                 json={"lat": lat, "lng": lng},
-                timeout=5.0
+                timeout=10.0
             )
             
             if response.status_code == 200:
