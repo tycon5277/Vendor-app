@@ -75,3 +75,20 @@ export const earningsApi = {
   getEarnings: (period) => api.get('/vendor/earnings', { params: period ? { period } : {} }),
   getWallet: () => api.get('/vendor/wallet'),
 };
+
+export const stockApi = {
+  getHealth: () => api.get('/vendor/stock-health'),
+  getVerificationStatus: () => api.get('/vendor/stock-verification/status'),
+  submitVerification: (data) => api.post('/vendor/stock-verification/submit', data),
+  quickUpdate: (data) => api.post('/vendor/stock-verification/quick-update', data),
+  dismissAlert: (productId) => api.post('/vendor/stock-verification/dismiss-alert', null, { params: { product_id: productId } }),
+};
+
+export const timingsApi = {
+  get: () => api.get('/vendor/timings'),
+  update: (data) => api.put('/vendor/timings', data),
+  updateDay: (data) => api.put('/vendor/timings/day', data),
+  addHoliday: (data) => api.post('/vendor/timings/holidays', data),
+  deleteHoliday: (id) => api.delete(`/vendor/timings/holidays/${id}`),
+  closeEarly: (data) => api.post('/vendor/timings/close-early', data),
+};

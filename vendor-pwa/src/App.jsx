@@ -8,16 +8,32 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import OrdersPage from './pages/OrdersPage';
 import ProductsPage from './pages/ProductsPage';
+import ProductAddPage from './pages/ProductAddPage';
+import ProductEditPage from './pages/ProductEditPage';
 import ProfilePage from './pages/ProfilePage';
 import DiscountsPage from './pages/DiscountsPage';
+import WarehousePage from './pages/WarehousePage';
+import StockVerificationPage from './pages/StockVerificationPage';
+import TimingsPage from './pages/TimingsPage';
+import NotificationsPage from './pages/NotificationsPage';
 
 const pageTitles = {
   '/': 'Dashboard',
   '/orders': 'Orders',
   '/products': 'Products',
+  '/products/new': 'Add Product',
+  '/warehouse': 'Warehouse',
+  '/stock-verification': 'Stock Verification',
+  '/timings': 'Shop Timings',
   '/discounts': 'Discounts',
+  '/notifications': 'Notifications',
   '/profile': 'Profile',
 };
+
+function pageTitleForPath(pathname) {
+  if (pathname.startsWith('/products/') && pathname.endsWith('/edit')) return 'Edit Product';
+  return pageTitles[pathname] || 'QuickWish';
+}
 
 function AuthedShell() {
   const { fetchUser } = useAuthStore();
@@ -34,7 +50,7 @@ function AuthedShell() {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <MobileHeader
         onMenuClick={() => setSidebarOpen(true)}
-        title={pageTitles[location.pathname] || 'QuickWish'}
+        title={pageTitleForPath(location.pathname)}
       />
       <NotificationBell />
       <main className="main-content pt-14 lg:pt-0">
@@ -62,7 +78,13 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/products" element={<ProductsPage />} />
+          <Route path="/products/new" element={<ProductAddPage />} />
+          <Route path="/products/:productId/edit" element={<ProductEditPage />} />
+          <Route path="/warehouse" element={<WarehousePage />} />
+          <Route path="/stock-verification" element={<StockVerificationPage />} />
+          <Route path="/timings" element={<TimingsPage />} />
           <Route path="/discounts" element={<DiscountsPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

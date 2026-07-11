@@ -9,7 +9,11 @@ import {
   List,
   X,
   Storefront,
-  Tag
+  Tag,
+  Warehouse,
+  ClipboardText,
+  Clock,
+  Bell,
 } from '@phosphor-icons/react';
 import { useAuthStore } from '../store/authStore';
 
@@ -17,7 +21,11 @@ const navItems = [
   { path: '/', icon: House, label: 'Dashboard' },
   { path: '/orders', icon: ShoppingCart, label: 'Orders' },
   { path: '/products', icon: Package, label: 'Products' },
+  { path: '/warehouse', icon: Warehouse, label: 'Warehouse' },
+  { path: '/stock-verification', icon: ClipboardText, label: 'Stock Verify' },
+  { path: '/timings', icon: Clock, label: 'Timings' },
   { path: '/discounts', icon: Tag, label: 'Discounts' },
+  { path: '/notifications', icon: Bell, label: 'Notifications' },
   { path: '/profile', icon: User, label: 'Profile' },
 ];
 
